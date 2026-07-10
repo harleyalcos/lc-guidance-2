@@ -317,7 +317,8 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
                 "middleInitial": mn_val,
                 "level": import_row.level,
                 "section": import_row.section,
-                "adviser": import_row.adviser
+                "adviser": import_row.adviser,
+                "role": "Respondent"
             }));
         }
         import_row.students = serde_json::to_string(&student_list).unwrap_or_else(|_| "[]".to_string());
@@ -564,7 +565,8 @@ pub fn validate_import_row(state: State<'_, DbState>, row: ImportRowInput) -> Re
             "middleInitial": mn_val,
             "level": import_row.level,
             "section": import_row.section,
-            "adviser": import_row.adviser
+            "adviser": import_row.adviser,
+            "role": "Respondent"
         }));
     }
     import_row.students = serde_json::to_string(&student_list).unwrap_or_else(|_| "[]".to_string());

@@ -33,9 +33,21 @@ interface StudentInfo {
   role?: string;
 }
 
+const normalizeRole = (value?: string) => {
+  const normalized = value?.trim() ?? "";
+  const lower = normalized.toLowerCase();
+  if (!normalized || lower === "reporter") return "Respondent";
+  if (lower === "accused" || lower === "respondent") return "Respondent";
+  if (lower === "complainant" || lower === "complainant / subject") return "Complainant / Subject";
+  return normalized;
+};
+
 const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
-    return JSON.parse(studentsStr) || [];
+    const parsed = JSON.parse(studentsStr) || [];
+    return Array.isArray(parsed)
+      ? parsed.map((student) => ({ ...student, role: normalizeRole(student.role) }))
+      : [];
   } catch (e) {
     return [];
   }
@@ -65,7 +77,7 @@ export default function SummaryReports() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [scope, setScope] = useState<"all" | "specific">("all");
   const [selectedGrade, setSelectedGrade] = useState("Grade 7");
-  const [selectedRole, setSelectedRole] = useState<"all" | "Accused" | "Complainant" | "Reporter">("all");
+  const [selectedRole, setSelectedRole] = useState<"all" | "Respondent" | "Complainant / Subject">("all");
   const [selectedStatus, setSelectedStatus] = useState<"all" | "Pending" | "Reprimand" | "Resolved" | "Closed">("all");
   const [periodType, setPeriodType] = useState<"monthly" | "yearly">("monthly");
   const [selectedMonth, setSelectedMonth] = useState("July 2025");
@@ -157,8 +169,8 @@ export default function SummaryReports() {
       if (selectedRole !== "all") {
         const students = parseStudents(c.students);
         const hasRole = students.length > 0
-          ? students.some(s => (s.role || "Accused").toLowerCase() === selectedRole.toLowerCase())
-          : (selectedRole.toLowerCase() === "accused");
+          ? students.some(s => normalizeRole(s.role).toLowerCase() === selectedRole.toLowerCase())
+          : (selectedRole.toLowerCase() === "respondent");
         if (!hasRole) return false;
       }
 
@@ -220,7 +232,7 @@ export default function SummaryReports() {
           clonedDocument.documentElement.classList.remove("dark");
         },
       },
-      jsPDF:        { unit: 'mm', format: [297, 210], orientation: 'landscape' as const }
+      jsPDF:        { unit: 'mm', format: [297, 210] as [number, number], orientation: 'landscape' as const }
     };
     
     try {
@@ -675,9 +687,8 @@ export default function SummaryReports() {
                   className="w-full appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                 >
                   <option value="all">All roles</option>
-                  <option value="Accused">Accused</option>
-                  <option value="Complainant">Complainant</option>
-                  <option value="Reporter">Reporter</option>
+                  <option value="Respondent">Respondent</option>
+                  <option value="Complainant / Subject">Complainant / Subject</option>
                 </select>
                 <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" style={{ fontSize: '18px' }}>expand_more</span>
               </div>

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS cases (
   progress   TEXT NOT NULL DEFAULT 'Pending',
   proofs     TEXT NOT NULL DEFAULT '[]',
   students   TEXT NOT NULL DEFAULT '[]',
+  student_roles TEXT NOT NULL DEFAULT '[]',
   title      TEXT NOT NULL DEFAULT '',
   reporting_student TEXT NOT NULL DEFAULT '',
   group_id   TEXT
@@ -48,6 +49,7 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
     let mut has_description = false;
     let mut has_proofs = false;
     let mut has_students = false;
+    let mut has_student_roles = false;
     let mut has_title = false;
     let mut has_reporting_student = false;
     let mut has_group_id = false;
@@ -67,6 +69,9 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
         }
         if name == "students" {
             has_students = true;
+        }
+        if name == "student_roles" {
+            has_student_roles = true;
         }
         if name == "title" {
             has_title = true;
@@ -98,11 +103,133 @@ UPDATE cases SET students = json_array(json_object(
   'middleInitial', middle_initial,
   'level', level,
   'section', section,
-  'adviser', adviser
+  'adviser', adviser,
+  'role', 'Respondent'
 )) WHERE students = '[]';
 "#,
         )?;
     }
+
+    connection.execute_batch(
+        r#"
+UPDATE cases
+SET students = COALESCE((
+  SELECT json_group_array(
+    CASE
+      WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('reporter', 'accused', 'respondent')
+        OR COALESCE(json_extract(value, '$.role'), '') = ''
+      THEN json_set(value, '$.role', 'Respondent')
+      WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('complainant', 'complainant / subject')
+      THEN json_set(value, '$.role', 'Complainant / Subject')
+      ELSE value
+    END
+  )
+  FROM json_each(cases.students)
+), students)
+WHERE json_valid(students)
+  AND json_array_length(students) > 0;
+"#,
+    )?;
+
+    if !has_student_roles {
+        connection.execute_batch(
+            r#"
+ALTER TABLE cases ADD COLUMN student_roles TEXT NOT NULL DEFAULT '[]';
+UPDATE cases
+SET student_roles = COALESCE((
+  SELECT json_group_array(
+    CASE
+      WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('reporter', 'accused', 'respondent')
+        OR COALESCE(json_extract(value, '$.role'), '') = ''
+      THEN 'Respondent'
+      WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('complainant', 'complainant / subject')
+      THEN 'Complainant / Subject'
+      ELSE json_extract(value, '$.role')
+    END
+  )
+  FROM json_each(cases.students)
+), '[]')
+WHERE json_valid(students)
+  AND json_array_length(students) > 0
+  AND student_roles = '[]';
+"#,
+        )?;
+    }
+
+    connection.execute_batch(
+        r#"
+DROP TRIGGER IF EXISTS sync_case_student_roles_after_insert;
+DROP TRIGGER IF EXISTS sync_case_student_roles_after_student_update;
+
+CREATE TRIGGER IF NOT EXISTS sync_case_student_roles_after_insert
+AFTER INSERT ON cases
+WHEN json_valid(NEW.students) AND json_array_length(NEW.students) > 0
+BEGIN
+  UPDATE cases
+  SET students = COALESCE((
+      SELECT json_group_array(
+        CASE
+          WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('reporter', 'accused', 'respondent')
+            OR COALESCE(json_extract(value, '$.role'), '') = ''
+          THEN json_set(value, '$.role', 'Respondent')
+          WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('complainant', 'complainant / subject')
+          THEN json_set(value, '$.role', 'Complainant / Subject')
+          ELSE value
+        END
+      )
+      FROM json_each(NEW.students)
+    ), NEW.students),
+    student_roles = COALESCE((
+      SELECT json_group_array(
+        CASE
+          WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('reporter', 'accused', 'respondent')
+            OR COALESCE(json_extract(value, '$.role'), '') = ''
+          THEN 'Respondent'
+          WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('complainant', 'complainant / subject')
+          THEN 'Complainant / Subject'
+          ELSE json_extract(value, '$.role')
+        END
+      )
+      FROM json_each(NEW.students)
+    ), '[]')
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS sync_case_student_roles_after_student_update
+AFTER UPDATE OF students ON cases
+WHEN json_valid(NEW.students) AND json_array_length(NEW.students) > 0
+BEGIN
+  UPDATE cases
+  SET students = COALESCE((
+      SELECT json_group_array(
+        CASE
+          WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('reporter', 'accused', 'respondent')
+            OR COALESCE(json_extract(value, '$.role'), '') = ''
+          THEN json_set(value, '$.role', 'Respondent')
+          WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('complainant', 'complainant / subject')
+          THEN json_set(value, '$.role', 'Complainant / Subject')
+          ELSE value
+        END
+      )
+      FROM json_each(NEW.students)
+    ), NEW.students),
+    student_roles = COALESCE((
+      SELECT json_group_array(
+        CASE
+          WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('reporter', 'accused', 'respondent')
+            OR COALESCE(json_extract(value, '$.role'), '') = ''
+          THEN 'Respondent'
+          WHEN LOWER(COALESCE(json_extract(value, '$.role'), '')) IN ('complainant', 'complainant / subject')
+          THEN 'Complainant / Subject'
+          ELSE json_extract(value, '$.role')
+        END
+      )
+      FROM json_each(NEW.students)
+    ), '[]')
+  WHERE id = NEW.id;
+END;
+"#,
+    )?;
 
     if !has_middle_initial {
         connection.execute_batch(

@@ -45,12 +45,29 @@ const ELLIPSIS = "...";
 const MODAL_EXIT_MS = 200;
 const STATUS_FILTER_OPTIONS = ["All Statuses", "Pending", "Resolved", "Closed", "Reprimand"];
 
+const normalizeRole = (value?: string) => {
+  const normalized = value?.trim() ?? "";
+  const lower = normalized.toLowerCase();
+  if (!normalized || lower === "reporter") return "Respondent";
+  if (lower === "accused" || lower === "respondent") return "Respondent";
+  if (lower === "complainant" || lower === "complainant / subject") return "Complainant / Subject";
+  return normalized;
+};
+
 const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
-    return JSON.parse(studentsStr) || [];
+    const parsed = JSON.parse(studentsStr) || [];
+    return Array.isArray(parsed)
+      ? parsed.map((student) => ({ ...student, role: normalizeRole(student.role) }))
+      : [];
   } catch (e) {
     return [];
   }
+};
+
+const isComplainantSubjectCaseRecord = (caseRecord: CaseRecord) => {
+  const firstStudent = parseStudents(caseRecord.students)[0];
+  return normalizeRole(firstStudent?.role) === "Complainant / Subject";
 };
 
 const getTodayDateString = () => {
@@ -220,27 +237,19 @@ const getBadgeClass = (progress: string) => {
 
 const getRoleBadgeStyles = (role: string) => {
   const normalized = role?.toLowerCase() || "";
-  if (normalized === "complainant") {
+  if (normalized === "complainant / subject") {
     return "text-green-600 dark:text-green-400";
   }
-  if (normalized === "reporter") {
-    return "text-blue-600 dark:text-blue-400";
-  }
-  if (normalized === "accused") {
-    return "text-red-600 dark:text-red-400";
-  }
   if (normalized === "respondent") {
-    return "text-purple-600 dark:text-purple-400";
+    return "text-red-600 dark:text-red-400";
   }
   return "text-gray-500 dark:text-gray-400";
 };
 
 const getRoleAvatarBgClass = (role?: string) => {
   const normalized = role?.toLowerCase() || "";
-  if (normalized === "complainant") return "bg-green-600 dark:bg-green-500";
-  if (normalized === "reporter") return "bg-blue-600 dark:bg-blue-500";
-  if (normalized === "accused") return "bg-red-600 dark:bg-red-500";
-  if (normalized === "respondent") return "bg-purple-600 dark:bg-purple-500";
+  if (normalized === "complainant / subject") return "bg-green-600 dark:bg-green-500";
+  if (normalized === "respondent") return "bg-red-600 dark:bg-red-500";
   return "bg-gray-500 dark:bg-gray-650"; // default gray
 };
 
@@ -391,18 +400,23 @@ export default function CaseCatalog() {
     });
   };
 
+  const displayCases = useMemo(
+    () => cases.filter((caseRecord) => !isComplainantSubjectCaseRecord(caseRecord)),
+    [cases]
+  );
+
   const stats = useMemo(() => {
     return {
-      totalCases: cases.length,
-      pendingReview: cases.filter((caseRecord) => isPending(caseRecord.progress)).length,
-      resolvedAllTime: cases.filter((caseRecord) => isResolved(caseRecord.progress)).length,
-      reprimandedCases: cases.filter(isReprimand).length,
+      totalCases: displayCases.length,
+      pendingReview: displayCases.filter((caseRecord) => isPending(caseRecord.progress)).length,
+      resolvedAllTime: displayCases.filter((caseRecord) => isResolved(caseRecord.progress)).length,
+      reprimandedCases: displayCases.filter(isReprimand).length,
     };
-  }, [cases]);
+  }, [displayCases]);
 
   const availableMonths = useMemo(() => {
     const monthsSet = new Set<string>();
-    cases.forEach((c) => {
+    displayCases.forEach((c) => {
       const dateVal = new Date(c.date_filed || c.date);
       if (!Number.isNaN(dateVal.getTime())) {
         const year = dateVal.getFullYear();
@@ -411,10 +425,10 @@ export default function CaseCatalog() {
       }
     });
     return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
-  }, [cases]);
+  }, [displayCases]);
 
   const filteredAndSortedGroups = useMemo(() => {
-    let result = cases;
+    let result = displayCases;
 
     // Search query filter (search Case ID or Name or case type)
     if (searchQuery.trim()) {
@@ -441,16 +455,6 @@ export default function CaseCatalog() {
     }
 
 
-
-    if (statusFilter !== "All Statuses") {
-      result = result.filter(c => {
-        if (statusFilter === "Pending") return isPending(c.progress);
-        if (statusFilter === "Resolved") return isResolved(c.progress);
-        if (statusFilter === "Closed") return isClosed(c.progress);
-        if (statusFilter === "Reprimand") return isReprimand(c);
-        return true;
-      });
-    }
 
     if (monthFilter) {
       result = result.filter((c) => {
@@ -510,9 +514,8 @@ export default function CaseCatalog() {
       cases: items.sort((a, b) => {
         const roleOrder = (role: string) => {
           const r = role.toLowerCase();
-          if (r === "complainant" || r === "reporter") return 1;
+          if (r === "complainant / subject") return 1;
           if (r === "respondent") return 2;
-          if (r === "accused") return 3;
           return 4;
         };
         const roleA = parseStudents(a.students)[0]?.role || "";
@@ -524,7 +527,17 @@ export default function CaseCatalog() {
       })
     }));
 
-    const allGroups = [...linkedGroups, ...unlinkedGroups].sort((a, b) => {
+    const matchesStatusFilter = (caseRecord: CaseRecord) => {
+      if (statusFilter === "Pending") return isPending(caseRecord.progress);
+      if (statusFilter === "Resolved") return isResolved(caseRecord.progress);
+      if (statusFilter === "Closed") return isClosed(caseRecord.progress);
+      if (statusFilter === "Reprimand") return isReprimand(caseRecord);
+      return true;
+    };
+
+    const allGroups = [...linkedGroups, ...unlinkedGroups]
+      .filter((group) => statusFilter === "All Statuses" || group.cases.some(matchesStatusFilter))
+      .sort((a, b) => {
       const repA = a.cases[0];
       const repB = b.cases[0];
       const dateA = new Date(sortBy === "date_filed" ? (repA.date_filed || repA.date) : repA.date).getTime();
@@ -538,7 +551,7 @@ export default function CaseCatalog() {
     });
 
     return allGroups;
-  }, [cases, searchQuery, sortBy, sortOrder, statusFilter, monthFilter, startDate, endDate]);
+  }, [displayCases, searchQuery, sortBy, sortOrder, statusFilter, monthFilter, startDate, endDate]);
 
   const filteredAndSortedCases = useMemo(() => {
     return filteredAndSortedGroups.flatMap((g) => g.cases);
@@ -1269,7 +1282,7 @@ export default function CaseCatalog() {
                                   <span className="font-bold text-on-surface leading-tight text-[13px]">{name}</span>
                                   {role && (
                                     <div className="flex items-center gap-1 mt-0.5">
-                                      <span className={`h-1.5 w-1.5 rounded-full ${role.toLowerCase() === 'complainant' ? 'bg-green-500' : role.toLowerCase() === 'reporter' ? 'bg-blue-500' : role.toLowerCase() === 'accused' ? 'bg-red-500' : 'bg-purple-500'}`} />
+                                      <span className={`h-1.5 w-1.5 rounded-full ${role.toLowerCase() === 'complainant / subject' ? 'bg-green-500' : role.toLowerCase() === 'respondent' ? 'bg-red-500' : 'bg-purple-500'}`} />
                                       <span className={`text-[11px] font-medium ${getRoleBadgeStyles(role)}`}>
                                         {role}
                                       </span>
@@ -1351,7 +1364,7 @@ export default function CaseCatalog() {
                               <span className="font-bold text-on-surface leading-tight text-[13px]">{name}</span>
                               {role && (
                                 <div className="flex items-center gap-1 mt-0.5">
-                                  <span className={`h-1.5 w-1.5 rounded-full ${role.toLowerCase() === 'complainant' ? 'bg-green-500' : role.toLowerCase() === 'reporter' ? 'bg-blue-500' : role.toLowerCase() === 'accused' ? 'bg-red-500' : 'bg-purple-500'}`} />
+                                  <span className={`h-1.5 w-1.5 rounded-full ${role.toLowerCase() === 'complainant / subject' ? 'bg-green-500' : role.toLowerCase() === 'respondent' ? 'bg-red-500' : 'bg-purple-500'}`} />
                                   <span className={`text-[11px] font-medium ${getRoleBadgeStyles(role)}`}>
                                     {role}
                                   </span>
