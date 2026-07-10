@@ -35,7 +35,10 @@ interface CaseRecord {
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
-    return JSON.parse(studentsStr) || [];
+    const parsed = JSON.parse(studentsStr) || [];
+    return Array.isArray(parsed)
+      ? parsed.map((student) => ({ ...student, role: normalizeRole(student.role) }))
+      : [];
   } catch (e) {
     return [];
   }
@@ -51,9 +54,13 @@ interface ProofItem {
 
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
-const ROLE_OPTIONS = ["Complainant", "Reporter", "Accused"];
+const ROLE_OPTIONS = ["Complainant / Subject", "Respondent"];
 const TEXT_FIELD_LIMIT = 250;
 const CASE_TITLE_LIMIT = 20;
+const ADVISER_LIMIT = 20;
+const GRADE_LEVEL_LIMIT = 8;
+const SECTION_LIMIT = 10;
+const CASE_TYPE_LIMIT = 25;
 const MODAL_EXIT_MS = 200;
 const CASE_TYPE_OPTIONS = [
   "Poor academic performance",
@@ -145,7 +152,7 @@ const autoCapitalize = (val: string) => {
   return val.replace(/(^|\s)\p{L}/gu, (match) => match.toUpperCase());
 };
 
-const normalizeCaseType = (value: string) => capitalizeWords(value);
+const normalizeCaseType = (value: string) => capitalizeWords(value).slice(0, CASE_TYPE_LIMIT);
 
 const normalizeMiddleInitial = (value: string) => value.replace(/\s+/g, "").toUpperCase();
 
@@ -154,17 +161,29 @@ const normalizeGradeLevel = (value: string) => {
   const match = cleaned.match(/^(?:grade\s*)?(\d{1,2})$/i);
   if (match) {
     const grade = Number(match[1]);
-    if (grade >= 7 && grade <= 12) return `Grade ${grade}`;
+    if (grade >= 7 && grade <= 12) return `Grade ${grade}`.slice(0, GRADE_LEVEL_LIMIT);
   }
-  return capitalizeWords(cleaned);
+  return capitalizeWords(cleaned).slice(0, GRADE_LEVEL_LIMIT);
 };
 
 const normalizeSection = (value: string) => {
   const cleaned = collapseSpaces(value);
   const upper = cleaned.toUpperCase();
-  if (SECTION_OPTIONS.includes(upper)) return upper;
-  return capitalizeWords(cleaned);
+  if (SECTION_OPTIONS.includes(upper)) return upper.slice(0, SECTION_LIMIT);
+  return capitalizeWords(cleaned).slice(0, SECTION_LIMIT);
 };
+
+const normalizeRole = (value: string | undefined) => {
+  const normalized = capitalizeWords(value ?? "");
+  const lower = normalized.toLowerCase();
+  if (!normalized || lower === "reporter") return "Respondent";
+  if (lower === "accused" || lower === "respondent") return "Respondent";
+  if (lower === "complainant" || lower === "complainant / subject") return "Complainant / Subject";
+  return normalized;
+};
+
+const isComplainantSubject = (student: StudentInfo) => normalizeRole(student.role) === "Complainant / Subject";
+const isRespondent = (student: StudentInfo) => normalizeRole(student.role) === "Respondent";
 
 const normalizeStudent = (student: StudentInfo): StudentInfo => ({
   firstName: capitalizeWords(student.firstName),
@@ -172,8 +191,8 @@ const normalizeStudent = (student: StudentInfo): StudentInfo => ({
   middleInitial: normalizeMiddleInitial(student.middleInitial),
   level: normalizeGradeLevel(student.level),
   section: normalizeSection(student.section),
-  adviser: capitalizeWords(student.adviser),
-  role: student.role,
+  adviser: capitalizeWords(student.adviser).slice(0, ADVISER_LIMIT),
+  role: normalizeRole(student.role),
 });
 
 const parseProofs = (value: string): ProofItem[] => {
@@ -342,6 +361,13 @@ export default function CaseDetails() {
     } else if (field === "middleInitial") {
       processedValue = value.replace(/\s+/g, "").toUpperCase();
     }
+    if (field === "adviser") {
+      processedValue = processedValue.slice(0, ADVISER_LIMIT);
+    } else if (field === "level") {
+      processedValue = processedValue.slice(0, GRADE_LEVEL_LIMIT);
+    } else if (field === "section") {
+      processedValue = processedValue.slice(0, SECTION_LIMIT);
+    }
 
     setEditForm((previous) => ({
       ...previous,
@@ -356,7 +382,10 @@ export default function CaseDetails() {
       ...previous,
       students: previous.students.map((student, studentIndex) => {
         if (studentIndex !== index) return student;
-        if (field === "firstName" || field === "lastName" || field === "adviser" || field === "role") {
+        if (field === "adviser") {
+          return { ...student, adviser: capitalizeWords(student.adviser).slice(0, ADVISER_LIMIT) };
+        }
+        if (field === "firstName" || field === "lastName" || field === "role") {
           return { ...student, [field]: capitalizeWords(student[field]) };
         }
         if (field === "middleInitial") return { ...student, middleInitial: normalizeMiddleInitial(student.middleInitial) };
@@ -548,7 +577,7 @@ export default function CaseDetails() {
     if (!caseRecord) return;
     const date = editForm.date > getTodayDateString() ? getTodayDateString() : editForm.date;
     const normalizedStudents = editForm.students.map(normalizeStudent);
-    const normalizedTitle = capitalizeWords(editForm.title).slice(0, CASE_TITLE_LIMIT);
+    const normalizedTitle = caseRecord.group_id ? capitalizeWords(editForm.title).slice(0, CASE_TITLE_LIMIT) : "";
     try {
       await invoke("update_case", {
         id: caseRecord.id,
@@ -573,6 +602,13 @@ export default function CaseDetails() {
   };
 
   const displayedProofs = uploadedProofs;
+  const displayedStudents = caseRecord ? parseStudents(caseRecord.students) : [];
+  const displayedRespondents = displayedStudents.filter(isRespondent);
+  const displayedComplainantSubjects = displayedStudents.filter(isComplainantSubject);
+  const hasLinkedGroup = Boolean(caseRecord?.group_id);
+  const editRespondents = editForm.students
+    .map((student, index) => ({ student, index }))
+    .filter(({ student }) => isRespondent(student));
 
   if (isLoading) {
     return (
@@ -696,7 +732,7 @@ export default function CaseDetails() {
           {!isExporting && isEditing && (
             <div className="mt-4 flex justify-end print:hidden">
               <div className="flex flex-col items-end gap-1.5">
-                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mr-2">Progress</label>
+                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mr-2">Status</label>
                 <div className="flex gap-2">
                   {PROGRESS_OPTIONS.map((opt) => (
                     <button
@@ -731,11 +767,11 @@ export default function CaseDetails() {
           {/* Left Column — Student Information */}
           <div className="space-y-4">
             <div className="flex items-center gap-4 mb-4">
-              <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Student(s) Involved</span>
+              <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Student Information</span>
             </div>
 
             {isEditing ? (
-              editForm.students.map((student, idx) => (
+              editRespondents.map(({ student, index: idx }) => (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
@@ -787,10 +823,14 @@ export default function CaseDetails() {
                       value={student.level}
                       list="case-details-grade-level-options"
                       placeholder="e.g. Grade 10"
+                      maxLength={GRADE_LEVEL_LIMIT}
                       onChange={(e) => handleEditStudentChange(idx, "level", e.target.value)}
                       onBlur={() => handleEditStudentBlur(idx, "level")}
                       className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                     />
+                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                      {student.level.length}/{GRADE_LEVEL_LIMIT}
+                    </p>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Section</label>
@@ -799,10 +839,14 @@ export default function CaseDetails() {
                       value={student.section}
                       list="case-details-section-options"
                       placeholder="e.g. STEM"
+                      maxLength={SECTION_LIMIT}
                       onChange={(e) => handleEditStudentChange(idx, "section", e.target.value)}
                       onBlur={() => handleEditStudentBlur(idx, "section")}
                       className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                     />
+                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                      {student.section.length}/{SECTION_LIMIT}
+                    </p>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Adviser</label>
@@ -810,15 +854,19 @@ export default function CaseDetails() {
                       type="text"
                       value={student.adviser}
                       placeholder="e.g. Mr. Santos"
+                      maxLength={ADVISER_LIMIT}
                       onChange={(e) => handleEditStudentChange(idx, "adviser", autoCapitalize(e.target.value))}
                       onBlur={() => handleEditStudentBlur(idx, "adviser")}
                       className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
                     />
+                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                      {student.adviser.length}/{ADVISER_LIMIT}
+                    </p>
                   </div>
                 </div>
               ))
             ) : (
-              parseStudents(caseRecord.students).map((student, idx) => (
+              displayedRespondents.map((student, idx) => (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
@@ -849,6 +897,37 @@ export default function CaseDetails() {
 
 
 
+          {displayedComplainantSubjects.length > 0 && (
+            <div className="space-y-4 border-t border-outline-variant/70 pt-8">
+              {displayedComplainantSubjects.map((student, idx) => (
+                <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
+                  <div>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
+                    <p className="text-sm font-medium text-on-surface">
+                      {student.lastName}, {student.firstName}{student.middleInitial ? ` ${student.middleInitial}.` : ""}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
+                    <p className="text-sm font-medium text-on-surface">{student.role || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Level</label>
+                    <p className="text-sm font-medium text-on-surface">{student.level || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Section</label>
+                    <p className="text-sm font-medium text-on-surface">{student.section || "—"}</p>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Adviser</label>
+                    <p className="text-sm font-medium text-on-surface">{student.adviser || "—"}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Right Column — Case Information */}
           <div className="space-y-6 border-t border-outline-variant/70 pt-8">
             <div className="flex items-center gap-4 mb-4">
@@ -856,7 +935,7 @@ export default function CaseDetails() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-x-8 gap-y-6">
-              {(caseRecord.title || (isEditing && editForm.students.length > 1)) && (
+              {((hasLinkedGroup && caseRecord.title) || (isEditing && hasLinkedGroup)) && (
                 <div>
                   <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Case Title</label>
                   {isEditing ? (
@@ -883,14 +962,20 @@ export default function CaseDetails() {
               <div>
                 <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Case Type</label>
                 {isEditing ? (
-                  <input
-                    type="text"
-                    value={editForm.case}
-                    list="case-details-case-type-options"
-                    onChange={(e) => setEditForm({ ...editForm, case: e.target.value })}
-                    onBlur={() => setEditForm((p) => ({ ...p, case: normalizeCaseType(p.case) }))}
-                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
-                  />
+                  <>
+                    <input
+                      type="text"
+                      value={editForm.case}
+                      list="case-details-case-type-options"
+                      maxLength={CASE_TYPE_LIMIT}
+                      onChange={(e) => setEditForm({ ...editForm, case: autoCapitalize(e.target.value).slice(0, CASE_TYPE_LIMIT) })}
+                      onBlur={() => setEditForm((p) => ({ ...p, case: normalizeCaseType(p.case) }))}
+                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                    />
+                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                      {editForm.case.length}/{CASE_TYPE_LIMIT}
+                    </p>
+                  </>
                 ) : (
                   <p className="text-sm font-medium text-on-surface leading-relaxed">{caseRecord.case}</p>
                 )}

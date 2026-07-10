@@ -272,6 +272,12 @@
   }
 
   .app-toast {
+    position: fixed !important;
+    right: max(1.25rem, env(safe-area-inset-right)) !important;
+    bottom: max(1.25rem, env(safe-area-inset-bottom)) !important;
+    top: auto !important;
+    left: auto !important;
+    z-index: 9999 !important;
     gap: 0.625rem !important;
     max-width: min(420px, calc(100vw - 2.5rem));
     padding: 1rem 1.25rem !important;
@@ -289,6 +295,14 @@
   .app-toast p {
     font-size: 0.875rem !important;
     line-height: 1.25rem !important;
+  }
+
+  @media (max-width: 480px) {
+    .app-toast {
+      right: max(1rem, env(safe-area-inset-right)) !important;
+      bottom: max(1rem, env(safe-area-inset-bottom)) !important;
+      max-width: calc(100vw - 2rem);
+    }
   }
 
   .catalog-page-enter {

@@ -133,9 +133,13 @@ const PROGRESS_OPTIONS = [
 
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
-const ROLE_OPTIONS = ["Complainant", "Reporter", "Accused"];
+const ROLE_OPTIONS = ["Complainant / Subject", "Respondent"];
 const TEXT_FIELD_LIMIT = 250;
 const CASE_TITLE_LIMIT = 20;
+const ADVISER_LIMIT = 20;
+const GRADE_LEVEL_LIMIT = 8;
+const SECTION_LIMIT = 10;
+const CASE_TYPE_LIMIT = 25;
 const MODAL_EXIT_MS = 200;
 const OTHER_CASE_CATEGORY = {
   id: "other",
@@ -177,6 +181,7 @@ const emptyStudentInfo = (): StudentInfo => ({
 
 const emptyFormData = () => ({
   ...emptyStudentInfo(),
+  role: "Respondent",
   date: getTodayDateTimeString(),
   case: "",
   caseCategory: "",
@@ -199,7 +204,7 @@ const autoCapitalize = (val: string) => {
   return val.replace(/(^|\s)\p{L}/gu, (match) => match.toUpperCase());
 };
 
-const normalizeCaseType = (value: string) => capitalizeWords(value);
+const normalizeCaseType = (value: string) => capitalizeWords(value).slice(0, CASE_TYPE_LIMIT);
 
 const normalizeMiddleInitial = (value: string) => value.replace(/\s+/g, "").toUpperCase();
 
@@ -210,14 +215,40 @@ const normalizeGradeLevel = (value: string) => {
     const grade = Number(match[1]);
     if (grade >= 7 && grade <= 12) return `Grade ${grade}`;
   }
-  return capitalizeWords(cleaned);
+  return capitalizeWords(cleaned).slice(0, GRADE_LEVEL_LIMIT);
 };
 
 const normalizeSection = (value: string) => {
   const cleaned = collapseSpaces(value);
   const upper = cleaned.toUpperCase();
-  if (SECTION_OPTIONS.includes(upper)) return upper;
-  return capitalizeWords(cleaned);
+  if (SECTION_OPTIONS.includes(upper)) return upper.slice(0, SECTION_LIMIT);
+  return capitalizeWords(cleaned).slice(0, SECTION_LIMIT);
+};
+
+const normalizeRole = (value: string | undefined, fallback = "") => {
+  const normalized = capitalizeWords(value ?? "");
+  const lower = normalized.toLowerCase();
+  if (!normalized) return fallback;
+  if (lower === "reporter") return "Respondent";
+  if (lower === "accused" || lower === "respondent") return "Respondent";
+  if (lower === "complainant" || lower === "complainant / subject") return "Complainant / Subject";
+  return normalized;
+};
+
+const isComplainantSubject = (student: StudentInfo) => normalizeRole(student.role) === "Complainant / Subject";
+const isRespondent = (student: StudentInfo) => normalizeRole(student.role, "Respondent") === "Respondent";
+
+const getFieldLimit = (key: string) => {
+  if (key === "adviser") return ADVISER_LIMIT;
+  if (key === "level") return GRADE_LEVEL_LIMIT;
+  if (key === "section") return SECTION_LIMIT;
+  if (key === "case") return CASE_TYPE_LIMIT;
+  return undefined;
+};
+
+const limitFieldValue = (key: string, value: string) => {
+  const limit = getFieldLimit(key);
+  return limit ? value.slice(0, limit) : value;
 };
 
 const normalizeStudentInfo = (data: ReturnType<typeof emptyFormData>) => ({
@@ -228,9 +259,9 @@ const normalizeStudentInfo = (data: ReturnType<typeof emptyFormData>) => ({
   middleInitial: normalizeMiddleInitial(data.middleInitial),
   level: normalizeGradeLevel(data.level),
   section: normalizeSection(data.section),
-  adviser: capitalizeWords(data.adviser),
+  adviser: capitalizeWords(data.adviser).slice(0, ADVISER_LIMIT),
   sanction: data.sanction.slice(0, TEXT_FIELD_LIMIT),
-  role: data.role,
+  role: data.additionalStudents.length === 0 ? "Respondent" : normalizeRole(data.role, "Respondent"),
   additionalStudents: data.additionalStudents.map((student) => normalizeStudent(student)),
 });
 
@@ -240,9 +271,9 @@ const normalizeStudent = (student: StudentInfo): StudentInfo => ({
   middleInitial: normalizeMiddleInitial(student.middleInitial),
   level: normalizeGradeLevel(student.level),
   section: normalizeSection(student.section),
-  adviser: capitalizeWords(student.adviser),
+  adviser: capitalizeWords(student.adviser).slice(0, ADVISER_LIMIT),
   sanction: (student.sanction ?? "").slice(0, TEXT_FIELD_LIMIT),
-  role: student.role,
+  role: normalizeRole(student.role),
 });
 
 const isStudentComplete = (student: StudentInfo) =>
@@ -275,6 +306,13 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
   const toastTimerRef = useRef<number | null>(null);
 
   const [formData, setFormData] = useState(emptyFormData);
+  const isPrimaryRoleLocked = formData.additionalStudents.length === 0;
+
+  useEffect(() => {
+    if (isPrimaryRoleLocked && formData.role !== "Respondent") {
+      setFormData((p) => ({ ...p, role: "Respondent" }));
+    }
+  }, [isPrimaryRoleLocked, formData.role]);
 
   const isFormEmpty = () =>
     !formData.firstName.trim() &&
@@ -286,7 +324,6 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
     !formData.level.trim() &&
     !formData.section.trim() &&
     !formData.adviser.trim() &&
-    !formData.role.trim() &&
     formData.additionalStudents.length === 0 &&
     formData.uploadedProofs.length === 0;
 
@@ -365,10 +402,11 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           const base = { ...emptyFormData(), ...parsed };
           setFormData({
             ...base,
+            role: normalizeRole(parsed.role, "Respondent"),
             title: (parsed.title ?? "").slice(0, CASE_TITLE_LIMIT),
             sanction: parsed.sanction ?? "",
             additionalStudents: Array.isArray(parsed.additionalStudents)
-              ? parsed.additionalStudents.map((student: StudentInfo) => ({ ...emptyStudentInfo(), ...student, sanction: student.sanction ?? "", role: student.role ?? "" }))
+              ? parsed.additionalStudents.map((student: StudentInfo) => ({ ...emptyStudentInfo(), ...student, sanction: student.sanction ?? "", role: normalizeRole(student.role) }))
               : [],
           });
           const cat = getCategoryForCase(parsed.case);
@@ -432,6 +470,9 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
     } else if (field === "middleInitial") {
       processedValue = value.replace(/\s+/g, "").toUpperCase();
     }
+    if (field === "adviser") processedValue = processedValue.slice(0, ADVISER_LIMIT);
+    if (field === "level") processedValue = processedValue.slice(0, GRADE_LEVEL_LIMIT);
+    if (field === "section") processedValue = processedValue.slice(0, SECTION_LIMIT);
 
     setFormData((p) => ({
       ...p,
@@ -446,8 +487,11 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       ...p,
       additionalStudents: p.additionalStudents.map((student, studentIndex) => {
         if (studentIndex !== index) return student;
-        if (field === "firstName" || field === "lastName" || field === "adviser" || field === "role") {
+        if (field === "firstName" || field === "lastName" || field === "role") {
           return { ...student, [field]: capitalizeWords(student[field]) };
+        }
+        if (field === "adviser") {
+          return { ...student, adviser: capitalizeWords(student.adviser).slice(0, ADVISER_LIMIT) };
         }
         if (field === "middleInitial") return { ...student, middleInitial: normalizeMiddleInitial(student.middleInitial) };
         if (field === "level") return { ...student, level: normalizeGradeLevel(student.level) };
@@ -496,7 +540,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         normalized.level,
         normalized.section,
         normalized.adviser,
-        ...(normalized.additionalStudents.length > 0 ? [normalized.role] : []),
+        normalized.role,
       ];
 
       if (requiredFields.some((value) => !value.trim()) || normalized.additionalStudents.some((student) => !isStudentComplete(student))) {
@@ -554,7 +598,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       !normalized.level.trim() ||
       !normalized.section.trim() ||
       !normalized.adviser.trim() ||
-      (normalized.additionalStudents.length > 0 && !normalized.role.trim()) ||
+      !normalized.role.trim() ||
       normalized.additionalStudents.some((student) => !isStudentComplete(student))
     ) {
       showToast("Please fill out all required fields before filing.");
@@ -582,10 +626,19 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           section: normalized.section,
           adviser: normalized.adviser,
           sanction: normalized.sanction,
-          role: normalized.additionalStudents.length > 0 ? normalized.role : "",
+          role: normalizeRole(normalized.role, "Respondent"),
         },
         ...normalized.additionalStudents,
       ];
+      const respondents = students.filter(isRespondent);
+      const complainantSubjects = students.filter(isComplainantSubject);
+      const isGroupedCase = respondents.length > 1;
+      if (respondents.length === 0) {
+        showToast("At least one respondent is required before filing.");
+        setCurrentStep(2);
+        setIsSubmitting(false);
+        return;
+      }
       const dateFiled = new Date().toISOString();
       const proofs = JSON.stringify(normalized.uploadedProofs.map((proof) => ({
         ...proof,
@@ -594,9 +647,10 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
 
       if (students.length > 1) {
         const groupId = crypto.randomUUID();
-        for (const student of students) {
+        for (const student of respondents) {
+          const caseStudents = [student, ...complainantSubjects];
           await invoke<number>("add_case", {
-            students: JSON.stringify([student]),
+            students: JSON.stringify(caseStudents),
             date: normalized.date,
             dateFiled,
             case: normalized.case.trim(),
@@ -604,9 +658,9 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
             sanction: student.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
             progress: normalized.progress,
             proofs,
-            title: normalized.title.trim(),
+            title: isGroupedCase ? normalized.title.trim() : "",
             reportingStudent: "",
-            groupId,
+            groupId: isGroupedCase ? groupId : null,
           });
         }
       } else {
@@ -619,7 +673,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           sanction: students[0].sanction.trim().slice(0, TEXT_FIELD_LIMIT),
           progress: normalized.progress,
           proofs,
-          title: normalized.title.trim(),
+          title: "",
           reportingStudent: "",
           groupId: null,
         });
@@ -729,7 +783,8 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                   type="text"
                   placeholder="Select a case type below, or type a custom description."
                   value={formData.case}
-                  onChange={(e) => setFormData((p) => ({ ...p, case: e.target.value, caseCategory: "custom" }))}
+                  maxLength={CASE_TYPE_LIMIT}
+                  onChange={(e) => setFormData((p) => ({ ...p, case: e.target.value.slice(0, CASE_TYPE_LIMIT), caseCategory: "custom" }))}
                   onBlur={() => setFormData((p) => {
                     const normalizedCase = normalizeCaseType(p.case);
                     const matchedCategory = getCategoryForCase(normalizedCase);
@@ -741,6 +796,9 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                   })}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                 />
+                <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                  {formData.case.length}/{CASE_TYPE_LIMIT}
+                </p>
                 {displayCat && (
                   <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-full"
                     style={{ background: displayCat.bg, color: displayCat.color, border: `1px solid ${displayCat.border}` }}>
@@ -882,7 +940,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
               <div className="bg-surface rounded-xl border border-outline-variant p-5">
                 <p className="text-[10px] font-bold text-secondary uppercase tracking-widest mb-3">Student(s) involved</p>
                 <div className="flex flex-col gap-4">
-                  <div className={`grid ${formData.additionalStudents.length > 0 ? "grid-cols-4" : "grid-cols-3"} gap-3`}>
+                  <div className="grid grid-cols-4 gap-3">
                     <div>
                       <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
                         Last name
@@ -920,24 +978,26 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
-                    {formData.additionalStudents.length > 0 && (
-                      <div>
-                        <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
-                          Role
-                          <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
-                        </label>
-                        <select
-                          value={formData.role}
-                          onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                        >
-                          <option value="" disabled>Select a role</option>
-                          {ROLE_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
+                        Role
+                        <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                      </label>
+                      <select
+                        value={formData.role}
+                        disabled={isPrimaryRoleLocked}
+                        title={isPrimaryRoleLocked ? "Add another student to change the role." : undefined}
+                        onChange={(e) => {
+                          if (isPrimaryRoleLocked) return;
+                          setFormData({ ...formData, role: e.target.value });
+                        }}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {ROLE_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
@@ -948,10 +1008,14 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       type="text" placeholder="e.g. Grade 10"
                       list="grade-level-options"
                       value={formData.level}
-                      onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                      maxLength={GRADE_LEVEL_LIMIT}
+                      onChange={(e) => setFormData({ ...formData, level: e.target.value.slice(0, GRADE_LEVEL_LIMIT) })}
                       onBlur={() => setFormData((p) => ({ ...p, level: normalizeGradeLevel(p.level) }))}
                       className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                     />
+                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                      {formData.level.length}/{GRADE_LEVEL_LIMIT}
+                    </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -963,10 +1027,14 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         type="text" placeholder="e.g. STEM"
                         list="section-options"
                         value={formData.section}
-                        onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                        maxLength={SECTION_LIMIT}
+                        onChange={(e) => setFormData({ ...formData, section: e.target.value.slice(0, SECTION_LIMIT) })}
                         onBlur={() => setFormData((p) => ({ ...p, section: normalizeSection(p.section) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
+                      <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                        {formData.section.length}/{SECTION_LIMIT}
+                      </p>
                     </div>
                     <div>
                       <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
@@ -976,10 +1044,14 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       <input
                         type="text" placeholder="e.g. Mr. Santos"
                         value={formData.adviser}
-                        onChange={(e) => setFormData({ ...formData, adviser: autoCapitalize(e.target.value) })}
-                        onBlur={() => setFormData((p) => ({ ...p, adviser: capitalizeWords(p.adviser) }))}
+                        maxLength={ADVISER_LIMIT}
+                        onChange={(e) => setFormData({ ...formData, adviser: autoCapitalize(e.target.value).slice(0, ADVISER_LIMIT) })}
+                        onBlur={() => setFormData((p) => ({ ...p, adviser: capitalizeWords(p.adviser).slice(0, ADVISER_LIMIT) }))}
                         className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                       />
+                      <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                        {formData.adviser.length}/{ADVISER_LIMIT}
+                      </p>
                     </div>
                   </div>
                   <div>
@@ -1082,15 +1154,19 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         Grade level
                         <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
                       </label>
-                      <input
-                        type="text" placeholder="e.g. Grade 10"
-                        list="grade-level-options"
-                        value={student.level}
-                        onChange={(e) => handleAdditionalStudentChange(index, "level", e.target.value)}
-                        onBlur={() => handleAdditionalStudentBlur(index, "level")}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                      />
-                    </div>
+                        <input
+                          type="text" placeholder="e.g. Grade 10"
+                          list="grade-level-options"
+                          value={student.level}
+                          maxLength={GRADE_LEVEL_LIMIT}
+                          onChange={(e) => handleAdditionalStudentChange(index, "level", e.target.value)}
+                          onBlur={() => handleAdditionalStudentBlur(index, "level")}
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        />
+                        <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                          {student.level.length}/{GRADE_LEVEL_LIMIT}
+                        </p>
+                      </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
@@ -1101,10 +1177,14 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           type="text" placeholder="e.g. STEM"
                           list="section-options"
                           value={student.section}
+                          maxLength={SECTION_LIMIT}
                           onChange={(e) => handleAdditionalStudentChange(index, "section", e.target.value)}
                           onBlur={() => handleAdditionalStudentBlur(index, "section")}
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                         />
+                        <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                          {student.section.length}/{SECTION_LIMIT}
+                        </p>
                       </div>
                       <div>
                         <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-1.5">
@@ -1114,10 +1194,14 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         <input
                           type="text" placeholder="e.g. Mr. Santos"
                           value={student.adviser}
+                          maxLength={ADVISER_LIMIT}
                           onChange={(e) => handleAdditionalStudentChange(index, "adviser", autoCapitalize(e.target.value))}
                           onBlur={() => handleAdditionalStudentBlur(index, "adviser")}
                           className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
                         />
+                        <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                          {student.adviser.length}/{ADVISER_LIMIT}
+                        </p>
                       </div>
                     </div>
                     <div>
@@ -1296,20 +1380,26 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     </span>
                   )}
                   {isEditingReview ? (
-                    <input
-                      type="text" value={formData.case}
-                      onChange={(e) => setFormData({ ...formData, case: autoCapitalize(e.target.value) })}
-                      onBlur={() => setFormData((p) => {
-                        const normalizedCase = normalizeCaseType(p.case);
-                        const matchedCategory = getCategoryForCase(normalizedCase);
-                        return {
-                          ...p,
-                          case: normalizedCase,
-                          caseCategory: matchedCategory?.id ?? (normalizedCase ? "other" : ""),
-                        };
-                      })}
-                      className="flex-1 bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                    />
+                    <div className="flex-1">
+                      <input
+                        type="text" value={formData.case}
+                        maxLength={CASE_TYPE_LIMIT}
+                        onChange={(e) => setFormData({ ...formData, case: autoCapitalize(e.target.value).slice(0, CASE_TYPE_LIMIT) })}
+                        onBlur={() => setFormData((p) => {
+                          const normalizedCase = normalizeCaseType(p.case);
+                          const matchedCategory = getCategoryForCase(normalizedCase);
+                          return {
+                            ...p,
+                            case: normalizedCase,
+                            caseCategory: matchedCategory?.id ?? (normalizedCase ? "other" : ""),
+                          };
+                        })}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                      />
+                      <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                        {formData.case.length}/{CASE_TYPE_LIMIT}
+                      </p>
+                    </div>
                   ) : (
                     <span className="text-sm font-bold text-on-surface">{formData.case || <span className="text-secondary italic font-normal">Not set</span>}</span>
                   )}
@@ -1371,7 +1461,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     { label: "Last name", key: "lastName" },
                     { label: "First name", key: "firstName" },
                     { label: "Middle initial", key: "middleInitial" },
-                    ...(formData.additionalStudents.length > 0 ? [{ label: "Role", key: "role" }] : []),
+                    { label: "Role", key: "role" },
                     { label: "Grade level", key: "level" },
                     { label: "Section", key: "section" },
                     { label: "Adviser", key: "adviser" },
@@ -1382,40 +1472,53 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         key === "role" ? (
                           <select
                             value={(formData as any)[key]}
-                            onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
-                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                            disabled={isPrimaryRoleLocked}
+                            title={isPrimaryRoleLocked ? "Add another student to change the role." : undefined}
+                            onChange={(e) => {
+                              if (isPrimaryRoleLocked) return;
+                              setFormData({ ...formData, [key]: e.target.value });
+                            }}
+                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
                           >
-                            <option value="" disabled>Select a role</option>
+                            {!isPrimaryRoleLocked && <option value="" disabled>Select a role</option>}
                             {ROLE_OPTIONS.map((opt) => (
                               <option key={opt} value={opt}>{opt}</option>
                             ))}
                           </select>
                         ) : (
-                          <input type="text" value={(formData as any)[key]}
-                            list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              let processed = val;
-                              if (key === "firstName" || key === "lastName" || key === "adviser") {
-                                processed = autoCapitalize(val);
-                              } else if (key === "middleInitial") {
-                                processed = val.replace(/\s+/g, "").toUpperCase();
-                              }
-                              setFormData({ ...formData, [key]: processed });
-                            }}
-                            onBlur={() => {
-                              if (key === "firstName" || key === "lastName" || key === "adviser") {
-                                setFormData((p) => ({ ...p, [key]: capitalizeWords((p as any)[key]) }));
-                              } else if (key === "middleInitial") {
-                                setFormData((p) => ({ ...p, middleInitial: normalizeMiddleInitial(p.middleInitial) }));
-                              } else if (key === "level") {
-                                setFormData((p) => ({ ...p, level: normalizeGradeLevel(p.level) }));
-                              } else if (key === "section") {
-                                setFormData((p) => ({ ...p, section: normalizeSection(p.section) }));
-                              }
-                            }}
-                            className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                          />
+                          <>
+                            <input type="text" value={(formData as any)[key]}
+                              list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
+                              maxLength={getFieldLimit(key)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                let processed = val;
+                                if (key === "firstName" || key === "lastName" || key === "adviser") {
+                                  processed = autoCapitalize(val);
+                                } else if (key === "middleInitial") {
+                                  processed = val.replace(/\s+/g, "").toUpperCase();
+                                }
+                                setFormData({ ...formData, [key]: limitFieldValue(key, processed) });
+                              }}
+                              onBlur={() => {
+                                if (key === "firstName" || key === "lastName" || key === "adviser") {
+                                  setFormData((p) => ({ ...p, [key]: limitFieldValue(key, capitalizeWords((p as any)[key])) }));
+                                } else if (key === "middleInitial") {
+                                  setFormData((p) => ({ ...p, middleInitial: normalizeMiddleInitial(p.middleInitial) }));
+                                } else if (key === "level") {
+                                  setFormData((p) => ({ ...p, level: normalizeGradeLevel(p.level) }));
+                                } else if (key === "section") {
+                                  setFormData((p) => ({ ...p, section: normalizeSection(p.section) }));
+                                }
+                              }}
+                              className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                            />
+                            {getFieldLimit(key) && (
+                              <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                                {String((formData as any)[key] ?? "").length}/{getFieldLimit(key)}
+                              </p>
+                            )}
+                          </>
                         )
                       ) : (
                         <p className="text-sm text-on-surface font-medium">{(formData as any)[key] || <span className="text-secondary italic font-normal">Not set</span>}</p>
@@ -1485,14 +1588,22 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                               ))}
                             </select>
                           ) : (
-                            <input
-                              type="text"
-                              value={(student as any)[key]}
-                              list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
-                              onChange={(e) => handleAdditionalStudentChange(index, key as keyof StudentInfo, e.target.value)}
-                              onBlur={() => handleAdditionalStudentBlur(index, key as keyof StudentInfo)}
-                              className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                            />
+                            <>
+                              <input
+                                type="text"
+                                value={(student as any)[key]}
+                                list={key === "level" ? "grade-level-options" : key === "section" ? "section-options" : undefined}
+                                maxLength={getFieldLimit(key)}
+                                onChange={(e) => handleAdditionalStudentChange(index, key as keyof StudentInfo, e.target.value)}
+                                onBlur={() => handleAdditionalStudentBlur(index, key as keyof StudentInfo)}
+                                className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                              />
+                              {getFieldLimit(key) && (
+                                <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                                  {String((student as any)[key] ?? "").length}/{getFieldLimit(key)}
+                                </p>
+                              )}
+                            </>
                           )
                         ) : (
                           <p className="text-sm text-on-surface font-medium">{(student as any)[key] || <span className="text-secondary italic font-normal">Not set</span>}</p>
