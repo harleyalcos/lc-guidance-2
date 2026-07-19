@@ -151,8 +151,8 @@ export default function Backup() {
   return (
     <div className="flex flex-col gap-6 animate-fade-in relative pb-12">
       {/* Toast Notification */}
-      {notification && (
-        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl text-xs font-bold ${
+      {notification && createPortal(
+        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl text-xs font-bold ${
           notification.type === "success"
             ? "border border-green-500/30 bg-green-50 text-green-900"
             : "border border-error/30 bg-error-container text-on-error-container"
@@ -161,7 +161,8 @@ export default function Backup() {
             {notification.type === "success" ? "check_circle" : "error"}
           </span>
           <p className="text-xs font-bold">{notification.message}</p>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Top Status Card */}

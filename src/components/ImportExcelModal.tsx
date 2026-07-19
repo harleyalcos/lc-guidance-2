@@ -110,7 +110,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
   return createPortal(
     <>
       {toastMessage && (
-        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-error/30 bg-error-container px-4 py-3 text-on-error-container shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl border border-error/30 bg-error-container px-4 py-3 text-on-error-container shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
           <span className="material-symbols-outlined text-error" style={{ fontSize: 18 }}>error</span>
           <p className="text-xs font-bold">{toastMessage}</p>
         </div>

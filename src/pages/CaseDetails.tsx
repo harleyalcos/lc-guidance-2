@@ -300,7 +300,7 @@ export default function CaseDetails() {
 
       const filename = `GC-2026-${caseRecord?.id.toString().padStart(4, "0")}.pdf`;
       const opt = {
-        margin: [0.5, 0.5] as [number, number],
+        margin: 0,
         filename,
         image: { type: "jpeg" as const, quality: 0.98 },
         html2canvas: {
@@ -312,7 +312,7 @@ export default function CaseDetails() {
             clonedDocument.documentElement.classList.remove("dark");
           },
         },
-        jsPDF: { unit: "in", format: "letter", orientation: "portrait" as const },
+        jsPDF: { unit: "in", format: "letter", orientation: "landscape" as const },
         pagebreak: { mode: ["css", "legacy"] }
       };
 
@@ -716,7 +716,11 @@ export default function CaseDetails() {
       </div>
 
       {/* Main Guidance Card Document */}
-      <div className="case-details-document bg-[#FAF9F5] dark:bg-surface-container-low border border-outline-variant rounded shadow-[0px_1px_3px_rgba(0,0,0,0.05)] relative overflow-hidden flex flex-col mb-8 print:mb-0">
+      <div className={`case-details-document bg-[#FAF9F5] dark:bg-surface-container-low relative overflow-hidden flex flex-col mb-8 print:mb-0 print:border-0 print:shadow-none print:rounded-none ${
+        isExporting
+          ? "border-0 shadow-none rounded-none"
+          : "border border-outline-variant rounded shadow-[0px_1px_3px_rgba(0,0,0,0.05)]"
+      }`}>
         {/* Official document header */}
         <div className="px-8 py-5 border-b border-outline-variant bg-white shrink-0">
           <div className="grid grid-cols-[92px_1fr_92px] items-center gap-6">
@@ -1047,8 +1051,8 @@ export default function CaseDetails() {
             </div>
           </div>
 
-          {!isEditing && (
-              <div className="flex justify-end mt-4">
+          {!isEditing && !isExporting && (
+              <div className="flex justify-end mt-4 print:hidden">
                 <div
                   className={`pdf-status-indicator border-[3px] font-black text-lg px-6 py-1.5 rounded uppercase tracking-widest transform -rotate-[6deg] inline-block select-none ${
                     caseRecord.progress.toLowerCase() === "resolved"
