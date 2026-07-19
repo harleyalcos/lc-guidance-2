@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Sidebar from "./Sidebar";
 import TopAppBar from "./TopAppBar";
 import FileNewCaseModal from "./FileNewCaseModal";
@@ -62,11 +63,12 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
         onClose={() => setIsNewCaseModalOpen(false)}
         onCaseFiled={() => showSuccessToast("Case filed successfully.")}
       />
-      {successToastMessage && (
-        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-green-500/30 bg-green-50 px-4 py-3 text-green-900 shadow-xl ${isSuccessToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+      {successToastMessage && createPortal(
+        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl border border-green-500/30 bg-green-50 px-4 py-3 text-green-900 shadow-xl ${isSuccessToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
           <span className="material-symbols-outlined text-green-600" style={{ fontSize: 18 }}>check_circle</span>
           <p className="text-xs font-bold">{successToastMessage}</p>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

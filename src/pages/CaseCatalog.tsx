@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -310,19 +310,34 @@ export default function CaseCatalog() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => sessionStorage.getItem("case_catalog_search") || "");
   const [sortBy, setSortBy] = useState<"date_filed" | "date">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [statusFilter, setStatusFilter] = useState("All Statuses");
-  const [monthFilter, setMonthFilter] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState(() => sessionStorage.getItem("case_catalog_status") || "All Statuses");
+  const [monthFilter, setMonthFilter] = useState(() => sessionStorage.getItem("case_catalog_month") || "");
+  const [startDate, setStartDate] = useState(() => sessionStorage.getItem("case_catalog_start_date") || "");
+  const [endDate, setEndDate] = useState(() => sessionStorage.getItem("case_catalog_end_date") || "");
+  const [currentPage, setCurrentPage] = useState<number>(() => {
+    const stored = sessionStorage.getItem("case_catalog_current_page");
+    return stored ? Number(stored) || 1 : 1;
+  });
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [isToastVisible, setIsToastVisible] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    try {
+      const stored = sessionStorage.getItem("case_catalog_expanded_groups");
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const [collapsingGroups, setCollapsingGroups] = useState<Set<string>>(new Set());
+
+  const tableContainerRef = useRef<HTMLDivElement | null>(null);
+  const isRestoredRef = useRef(false);
+  const isFirstRender = useRef(true);
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -331,6 +346,143 @@ export default function CaseCatalog() {
   const statusDropdownRef = useRef<HTMLDivElement | null>(null);
   const todayDate = getTodayDateString();
   const currentMonth = getCurrentMonthString();
+
+  const handleRowClick = (caseId: number) => {
+    const tableScroll = tableContainerRef.current ? tableContainerRef.current.scrollTop : 0;
+    const windowScroll = window.scrollY || document.documentElement.scrollTop || 0;
+    const mainScroll = document.querySelector("main")?.scrollTop || 0;
+
+    sessionStorage.setItem("case_catalog_table_scroll_top", String(tableScroll));
+    sessionStorage.setItem("case_catalog_window_scroll_y", String(windowScroll));
+    sessionStorage.setItem("case_catalog_main_scroll_top", String(mainScroll));
+
+    navigate(`/case/${caseId}`);
+  };
+
+  useEffect(() => {
+    sessionStorage.setItem("case_catalog_search", searchQuery);
+    sessionStorage.setItem("case_catalog_status", statusFilter);
+    sessionStorage.setItem("case_catalog_month", monthFilter);
+    sessionStorage.setItem("case_catalog_start_date", startDate);
+    sessionStorage.setItem("case_catalog_end_date", endDate);
+  }, [searchQuery, statusFilter, monthFilter, startDate, endDate]);
+
+  useEffect(() => {
+    sessionStorage.setItem("case_catalog_current_page", String(currentPage));
+  }, [currentPage]);
+
+  useEffect(() => {
+    sessionStorage.setItem("case_catalog_expanded_groups", JSON.stringify(Array.from(expandedGroups)));
+  }, [expandedGroups]);
+
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    const handleScroll = () => {
+      if (!isRestoredRef.current) return;
+
+      if (container) {
+        sessionStorage.setItem("case_catalog_table_scroll_top", String(container.scrollTop));
+      }
+      const winScroll = window.scrollY || document.documentElement.scrollTop || 0;
+      sessionStorage.setItem("case_catalog_window_scroll_y", String(winScroll));
+      const mainEl = document.querySelector("main");
+      if (mainEl) {
+        sessionStorage.setItem("case_catalog_main_scroll_top", String(mainEl.scrollTop));
+      }
+    };
+
+    if (container) {
+      container.addEventListener("scroll", handleScroll, { passive: true });
+    }
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      if (container) {
+        container.removeEventListener("scroll", handleScroll);
+      }
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isLoading) {
+      const savedTableScroll = sessionStorage.getItem("case_catalog_table_scroll_top");
+      const savedWindowScroll = sessionStorage.getItem("case_catalog_window_scroll_y");
+      const savedMainScroll = sessionStorage.getItem("case_catalog_main_scroll_top");
+
+      const targetTable = savedTableScroll ? Number(savedTableScroll) : 0;
+      const targetWindow = savedWindowScroll ? Number(savedWindowScroll) : 0;
+      const targetMain = savedMainScroll ? Number(savedMainScroll) : 0;
+
+      if (targetTable === 0 && targetWindow === 0 && targetMain === 0) {
+        isRestoredRef.current = true;
+        return;
+      }
+
+      let attempts = 0;
+      const maxAttempts = 20; // Try for 2 seconds max
+
+      const restore = () => {
+        let restoredTable = false;
+        let restoredWindow = false;
+        let restoredMain = false;
+
+        if (targetTable > 0 && tableContainerRef.current) {
+          tableContainerRef.current.scrollTop = targetTable;
+          if (Math.abs(tableContainerRef.current.scrollTop - targetTable) < 2) {
+            restoredTable = true;
+          }
+        } else {
+          restoredTable = true;
+        }
+
+        if (targetWindow > 0) {
+          window.scrollTo({ top: targetWindow, behavior: "instant" });
+          document.documentElement.scrollTop = targetWindow;
+          document.body.scrollTop = targetWindow;
+          const currentWin = window.scrollY || document.documentElement.scrollTop || 0;
+          if (Math.abs(currentWin - targetWindow) < 2) {
+            restoredWindow = true;
+          }
+        } else {
+          restoredWindow = true;
+        }
+
+        if (targetMain > 0) {
+          const mainEl = document.querySelector("main");
+          if (mainEl) {
+            mainEl.scrollTop = targetMain;
+            if (Math.abs(mainEl.scrollTop - targetMain) < 2) {
+              restoredMain = true;
+            }
+          }
+        } else {
+          restoredMain = true;
+        }
+
+        return restoredTable && restoredWindow && restoredMain;
+      };
+
+      const interval = setInterval(() => {
+        const success = restore();
+        attempts++;
+        if (success || attempts >= maxAttempts) {
+          clearInterval(interval);
+          requestAnimationFrame(() => {
+            isRestoredRef.current = true;
+          });
+        }
+      }, 100);
+
+      // Immediate attempts
+      restore();
+      requestAnimationFrame(restore);
+
+      return () => {
+        clearInterval(interval);
+      };
+    }
+  }, [isLoading]);
 
   const loadCases = useCallback(async () => {
     try {
@@ -389,15 +541,28 @@ export default function CaseCatalog() {
   };
 
   const toggleGroupExpanded = (groupId: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(groupId)) {
+    if (expandedGroups.has(groupId)) {
+      setCollapsingGroups((prev) => new Set(prev).add(groupId));
+      setExpandedGroups((prev) => {
+        const next = new Set(prev);
         next.delete(groupId);
-      } else {
-        next.add(groupId);
-      }
-      return next;
-    });
+        return next;
+      });
+      setTimeout(() => {
+        setCollapsingGroups((prev) => {
+          const next = new Set(prev);
+          next.delete(groupId);
+          return next;
+        });
+      }, 260);
+    } else {
+      setCollapsingGroups((prev) => {
+        const next = new Set(prev);
+        next.delete(groupId);
+        return next;
+      });
+      setExpandedGroups((prev) => new Set(prev).add(groupId));
+    }
   };
 
   const displayCases = useMemo(
@@ -589,6 +754,10 @@ export default function CaseCatalog() {
   }, [currentPage, totalPages]);
 
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     setCurrentPage(1);
   }, [searchQuery, statusFilter, monthFilter, startDate, endDate]);
 
@@ -1144,7 +1313,7 @@ export default function CaseCatalog() {
       </div>
 
       <div className="bg-surface border border-surface-variant rounded-lg overflow-hidden shadow-sm flex flex-col">
-        <div className="overflow-x-auto overflow-y-scroll h-[calc(100vh-310px)] min-h-[250px] [scrollbar-gutter:stable]">
+        <div ref={tableContainerRef} className="overflow-x-auto overflow-y-scroll h-[calc(100vh-310px)] min-h-[250px] [scrollbar-gutter:stable]">
           <table className="w-full text-left border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
               <tr className="bg-surface-container font-section-header text-sm text-on-surface">
@@ -1198,6 +1367,8 @@ export default function CaseCatalog() {
             {!isLoading && !error && paginatedGroups.map((group) => {
               const isCollapsible = group.groupId !== null && group.cases.length >= 3;
               const isExpanded = group.groupId ? expandedGroups.has(group.groupId) : false;
+              const isCollapsing = group.groupId ? collapsingGroups.has(group.groupId) : false;
+              const showSubRows = isExpanded || isCollapsing;
 
               if (isCollapsible) {
                 const rep = group.cases[0];
@@ -1207,13 +1378,15 @@ export default function CaseCatalog() {
                 return (
                   <tbody key={group.groupId!} className="font-body-md text-sm text-on-surface">
                     <tr
-                      className="catalog-page-enter cursor-pointer transition-colors group/row"
+                      className={`catalog-page-enter cursor-pointer transition-all duration-300 select-none group/row ${
+                        isExpanded ? "bg-primary/5 dark:bg-primary/10" : ""
+                      }`}
                       onClick={() => toggleGroupExpanded(group.groupId!)}
                       aria-expanded={isExpanded}
                     >
-                      <td className={`p-table-cell-padding transition-colors duration-300 border-l-[3px] border-l-outline-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
+                      <td className={`p-table-cell-padding transition-colors duration-300 border-l-[3px] ${isExpanded ? "border-l-primary" : "border-l-outline-variant"} bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
                         <span
-                          className="material-symbols-outlined text-[18px] text-secondary transition-transform duration-200 inline-block"
+                          className="material-symbols-outlined text-[18px] text-secondary transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] inline-block"
                           style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
                         >
                           chevron_right
@@ -1257,14 +1430,19 @@ export default function CaseCatalog() {
                       <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}></td>
                       <td className={`py-1 px-4 transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}></td>
                     </tr>
-                    {isExpanded && group.cases.map((caseRecord, subIndex) => {
+                    {showSubRows && group.cases.map((caseRecord, subIndex) => {
                       const isLastSubRow = subIndex === group.cases.length - 1;
                       const subBorderClass = isLastSubRow ? "border-b border-b-surface-variant" : "border-b border-b-surface-variant/40";
+                      const animClass = isCollapsing ? "group-row-collapse" : "group-row-expand";
+                      const delay = isCollapsing
+                        ? (group.cases.length - 1 - subIndex) * 25
+                        : subIndex * 35;
                       return (
                         <tr
                           key={caseRecord.id}
-                          className="catalog-page-enter transition-colors cursor-pointer group/row"
-                          onClick={() => navigate(`/case/${caseRecord.id}`)}
+                          className={`${animClass} transition-all duration-300 cursor-pointer group/row`}
+                          style={{ animationDelay: `${delay}ms` }}
+                          onClick={() => handleRowClick(caseRecord.id)}
                         >
                           <td className={`p-table-cell-padding transition-colors duration-300 border-l-[3px] border-l-outline-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
                             <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
@@ -1342,7 +1520,7 @@ export default function CaseCatalog() {
                     <tr
                       key={caseRecord.id}
                       className="catalog-page-enter transition-colors cursor-pointer group/row"
-                      onClick={() => navigate(`/case/${caseRecord.id}`)}
+                      onClick={() => handleRowClick(caseRecord.id)}
                     >
                       <td className={`p-table-cell-padding transition-colors duration-300 ${isGrouped ? "border-l-[3px] border-l-outline-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
                         <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
@@ -1426,9 +1604,21 @@ export default function CaseCatalog() {
 
         <div className="bg-surface border-t border-surface-variant px-4 py-3 flex items-center justify-between">
           <span className="text-sm text-on-surface-variant">
-            {isLoading
-              ? "Loading entries"
-              : `Showing ${filteredAndSortedCases.length === 0 ? 0 : ((currentPage - 1) * CASES_PER_PAGE) + 1} to ${Math.min(currentPage * CASES_PER_PAGE, filteredAndSortedCases.length)} of ${filteredAndSortedCases.length} entries`}
+            {(() => {
+              if (isLoading) return "Loading entries";
+              if (filteredAndSortedCases.length === 0) return "Showing 0 to 0 of 0 entries";
+              
+              const casesBeforeCurrentPage = filteredAndSortedGroups
+                .slice(0, (currentPage - 1) * CASES_PER_PAGE)
+                .reduce((acc, group) => acc + group.cases.length, 0);
+              
+              const casesOnCurrentPage = paginatedGroups.reduce((acc, group) => acc + group.cases.length, 0);
+              
+              const startEntry = casesBeforeCurrentPage + 1;
+              const endEntry = casesBeforeCurrentPage + casesOnCurrentPage;
+              
+              return `Showing ${startEntry} to ${endEntry} of ${filteredAndSortedCases.length} entries`;
+            })()}
           </span>
           <div key={currentPage} className="catalog-page-enter flex flex-wrap items-center justify-end gap-1">
             <button

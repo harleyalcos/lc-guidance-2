@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import lcLogo from "../assets/lc-logo.png";
 
@@ -190,8 +191,8 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
     }
   };
 
-  const renderToast = () => toast && (
-    <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+  const renderToast = () => toast && createPortal(
+    <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
       toast.type === "success"
         ? "border border-green-500/30 bg-green-50 text-green-900"
         : "border border-error/30 bg-error-container text-on-error-container"
@@ -200,7 +201,8 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
         {toast.type === "success" ? "check_circle" : "error"}
       </span>
       <p className="text-xs font-bold">{toast.message}</p>
-    </div>
+    </div>,
+    document.body
   );
 
   const inputClass = "rounded-md w-full bg-surface-container border border-outline-variant px-3 py-2.5 font-body-md text-on-surface caret-primary dark:caret-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all";
