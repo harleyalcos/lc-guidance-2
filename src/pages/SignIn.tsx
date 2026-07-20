@@ -309,8 +309,9 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                   <input type="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} className={inputClass} placeholder="Where reset codes are sent" />
                 </div>
               </div>
-              <button type="submit" disabled={isBusy} className="mt-7 rounded-md w-full bg-primary hover:bg-primary-container hover:text-on-primary-container text-on-primary font-body-md font-medium py-3 transition-colors duration-500 disabled:opacity-60">
-                {isBusy ? "Testing Email & Saving..." : "Complete Setup"}
+              <button type="submit" disabled={isBusy} className="btn-primary w-full mt-7">
+                <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                <span>{isBusy ? "Testing Email & Saving..." : "Complete Setup"}</span>
               </button>
             </form>
           ) : showReset ? (
@@ -321,8 +322,9 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
               </div>
               {resetStep === "request" && (
                 <div className="space-y-4">
-                  <button type="button" disabled={isBusy} onClick={handleRequestOtp} className="rounded-md w-full bg-primary text-on-primary font-body-md font-medium py-3 transition-colors duration-500 disabled:opacity-60">
-                    {isBusy ? "Sending Code..." : "Send Reset Code"}
+                  <button type="button" disabled={isBusy} onClick={handleRequestOtp} className="btn-primary w-full">
+                    <span className="material-symbols-outlined text-[18px]">send</span>
+                    <span>{isBusy ? "Sending Code..." : "Send Reset Code"}</span>
                   </button>
                   <button type="button" onClick={() => setShowReset(false)} className="w-full text-xs font-bold text-secondary hover:text-primary">
                     Back to sign in
@@ -335,8 +337,9 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                     <label className="font-label-caps text-label-caps text-secondary block mb-1.5">Reset Code</label>
                     <input type="text" inputMode="numeric" value={otp} onChange={(e) => setOtp(cleanPin(e.target.value))} className={pinClass} placeholder="000000" />
                   </div>
-                  <button type="submit" disabled={isBusy} className="rounded-md w-full bg-primary text-on-primary font-body-md font-medium py-3 transition-colors duration-500 disabled:opacity-60">
-                    {isBusy ? "Checking..." : "Verify Code"}
+                  <button type="submit" disabled={isBusy} className="btn-primary w-full">
+                    <span className="material-symbols-outlined text-[18px]">verified</span>
+                    <span>{isBusy ? "Checking..." : "Verify Code"}</span>
                   </button>
                 </form>
               )}
@@ -362,8 +365,9 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                       })}
                     </div>
                   </div>
-                  <button type="submit" disabled={isBusy} className="rounded-md w-full bg-primary text-on-primary font-body-md font-medium py-3 transition-colors duration-500 disabled:opacity-60">
-                    {isBusy ? "Saving..." : "Save New PIN"}
+                  <button type="submit" disabled={isBusy} className="btn-primary w-full">
+                    <span className="material-symbols-outlined text-[18px]">lock</span>
+                    <span>{isBusy ? "Saving..." : "Save New PIN"}</span>
                   </button>
                 </form>
               )}
@@ -380,8 +384,9 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                   cleanValue: cleanPin,
                 })}
               </div>
-              <button type="submit" disabled={isBusy || !isLoginPinComplete} className="mt-7 rounded-md w-full bg-primary hover:bg-primary-container hover:text-on-primary-container text-on-primary font-body-md font-medium py-3 transition-colors duration-500 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-primary disabled:hover:text-on-primary">
-                {isBusy ? "Signing In..." : "Sign In"}
+              <button type="submit" disabled={isBusy || !isLoginPinComplete} className="btn-primary w-full mt-7">
+                <span className="material-symbols-outlined text-[18px]">login</span>
+                <span>{isBusy ? "Signing In..." : "Sign In"}</span>
               </button>
               <button type="button" onClick={() => { setShowReset(true); clearToast(); }} className="mt-5 w-full text-center font-body-md text-xs text-secondary hover:text-primary font-bold">
                 Forgot PIN?

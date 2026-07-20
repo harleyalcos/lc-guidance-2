@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import html2pdf from "html2pdf.js";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
+import MonthYearRangePicker from "../components/MonthYearRangePicker";
 
 interface CaseRecord {
   id: number;
@@ -59,6 +60,54 @@ const formatDate = (dateString: string) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+const formatReportDateRange = (startStr: string, endStr: string, casesList: CaseRecord[]) => {
+  let oldestStr = "";
+  let latestStr = "";
+  
+  if (casesList && casesList.length > 0) {
+    let oldest: Date | null = null;
+    let latest: Date | null = null;
+    for (const c of casesList) {
+      const d = new Date(c.date_filed || c.date);
+      if (!isNaN(d.getTime())) {
+        if (!oldest || d.getTime() < oldest.getTime()) oldest = d;
+        if (!latest || d.getTime() > latest.getTime()) latest = d;
+      }
+    }
+    if (oldest) oldestStr = oldest.toISOString().split('T')[0];
+    if (latest) latestStr = latest.toISOString().split('T')[0];
+  }
+
+  const start = startStr || oldestStr;
+  const end = endStr || latestStr;
+
+  if (!start && !end) return "No Cases";
+  if (start && !end) return `From ${formatDate(start)}`;
+  if (!start && end) return `Until ${formatDate(end)}`;
+  
+  const startDateObj = new Date(start);
+  const endDateObj = new Date(end);
+  
+  if (startDateObj.getTime() === endDateObj.getTime()) {
+    return formatDate(start);
+  }
+  
+  // Check if it's a full calendar year
+  if (startDateObj.getMonth() === 0 && startDateObj.getDate() === 1 && endDateObj.getMonth() === 11 && endDateObj.getDate() === 31 && startDateObj.getFullYear() === endDateObj.getFullYear()) {
+    return `${startDateObj.getFullYear()}`;
+  }
+
+  // Check if it's a full calendar month
+  if (startDateObj.getDate() === 1 && startDateObj.getFullYear() === endDateObj.getFullYear() && startDateObj.getMonth() === endDateObj.getMonth()) {
+    const lastDay = new Date(endDateObj.getFullYear(), endDateObj.getMonth() + 1, 0).getDate();
+    if (endDateObj.getDate() === lastDay) {
+      return startDateObj.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    }
+  }
+
+  return `${formatDate(start)} – ${formatDate(end)}`;
+};
+
 const getBadgeInlineStyle = (progress: string): React.CSSProperties => {
   const normalizedProgress = progress.toLowerCase();
   if (normalizedProgress === "closed") {
@@ -73,22 +122,69 @@ const getBadgeInlineStyle = (progress: string): React.CSSProperties => {
   return { color: "#b45309" }; // Amber/Orange
 };
 
+const getCaseDate = (caseRecord: CaseRecord) => {
+  const parsed = new Date(caseRecord.date_filed || caseRecord.date);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+
+
+const getReportDateStamp = () => {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const getCaseGradeLevel = (caseRecord: CaseRecord) => {
+  const students = parseStudents(caseRecord.students);
+  return students[0]?.level || caseRecord.level || "Unspecified";
+};
+
 export default function SummaryReports() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [scope, setScope] = useState<"all" | "specific">("all");
   const [selectedGrade, setSelectedGrade] = useState("Grade 7");
-  const [selectedRole, setSelectedRole] = useState<"all" | "Respondent" | "Complainant / Subject">("all");
+
   const [selectedStatus, setSelectedStatus] = useState<"all" | "Pending" | "Reprimand" | "Resolved" | "Closed">("all");
-  const [periodType, setPeriodType] = useState<"monthly" | "yearly">("monthly");
-  const [selectedMonth, setSelectedMonth] = useState("July 2025");
-  const [selectedYear, setSelectedYear] = useState("A.Y. 2025-2026");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [includes, setIncludes] = useState({
     summary: true,
     signature: true,
   });
+  const [visibleColumns, setVisibleColumns] = useState({
+    date: true,
+    student: true,
+    class: true,
+    adviser: true,
+    type: true,
+    description: true,
+    sanction: true,
+    status: true,
+  });
+  const activeColsCount = 1 + Object.values(visibleColumns).filter(Boolean).length;
   const [isExporting, setIsExporting] = useState(false);
   const [paginatedPages, setPaginatedPages] = useState<{ rows: CaseRecord[], isFirstPage: boolean, hasClosing: boolean }[]>([]);
   
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const statusDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setIsStatusDropdownOpen(false);
+      }
+    };
+
+    if (isStatusDropdownOpen) {
+      document.addEventListener("click", handleClickOutside);
+    }
+
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [isStatusDropdownOpen]);
+
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -107,118 +203,63 @@ export default function SummaryReports() {
     return () => window.removeEventListener("cases:changed", handleCasesChanged);
   }, []);
 
-  const availableMonths = useMemo(() => {
-    const monthsSet = new Set<string>();
-    cases.forEach(c => {
-      const d = new Date(c.date_filed || c.date);
-      if (!isNaN(d.getTime())) {
-        const monthName = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-        monthsSet.add(monthName);
-      }
-    });
-    if (monthsSet.size === 0) {
-      return ["June 2025", "July 2025", "August 2025", "September 2025", "October 2025", "November 2025", "December 2025", "January 2026", "February 2026", "March 2026"];
-    }
-    return Array.from(monthsSet).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-  }, [cases]);
 
-  const availableYears = useMemo(() => {
-    const yearsSet = new Set<string>();
-    cases.forEach(c => {
-      const d = new Date(c.date_filed || c.date);
-      if (!isNaN(d.getTime())) {
-        const year = d.getFullYear();
-        const month = d.getMonth();
-        let ay = "";
-        if (month >= 5) {
-          ay = `A.Y. ${year}-${year + 1}`;
-        } else {
-          ay = `A.Y. ${year - 1}-${year}`;
-        }
-        yearsSet.add(ay);
-      }
-    });
-    if (yearsSet.size === 0) {
-      return ["A.Y. 2025-2026", "A.Y. 2026-2027"];
-    }
-    return Array.from(yearsSet).sort();
-  }, [cases]);
 
-  useEffect(() => {
-    if (availableMonths.length > 0 && !availableMonths.includes(selectedMonth)) {
-      setSelectedMonth(availableMonths[availableMonths.length - 1]);
-    }
-  }, [availableMonths, selectedMonth]);
-
-  useEffect(() => {
-    if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
-      setSelectedYear(availableYears[availableYears.length - 1]);
-    }
-  }, [availableYears, selectedYear]);
-
-  const activeCases = useMemo(() => {
+  const filteredCases = useMemo(() => {
     return cases.filter(c => {
       // 1. Filter by scope
       if (scope === "specific") {
-        const students = parseStudents(c.students);
-        const grade = students.length > 0 ? students[0].level : c.level;
+        const grade = getCaseGradeLevel(c);
         if (grade !== selectedGrade) return false;
-      }
-
-      // 2. Filter by role
-      if (selectedRole !== "all") {
-        const students = parseStudents(c.students);
-        const hasRole = students.length > 0
-          ? students.some(s => normalizeRole(s.role).toLowerCase() === selectedRole.toLowerCase())
-          : (selectedRole.toLowerCase() === "respondent");
-        if (!hasRole) return false;
       }
 
       // 3. Filter by status
       if (selectedStatus !== "all") {
-        if (c.progress.toLowerCase() !== selectedStatus.toLowerCase()) return false;
+        if ((c.progress || "").toLowerCase() !== selectedStatus.toLowerCase()) return false;
       }
 
-      // 4. Filter by period
-      const d = new Date(c.date_filed || c.date);
-      if (isNaN(d.getTime())) return false;
-
-      if (periodType === "monthly") {
-        const monthName = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-        return monthName === selectedMonth;
-      } else {
-        const year = d.getFullYear();
-        const month = d.getMonth();
-        let ay = "";
-        if (month >= 5) {
-          ay = `A.Y. ${year}-${year + 1}`;
-        } else {
-          ay = `A.Y. ${year - 1}-${year}`;
-        }
-        return ay === selectedYear;
-      }
+      return true;
     });
-  }, [cases, periodType, selectedMonth, selectedYear, scope, selectedGrade, selectedRole]);
+  }, [cases, scope, selectedGrade, selectedStatus]);
+
+  const activeCases = useMemo(() => {
+    return filteredCases.filter(c => {
+      const d = getCaseDate(c);
+      if (!d) return false;
+
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        if (d < start) return false;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        if (d > end) return false;
+      }
+      return true;
+    });
+  }, [filteredCases, startDate, endDate]);
 
   const stats = useMemo(() => {
     const total = activeCases.length;
     const pending = activeCases.filter(c => c.progress.toLowerCase() === "pending").length;
-    const resolved = activeCases.filter(c => {
-      const p = c.progress.toLowerCase();
-      return p === "resolved" || p === "closed";
-    }).length;
+    const resolved = activeCases.filter(c => c.progress.toLowerCase() === "resolved").length;
+    const closed = activeCases.filter(c => c.progress.toLowerCase() === "closed").length;
     const reprimand = activeCases.filter(c => c.progress.toLowerCase() === "reprimand").length;
 
-    return { total, pending, resolved, reprimand };
+    return { total, pending, resolved, reprimand, closed };
   }, [activeCases]);
+
+  const reportGeneratedDate = useMemo(() => getReportDateStamp(), []);
 
   const handleExportPDF = async () => {
     if (!reportRef.current || isExporting) return;
     setIsExporting(true);
     const element = reportRef.current;
-    const filenameLabel = periodType === "monthly" ? selectedMonth : selectedYear;
+    const filenameLabel = formatReportDateRange(startDate, endDate, cases);
     
-    const filename = `Guidance_Report_${filenameLabel.replace(/[\s\.-]/g, '_')}.pdf`;
+    const filename = `Guidance_Report_${filenameLabel.replace(/[\s\.,-]/g, '_')}.pdf`;
     const opt = {
       margin:       0,
       filename,
@@ -251,15 +292,22 @@ export default function SummaryReports() {
   const handleClearFilters = () => {
     setScope("all");
     setSelectedGrade("Grade 7");
-    setSelectedRole("all");
     setSelectedStatus("all");
-    setPeriodType("yearly");
-    if (availableYears.length > 0) {
-      setSelectedYear(availableYears[availableYears.length - 1]);
-    }
+    setStartDate("");
+    setEndDate("");
     setIncludes({
       summary: true,
       signature: true,
+    });
+    setVisibleColumns({
+      date: true,
+      student: true,
+      class: true,
+      adviser: true,
+      type: true,
+      description: true,
+      sanction: true,
+      status: true,
     });
   };
 
@@ -285,31 +333,21 @@ export default function SummaryReports() {
 
       <div className="text-center mb-6">
         <h1 className="text-base font-bold uppercase tracking-wider mb-0.5 font-sans">
-          {periodType === "monthly" ? "Guidance Office Cases Monthly Report" : "Guidance Office Cases Yearly Report"}
+          Guidance Office Cases Report
         </h1>
         <p className="text-xs text-gray-500 font-sans">Official Case Report</p>
       </div>
 
       <div className="grid grid-cols-2 gap-x-8 gap-y-1.5 mb-6 text-xs w-3/4 mx-auto font-sans text-left">
-        {periodType === "monthly" ? (
-          <div className="flex">
-            <span className="w-32 text-gray-500">Reporting period</span>
-            <span className="font-medium">{selectedMonth}</span>
-          </div>
-        ) : (
-          <div className="flex">
-            <span className="w-32 text-gray-500">Academic year</span>
-            <span className="font-medium">{selectedYear.replace('A.Y. ', '')}</span>
-          </div>
-        )}
+        <div className="flex">
+          <span className="w-32 text-gray-500">Reporting period</span>
+          <span className="font-medium">{formatReportDateRange(startDate, endDate, cases)}</span>
+        </div>
         <div className="flex">
           <span className="w-32 text-gray-500">Scope</span>
           <span className="font-medium">{scope === 'all' ? 'All year levels' : selectedGrade}</span>
         </div>
-        <div className="flex">
-          <span className="w-32 text-gray-500">Role filter</span>
-          <span className="font-medium">{selectedRole === 'all' ? 'All roles' : selectedRole}</span>
-        </div>
+
         <div className="flex">
           <span className="w-32 text-gray-500">Status filter</span>
           <span className="font-medium">{selectedStatus === 'all' ? 'All statuses' : selectedStatus}</span>
@@ -322,10 +360,10 @@ export default function SummaryReports() {
         </div>
       </div>
 
-      {includes.summary && (
+      {includes.summary && selectedStatus === "all" && (
         <div className="mb-6 font-sans">
           <h3 className="text-[10px] font-bold text-primary uppercase tracking-wider mb-2 border-b pb-1">Summary</h3>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-5 gap-4">
             <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
               <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Total Cases</span>
               <span className="text-base leading-5 font-bold text-gray-900">{stats.total}</span>
@@ -342,10 +380,21 @@ export default function SummaryReports() {
               <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Reprimand Cases</span>
               <span className="text-base leading-5 font-bold text-gray-900">{stats.reprimand}</span>
             </div>
+            <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
+              <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Closed Cases</span>
+              <span className="text-base leading-5 font-bold text-gray-900">{stats.closed}</span>
+            </div>
           </div>
         </div>
       )}
-      <h3 className="text-[12px] font-bold text-primary uppercase tracking-wider mb-2 border-b pb-1 font-sans">Case List</h3>
+      <div className="flex justify-between items-baseline mb-2 border-b pb-1 font-sans">
+        <h3 className="text-[12px] font-bold text-primary uppercase tracking-wider">Case List</h3>
+        {selectedStatus !== "all" && (
+          <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wide">
+            Total: {stats.total} {selectedStatus} {stats.total === 1 ? "Case" : "Cases"}
+          </span>
+        )}
+      </div>
     </>
   );
 
@@ -354,12 +403,12 @@ export default function SummaryReports() {
       <div>
         <h2 className="m-0 text-[13px] font-black uppercase tracking-wider text-black">Laguna College Guidance Office</h2>
         <p className="m-0 mt-0.5 text-[10px] font-bold text-gray-600">
-          {periodType === "monthly" ? "Monthly Disciplinary Case Report" : "Yearly Disciplinary Case Report"}
+          Disciplinary Case Report
         </p>
       </div>
       <div className="text-right">
         <p className="m-0 text-[10px] text-gray-500">
-          {periodType === "monthly" ? selectedMonth : selectedYear}
+          {formatReportDateRange(startDate, endDate, cases)}
         </p>
         <p className="m-0 mt-0.5 text-[9px] text-gray-400 uppercase font-bold tracking-widest">
           Case List (Continued)
@@ -372,14 +421,14 @@ export default function SummaryReports() {
     <thead>
       <tr className="border-b border-gray-200 text-gray-600 font-bold uppercase text-[11px] tracking-wider font-sans">
         <th className="py-2 pr-2 w-8">#</th>
-        <th className="py-2 pr-2">Incident Date</th>
-        <th className="py-2 pr-2">Student</th>
-        <th className="py-2 pr-2">Class</th>
-        <th className="py-2 pr-2">Adviser</th>
-        <th className="py-2 pr-2">Type</th>
-        <th className="py-2 pr-2 max-w-[140px]">Description</th>
-        <th className="py-2 pr-2 max-w-[120px]">Sanction</th>
-        <th className="py-2 text-right pr-2">Status</th>
+        {visibleColumns.date && <th className="py-2 pr-2">Incident Date</th>}
+        {visibleColumns.student && <th className="py-2 pr-2">Student</th>}
+        {visibleColumns.class && <th className="py-2 pr-2">Class</th>}
+        {visibleColumns.adviser && <th className="py-2 pr-2">Adviser</th>}
+        {visibleColumns.type && <th className="py-2 pr-2">Type</th>}
+        {visibleColumns.description && <th className="py-2 pr-2 max-w-[140px]">Description</th>}
+        {visibleColumns.sanction && <th className="py-2 pr-2 max-w-[120px]">Sanction</th>}
+        {visibleColumns.status && <th className="py-2 text-right pr-2">Status</th>}
       </tr>
     </thead>
   );
@@ -442,30 +491,32 @@ export default function SummaryReports() {
         style={{ pageBreakInside: 'avoid' }}
       >
         <td className="py-3 pr-2 pl-2 text-gray-500 font-sans font-bold">{index + 1}</td>
-        <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{formatDate(c.date)}</td>
-        <td className="py-3 pr-2 font-medium text-gray-900 font-sans">{studentName}</td>
-        <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{studentGrade}</td>
-        <td className="py-3 pr-2 text-gray-600 font-sans">{studentAdviser}</td>
-        <td className="py-3 pr-2 text-gray-600 font-sans">{c.case}</td>
-        <td className="py-3 pr-2 text-gray-600 font-sans max-w-[140px] break-words">{c.description || "—"}</td>
-        <td className="py-3 pr-2 text-gray-600 font-sans max-w-[120px] break-words">{c.sanction || "—"}</td>
-        <td style={{ padding: "12px 8px 12px 0", textAlign: "right", verticalAlign: "middle", fontFamily: "sans-serif" }}>
-          <span
-            style={{
-              ...getBadgeInlineStyle(c.progress),
-              display: "inline-block",
-              fontSize: "11px",
-              fontWeight: 700,
-              textTransform: "uppercase" as const,
-              letterSpacing: "0.05em",
-              whiteSpace: "nowrap",
-              lineHeight: "1",
-              verticalAlign: "middle",
-            }}
-          >
-            {c.progress}
-          </span>
-        </td>
+        {visibleColumns.date && <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{formatDate(c.date)}</td>}
+        {visibleColumns.student && <td className="py-3 pr-2 font-medium text-gray-900 font-sans">{studentName}</td>}
+        {visibleColumns.class && <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{studentGrade}</td>}
+        {visibleColumns.adviser && <td className="py-3 pr-2 text-gray-600 font-sans">{studentAdviser}</td>}
+        {visibleColumns.type && <td className="py-3 pr-2 text-gray-600 font-sans">{c.case}</td>}
+        {visibleColumns.description && <td className="py-3 pr-2 text-gray-600 font-sans max-w-[140px] break-words">{c.description || "—"}</td>}
+        {visibleColumns.sanction && <td className="py-3 pr-2 text-gray-600 font-sans max-w-[120px] break-words">{c.sanction || "—"}</td>}
+        {visibleColumns.status && (
+          <td style={{ padding: "12px 8px 12px 0", textAlign: "right", verticalAlign: "middle", fontFamily: "sans-serif" }}>
+            <span
+              style={{
+                ...getBadgeInlineStyle(c.progress),
+                display: "inline-block",
+                fontSize: "11px",
+                fontWeight: 700,
+                textTransform: "uppercase" as const,
+                letterSpacing: "0.05em",
+                whiteSpace: "nowrap",
+                lineHeight: "1",
+                verticalAlign: "middle",
+              }}
+            >
+              {c.progress}
+            </span>
+          </td>
+        )}
       </tr>
     );
   };
@@ -506,6 +557,8 @@ export default function SummaryReports() {
       </div>
     </div>
   );
+
+
 
   useLayoutEffect(() => {
     const frameEl = document.querySelector('[data-measurement-root] [data-page-frame]');
@@ -589,53 +642,61 @@ export default function SummaryReports() {
     }
     
     setPaginatedPages(newPages);
-  }, [activeCases, includes, periodType, selectedMonth, selectedYear, scope, selectedGrade, selectedRole]);
+  }, [activeCases, includes, startDate, endDate, scope, selectedGrade, selectedStatus, visibleColumns]);
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-7xl mx-auto pb-10 h-full">
       {/* Header */}
-      <div className="flex justify-between items-end print:hidden">
+      <div className="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-end print:hidden">
         <div>
-          <h1 className="text-3xl font-display font-bold text-primary m-0">Reports</h1>
-          <p className="text-sm text-gray-500 mt-1">Generate a printable report for school leadership</p>
+          <h1 className="text-3xl font-display font-bold text-on-surface m-0">Reports</h1>
+          <p className="text-sm text-secondary mt-1">
+            Generate, customize, and export guidance office reports.
+          </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+          <div className="h-10 px-4 rounded-lg border border-outline-variant bg-surface text-primary text-xs font-data-mono flex items-center justify-center whitespace-nowrap">
+            REPORT_GEN_DATE: {reportGeneratedDate}
+          </div>
           <button 
             onClick={handleExportPDF}
             disabled={isExporting}
-            className={`px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className="btn-secondary"
           >
-            {isExporting ? "Exporting..." : "Export PDF"}
+            <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+            <span>{isExporting ? "Exporting..." : "Export PDF"}</span>
           </button>
           <button 
             onClick={handlePrint}
-            className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 transition-all shadow-sm"
+            className="btn-primary"
           >
-            Print
+            <span className="material-symbols-outlined text-sm">print</span>
+            <span>Print</span>
           </button>
         </div>
       </div>
 
       <div className="flex flex-col gap-6">
+
         {/* Report settings on top */}
-        <div className="w-full bg-white border border-gray-200 rounded-xl p-6 shadow-sm print:hidden">
+        <div className="w-full bg-white dark:bg-surface-container border border-gray-200 dark:border-outline-variant rounded-xl p-6 shadow-sm print:hidden">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-sm font-bold text-primary">Report settings</h2>
             <button
               onClick={handleClearFilters}
-              className="text-xs font-bold text-primary hover:text-primary/80 transition-colors flex items-center gap-1 bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-lg"
+              className="btn-secondary py-1.5 px-4 text-xs"
             >
               <span className="material-symbols-outlined text-[16px]">filter_alt_off</span>
-              Clear Filters
+              <span>Clear Filters</span>
             </button>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
             {/* Scope */}
             <div>
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 block">Scope</label>
+              <label className="text-xs font-bold text-gray-400 dark:text-secondary uppercase tracking-wider mb-3 block">Scope</label>
               <div className="space-y-2">
-                <label className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${scope === 'all' ? 'bg-primary/5' : 'hover:bg-gray-50'}`}>
+                <label className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${scope === 'all' ? 'bg-primary/5' : 'hover:bg-gray-50 dark:hover:bg-surface-container-high'}`}>
                   <input 
                     type="radio" 
                     name="scope" 
@@ -644,9 +705,9 @@ export default function SummaryReports() {
                     onChange={() => setScope("all")}
                     className="w-4 h-4 text-primary focus:ring-primary accent-primary" 
                   />
-                  <span className={`text-sm ${scope === 'all' ? 'font-medium text-primary' : 'text-gray-600'}`}>All cases</span>
+                  <span className={`text-sm ${scope === 'all' ? 'font-medium text-primary' : 'text-gray-600 dark:text-on-surface-variant'}`}>All cases</span>
                 </label>
-                <label className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${scope === 'specific' ? 'bg-primary/5' : 'hover:bg-gray-50'}`}>
+                <label className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${scope === 'specific' ? 'bg-primary/5' : 'hover:bg-gray-50 dark:hover:bg-surface-container-high'}`}>
                   <input 
                     type="radio" 
                     name="scope" 
@@ -664,106 +725,96 @@ export default function SummaryReports() {
                       <select
                         value={selectedGrade}
                         onChange={e => setSelectedGrade(e.target.value)}
-                        className="w-full appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                        className="w-full appearance-none bg-white dark:bg-surface-container border border-gray-300 dark:border-outline-variant rounded-lg pl-3 pr-10 py-1.5 text-sm text-gray-700 dark:text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                       >
                         {["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"].map(grade => (
                           <option key={grade} value={grade}>{grade}</option>
                         ))}
                       </select>
-                      <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" style={{ fontSize: '18px' }}>expand_more</span>
+                      <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-on-surface-variant pointer-events-none" style={{ fontSize: '18px' }}>expand_more</span>
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Role Filter */}
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 block">Role</label>
-              <div className="relative">
-                <select
-                  value={selectedRole}
-                  onChange={e => setSelectedRole(e.target.value as any)}
-                  className="w-full appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+            {/* Status & Period */}
+            <div className="flex flex-col gap-4">
+              <div ref={statusDropdownRef} className="relative">
+                <label className="text-xs font-bold text-gray-400 dark:text-secondary uppercase tracking-wider mb-2 block">Status</label>
+                <button
+                  type="button"
+                  onClick={() => setIsStatusDropdownOpen((open) => !open)}
+                  className={`group flex h-[38px] w-full max-w-[220px] items-center gap-2 rounded-lg border bg-surface dark:bg-surface-container px-3 text-left text-sm transition-all duration-300 ease-out ${isStatusDropdownOpen
+                      ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
+                      : "border-gray-300 dark:border-outline-variant hover:border-primary/60 hover:bg-surface-container"
+                    }`}
                 >
-                  <option value="all">All roles</option>
-                  <option value="Respondent">Respondent</option>
-                  <option value="Complainant / Subject">Complainant / Subject</option>
-                </select>
-                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" style={{ fontSize: '18px' }}>expand_more</span>
-              </div>
-            </div>
-
-            {/* Status Filter */}
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 block">Status</label>
-              <div className="relative">
-                <select
-                  value={selectedStatus}
-                  onChange={e => setSelectedStatus(e.target.value as any)}
-                  className="w-full appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                >
-                  <option value="all">All statuses</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Reprimand">Reprimand</option>
-                  <option value="Resolved">Resolved</option>
-                  <option value="Closed">Closed</option>
-                </select>
-                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" style={{ fontSize: '18px' }}>expand_more</span>
-              </div>
-            </div>
-
-            {/* Period */}
-            <div>
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 block">Period</label>
-              <div className="flex bg-gray-100 p-1 rounded-lg mb-4">
-                <button 
-                  onClick={() => setPeriodType("monthly")}
-                  className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${periodType === 'monthly' ? 'bg-primary text-white font-medium shadow' : 'text-gray-600 hover:text-gray-900'}`}
-                >
-                  Monthly
+                  <span className="material-symbols-outlined text-secondary dark:text-on-surface-variant transition-colors duration-300 group-hover:text-primary" style={{ fontSize: 16 }}>filter_list</span>
+                  <span className="min-w-0 flex-1 truncate font-medium text-gray-700 dark:text-on-surface">
+                    {selectedStatus === "all" ? "All statuses" : selectedStatus}
+                  </span>
+                  <span
+                    className={`material-symbols-outlined text-secondary dark:text-on-surface-variant transition-transform duration-300 ${isStatusDropdownOpen ? "rotate-180" : "rotate-0"
+                      }`}
+                    style={{ fontSize: 18 }}
+                  >
+                    expand_more
+                  </span>
                 </button>
-                <button 
-                  onClick={() => setPeriodType("yearly")}
-                  className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${periodType === 'yearly' ? 'bg-primary text-white font-medium shadow' : 'text-gray-600 hover:text-gray-900'}`}
-                >
-                  Yearly
-                </button>
-              </div>
-              <div className="space-y-3">
-                {periodType === "monthly" ? (
-                  <div className="relative animate-in fade-in duration-200">
-                    <select 
-                      value={selectedMonth}
-                      onChange={e => setSelectedMonth(e.target.value)}
-                      className="w-full appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                    >
-                      {availableMonths.map(month => (
-                        <option key={month} value={month}>{month}</option>
-                      ))}
-                    </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" style={{ fontSize: '18px' }}>expand_more</span>
-                  </div>
-                ) : (
-                  <div className="relative animate-in fade-in duration-200">
-                    <select 
-                      value={selectedYear}
-                      onChange={e => setSelectedYear(e.target.value)}
-                      className="w-full appearance-none bg-white border border-gray-300 rounded-lg pl-3 pr-10 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                    >
-                      {availableYears.map(year => (
-                        <option key={year} value={year}>{year}</option>
-                      ))}
-                    </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" style={{ fontSize: '18px' }}>expand_more</span>
+
+                {isStatusDropdownOpen && (
+                  <div className="absolute left-0 top-full z-30 mt-2 w-full max-w-[220px] overflow-hidden rounded-xl border border-gray-300 dark:border-outline-variant bg-white dark:bg-surface-container p-1.5 shadow-lg filter-dropdown-enter">
+                    {(["all", "Pending", "Resolved", "Closed", "Reprimand"] as const).map((status) => {
+                      const isSelected = selectedStatus === status;
+                      return (
+                        <button
+                          key={status}
+                          type="button"
+                          onClick={() => {
+                            setSelectedStatus(status);
+                            setIsStatusDropdownOpen(false);
+                          }}
+                          className={`group/status flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-300 ${isSelected
+                              ? "bg-[#EEEDFE] dark:bg-primary/20 text-[#3C3489] dark:text-primary"
+                              : "text-gray-700 dark:text-on-surface hover:bg-gray-100 dark:hover:bg-surface-container-high"
+                            }`}
+                        >
+                          <span className={`h-2 w-2 rounded-full transition-colors duration-300 ${status === "Pending" ? "bg-[#f59e0b]" :
+                              status === "Resolved" ? "bg-[#22c55e]" :
+                                status === "Closed" ? "bg-[#9ca3af]" :
+                                  status === "Reprimand" ? "bg-[#ef4444]" :
+                                    "bg-[#7B6FE8]"
+                            }`} />
+                          <span className="flex-1 font-medium">{status === "all" ? "All statuses" : status}</span>
+                          {isSelected && (
+                            <span className="material-symbols-outlined text-[#7B6FE8] dark:text-primary" style={{ fontSize: 16 }}>check</span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-400 dark:text-secondary uppercase tracking-wider mb-2 block">Period</label>
+                <MonthYearRangePicker
+                  startDate={startDate}
+                  endDate={endDate}
+                  className="w-full max-w-[220px]"
+                  placeholder="Pick range"
+                  onRangeChange={(start, end) => {
+                    setStartDate(start);
+                    setEndDate(end);
+                  }}
+                />
               </div>
             </div>
 
             {/* Include */}
             <div>
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 block">Include</label>
+              <label className="text-xs font-bold text-gray-400 dark:text-secondary uppercase tracking-wider mb-3 block">Include</label>
               <div className="space-y-3">
                 {[
                   { id: 'summary', label: 'Summary statistics' },
@@ -775,11 +826,44 @@ export default function SummaryReports() {
                         type="checkbox" 
                         checked={includes[item.id as keyof typeof includes]}
                         onChange={(e) => setIncludes({...includes, [item.id]: e.target.checked})}
-                        className="peer appearance-none w-4 h-4 border border-gray-300 rounded bg-white checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer" 
+                        className="peer appearance-none w-4 h-4 border border-gray-300 dark:border-outline-variant rounded bg-white dark:bg-surface-container checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer" 
                       />
                       <span className="material-symbols-outlined absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ fontSize: '12px', fontWeight: 'bold' }}>check</span>
                     </div>
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">{item.label}</span>
+                    <span className="text-sm text-gray-700 dark:text-on-surface group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{item.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Columns Checklist */}
+            <div>
+              <label className="text-xs font-bold text-gray-400 dark:text-secondary uppercase tracking-wider mb-3 block">Columns</label>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 max-h-[160px] overflow-y-auto pr-1">
+                {[
+                  { id: 'date', label: 'Incident Date' },
+                  { id: 'student', label: 'Student' },
+                  { id: 'class', label: 'Class' },
+                  { id: 'adviser', label: 'Adviser' },
+                  { id: 'type', label: 'Type' },
+                  { id: 'description', label: 'Description' },
+                  { id: 'sanction', label: 'Sanction' },
+                  { id: 'status', label: 'Status' },
+                ].map((col) => (
+                  <label key={col.id} className="flex items-center gap-3 cursor-pointer group">
+                    <div className="relative flex items-center">
+                      <input 
+                        type="checkbox" 
+                        checked={visibleColumns[col.id as keyof typeof visibleColumns]}
+                        onChange={(e) => setVisibleColumns({
+                          ...visibleColumns,
+                          [col.id]: e.target.checked
+                        })}
+                        className="peer appearance-none w-4 h-4 border border-gray-300 dark:border-outline-variant rounded bg-white dark:bg-surface-container checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer" 
+                      />
+                      <span className="material-symbols-outlined absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ fontSize: '12px', fontWeight: 'bold' }}>check</span>
+                    </div>
+                    <span className="text-xs text-gray-700 dark:text-on-surface group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{col.label}</span>
                   </label>
                 ))}
               </div>
@@ -789,12 +873,12 @@ export default function SummaryReports() {
 
         {/* Main Preview Area below */}
         <div className="w-full flex flex-col items-center">
-          <div className="text-sm text-gray-400 mb-2 print:hidden self-start flex items-center gap-2">
+          <div className="text-sm text-gray-400 dark:text-secondary mb-2 print:hidden self-start flex items-center gap-2">
             Preview — this is what prints
           </div>
           
           {/* Paper Background Container */}
-          <div className="bg-gray-100 rounded-xl p-4 lg:p-8 flex justify-center w-full overflow-hidden print:bg-white print:p-0 print:rounded-none">
+          <div className="bg-gray-100 dark:bg-surface-container-low rounded-xl p-4 lg:p-8 flex justify-center w-full overflow-hidden print:bg-white print:p-0 print:rounded-none">
             
             {/* The A4 Paper */}
             {renderHiddenMeasurementPass()}
@@ -824,7 +908,7 @@ export default function SummaryReports() {
                                 page.rows.map((c, i) => renderTableRow(c, globalStartIndex + i))
                               ) : (
                                 <tr>
-                                  <td colSpan={9} className="py-8 text-center text-gray-500 text-sm font-sans italic">
+                                  <td colSpan={activeColsCount} className="py-8 text-center text-gray-500 text-sm font-sans italic">
                                     No cases found for this period.
                                   </td>
                                 </tr>

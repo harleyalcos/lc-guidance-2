@@ -10,9 +10,10 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
   const location = useLocation();
 
   const navItems = [
+    { path: "/", label: "Dashboard", icon: "dashboard", activePaths: ["/"] },
     { path: "/pending", label: "Pending Cases", icon: "pending_actions", activePaths: ["/pending"] },
     { path: "/catalog", label: "Case Catalog", icon: "folder_open", activePaths: ["/catalog", "/case"] },
-    { path: "/", label: "Summary & Reports", icon: "assessment", activePaths: ["/"] },
+    { path: "/reports", label: "Reports", icon: "assessment", activePaths: ["/reports"] },
     { path: "/backup", label: "Backup", icon: "backup", activePaths: ["/backup"] },
   ];
 

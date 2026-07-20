@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } fr
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
-import DatePicker from "../components/DatePicker";
+import MonthYearRangePicker from "../components/MonthYearRangePicker";
 import ExcelJS from "exceljs";
 import ImportExcelModal from "../components/ImportExcelModal";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
@@ -78,7 +78,7 @@ const getTodayDateString = () => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
-const getCurrentMonthString = () => getTodayDateString().slice(0, 7);
+
 
 const formatIncidentDate = (dateStr: string) => {
   if (!dateStr) return "—";
@@ -91,6 +91,7 @@ const formatIncidentDate = (dateStr: string) => {
   return parsed.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    year: "numeric",
   });
 };
 
@@ -118,19 +119,7 @@ const formatIncidentDateWithRelative = (dateStr: string) => {
   );
 };
 
-const formatMonthFilter = (monthStr: string) => {
-  if (!monthStr) return "";
-  const parsed = new Date(`${monthStr}-01T00:00:00`);
 
-  if (Number.isNaN(parsed.getTime())) {
-    return monthStr;
-  }
-
-  return parsed.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-};
 
 const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
   const bytes = new Uint8Array(buffer);
@@ -314,7 +303,6 @@ export default function CaseCatalog() {
   const [sortBy, setSortBy] = useState<"date_filed" | "date">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [statusFilter, setStatusFilter] = useState(() => sessionStorage.getItem("case_catalog_status") || "All Statuses");
-  const [monthFilter, setMonthFilter] = useState(() => sessionStorage.getItem("case_catalog_month") || "");
   const [startDate, setStartDate] = useState(() => sessionStorage.getItem("case_catalog_start_date") || "");
   const [endDate, setEndDate] = useState(() => sessionStorage.getItem("case_catalog_end_date") || "");
   const [currentPage, setCurrentPage] = useState<number>(() => {
@@ -338,14 +326,11 @@ export default function CaseCatalog() {
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
   const isRestoredRef = useRef(false);
   const isFirstRender = useRef(true);
-
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeleteConfirmClosing, setIsDeleteConfirmClosing] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const statusDropdownRef = useRef<HTMLDivElement | null>(null);
-  const todayDate = getTodayDateString();
-  const currentMonth = getCurrentMonthString();
 
   const handleRowClick = (caseId: number) => {
     const tableScroll = tableContainerRef.current ? tableContainerRef.current.scrollTop : 0;
@@ -362,10 +347,9 @@ export default function CaseCatalog() {
   useEffect(() => {
     sessionStorage.setItem("case_catalog_search", searchQuery);
     sessionStorage.setItem("case_catalog_status", statusFilter);
-    sessionStorage.setItem("case_catalog_month", monthFilter);
     sessionStorage.setItem("case_catalog_start_date", startDate);
     sessionStorage.setItem("case_catalog_end_date", endDate);
-  }, [searchQuery, statusFilter, monthFilter, startDate, endDate]);
+  }, [searchQuery, statusFilter, startDate, endDate]);
 
   useEffect(() => {
     sessionStorage.setItem("case_catalog_current_page", String(currentPage));
@@ -579,18 +563,7 @@ export default function CaseCatalog() {
     };
   }, [displayCases]);
 
-  const availableMonths = useMemo(() => {
-    const monthsSet = new Set<string>();
-    displayCases.forEach((c) => {
-      const dateVal = new Date(c.date_filed || c.date);
-      if (!Number.isNaN(dateVal.getTime())) {
-        const year = dateVal.getFullYear();
-        const month = String(dateVal.getMonth() + 1).padStart(2, "0");
-        monthsSet.add(`${year}-${month}`);
-      }
-    });
-    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
-  }, [displayCases]);
+
 
   const filteredAndSortedGroups = useMemo(() => {
     let result = displayCases;
@@ -621,15 +594,7 @@ export default function CaseCatalog() {
 
 
 
-    if (monthFilter) {
-      result = result.filter((c) => {
-        const dateVal = new Date(c.date_filed || c.date);
-        if (Number.isNaN(dateVal.getTime())) return false;
-        const year = dateVal.getFullYear();
-        const month = String(dateVal.getMonth() + 1).padStart(2, "0");
-        return `${year}-${month}` === monthFilter;
-      });
-    }
+
 
     if (startDate) {
       const start = new Date(startDate);
@@ -716,7 +681,7 @@ export default function CaseCatalog() {
     });
 
     return allGroups;
-  }, [displayCases, searchQuery, sortBy, sortOrder, statusFilter, monthFilter, startDate, endDate]);
+  }, [displayCases, searchQuery, sortBy, sortOrder, statusFilter, startDate, endDate]);
 
   const filteredAndSortedCases = useMemo(() => {
     return filteredAndSortedGroups.flatMap((g) => g.cases);
@@ -759,7 +724,7 @@ export default function CaseCatalog() {
       return;
     }
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, monthFilter, startDate, endDate]);
+  }, [searchQuery, statusFilter, startDate, endDate]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -782,45 +747,18 @@ export default function CaseCatalog() {
     setCurrentPage((page) => Math.min(totalPages, page + 1));
   };
 
-  const handleStartDateChange = (value: string) => {
-    const clampedValue = value && value > todayDate ? todayDate : value;
-    setStartDate(clampedValue);
-    if (endDate && clampedValue && endDate < clampedValue) {
-      setEndDate("");
-    }
-  };
 
-  const handleEndDateChange = (value: string) => {
-    if (value && value > todayDate) {
-      setEndDate(todayDate);
-      return;
-    }
-    if (value && startDate && value < startDate) {
-      setEndDate(startDate);
-      return;
-    }
-    setEndDate(value);
-  };
 
-  const handleMonthFilterChange = (value: string) => {
-    if (value && value > currentMonth) {
-      setMonthFilter(currentMonth);
-      return;
-    }
-    setMonthFilter(value);
-  };
 
   const isFilterModified =
     searchQuery !== "" ||
     statusFilter !== "All Statuses" ||
-    monthFilter !== "" ||
     startDate !== "" ||
     endDate !== "";
 
   const resetFilters = () => {
     setSearchQuery("");
     setStatusFilter("All Statuses");
-    setMonthFilter("");
     setStartDate("");
     setEndDate("");
   };
@@ -856,9 +794,7 @@ export default function CaseCatalog() {
     if (statusFilter !== "All Statuses") {
       filenameParts.push(statusFilter.toLowerCase());
     }
-    if (monthFilter) {
-      filenameParts.push(monthFilter.replace("-", ""));
-    }
+
     if (startDate || endDate) {
       const start = startDate ? startDate.replace(/-/g, "") : "Any";
       const end = endDate ? endDate.replace(/-/g, "") : "Any";
@@ -940,7 +876,7 @@ export default function CaseCatalog() {
       let filterText = "Filters: None";
       const activeFilters = [];
       if (statusFilter !== "All Statuses") activeFilters.push(`Status: ${statusFilter}`);
-      if (monthFilter) activeFilters.push(`Month: ${formatMonthFilter(monthFilter)}`);
+
       if (startDate || endDate) activeFilters.push(`Date Range: ${startDate || 'Any'} to ${endDate || 'Any'}`);
       if (searchQuery) activeFilters.push(`Search: ${searchQuery}`);
       if (activeFilters.length > 0) filterText = `Filters: ${activeFilters.join(" | ")}`;
@@ -1104,17 +1040,17 @@ export default function CaseCatalog() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsImportModalOpen(true)}
-            className="px-4 py-2 bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-variant rounded-lg font-bold text-sm transition-colors duration-500 shadow-sm flex items-center gap-2"
+            className="btn-secondary"
           >
             <span className="material-symbols-outlined text-[18px]">download</span>
-            Import Excel
+            <span>Import Excel</span>
           </button>
           <button
             onClick={handleExportExcel}
-            className="px-4 py-2 bg-[#16a34a] hover:bg-[#15803d] text-white rounded-lg font-bold text-sm transition-colors duration-500 shadow-sm flex items-center gap-2"
+            className="btn-secondary"
           >
             <span className="material-symbols-outlined text-[18px]">table_view</span>
-            Export to Excel
+            <span>Export to Excel</span>
           </button>
         </div>
       </div>
@@ -1140,124 +1076,96 @@ export default function CaseCatalog() {
       </div>
 
       {/* Search & Filters System */}
-      <div className="bg-surface px-4 py-4 border border-outline-variant rounded-xl shadow-sm w-full flex flex-col">
-        {/* Search Input */}
-        <div className="relative w-full mb-4">
-          <span className="material-symbols-outlined text-secondary absolute left-3 top-1/2 -translate-y-1/2" style={{ fontSize: '18px' }}>search</span>
-          <input
-            type="text"
-            placeholder="Search by Case ID, Name, or Case Type"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-8 h-10 bg-surface border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-on-surface placeholder:text-on-surface-variant/70"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-on-surface flex items-center justify-center transition-colors duration-500"
-            >
-              <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: '16px' }}>close</span>
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative" ref={statusDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setIsStatusDropdownOpen((open) => !open)}
-              className={`group inline-flex h-[38px] w-[205px] items-center gap-2 rounded-lg border bg-surface px-3 text-left text-[13px] transition-all duration-300 ease-out ${isStatusDropdownOpen
-                  ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
-                  : "border-outline-variant hover:border-primary/60 hover:bg-surface-container"
-                }`}
-            >
-              <span className="material-symbols-outlined text-secondary transition-colors duration-300 group-hover:text-primary" style={{ fontSize: 16 }}>filter_list</span>
-              <span className="text-xs font-bold uppercase tracking-wider text-secondary">Status</span>
-              <span className="min-w-0 flex-1 truncate font-bold text-on-surface">
-                {statusFilter === "All Statuses" ? "All" : statusFilter}
-              </span>
-              <span
-                className={`material-symbols-outlined text-secondary transition-transform duration-300 ${isStatusDropdownOpen ? "rotate-180" : "rotate-0"
-                  }`}
-                style={{ fontSize: 18 }}
+      <div className="bg-surface px-4 py-4 border border-outline-variant rounded-xl shadow-sm w-full flex flex-col gap-3">
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          {/* Search Input */}
+          <div className="relative flex-grow">
+            <span className="material-symbols-outlined text-secondary absolute left-3 top-1/2 -translate-y-1/2" style={{ fontSize: '18px' }}>search</span>
+            <input
+              type="text"
+              placeholder="Search by Case ID, Name, or Case Type"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 h-10 bg-surface border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-on-surface placeholder:text-on-surface-variant/70"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-on-surface flex items-center justify-center transition-colors duration-500"
               >
-                expand_more
-              </span>
-            </button>
-
-            {isStatusDropdownOpen && (
-              <div className="absolute left-0 top-full z-30 mt-2 w-[205px] overflow-hidden rounded-xl border border-outline-variant bg-surface p-1.5 shadow-lg filter-dropdown-enter">
-                {STATUS_FILTER_OPTIONS.map((status) => {
-                  const isSelected = statusFilter === status;
-                  return (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => {
-                        setStatusFilter(status);
-                        setIsStatusDropdownOpen(false);
-                      }}
-                      className={`group/status flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-300 ${isSelected
-                          ? "bg-[#EEEDFE] text-[#3C3489]"
-                          : "text-on-surface hover:bg-surface-container"
-                        }`}
-                    >
-                      <span className={`h-2 w-2 rounded-full transition-colors duration-300 ${status === "Pending" ? "bg-[#f59e0b]" :
-                          status === "Resolved" ? "bg-[#22c55e]" :
-                            status === "Closed" ? "bg-[#9ca3af]" :
-                              status === "Reprimand" ? "bg-[#ef4444]" :
-                                "bg-[#7B6FE8]"
-                        }`} />
-                      <span className="flex-1 font-medium">{status === "All Statuses" ? "All" : status}</span>
-                      {isSelected && (
-                        <span className="material-symbols-outlined text-[#7B6FE8]" style={{ fontSize: 16 }}>check</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: '16px' }}>close</span>
+              </button>
             )}
           </div>
 
-          <div className="w-[2px] h-5 bg-outline-variant mx-1"></div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative" ref={statusDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsStatusDropdownOpen((open) => !open)}
+                className={`group inline-flex h-[38px] w-[205px] items-center gap-2 rounded-lg border bg-surface px-3 text-left text-[13px] transition-all duration-300 ease-out ${isStatusDropdownOpen
+                    ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
+                    : "border-outline-variant hover:border-primary/60 hover:bg-surface-container"
+                  }`}
+              >
+                <span className="material-symbols-outlined text-secondary transition-colors duration-300 group-hover:text-primary" style={{ fontSize: 16 }}>filter_list</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-secondary">Status</span>
+                <span className="min-w-0 flex-1 truncate font-bold text-on-surface">
+                  {statusFilter === "All Statuses" ? "All" : statusFilter}
+                </span>
+                <span
+                  className={`material-symbols-outlined text-secondary transition-transform duration-300 ${isStatusDropdownOpen ? "rotate-180" : "rotate-0"
+                    }`}
+                  style={{ fontSize: 18 }}
+                >
+                  expand_more
+                </span>
+              </button>
 
-          <label className="relative group inline-flex items-center rounded-lg border border-outline-variant bg-surface text-[13px] text-on-surface-variant transition-all duration-300 ease-out hover:border-primary/60 hover:bg-surface-container focus-within:border-primary focus-within:bg-surface-container focus-within:ring-2 focus-within:ring-primary/20 focus-within:shadow-sm">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary transition-colors duration-300 group-hover:text-primary group-focus-within:text-primary pointer-events-none" style={{ fontSize: 16 }}>calendar_month</span>
-            <select
-              value={monthFilter}
-              onChange={(e) => handleMonthFilterChange(e.target.value)}
-              className="h-[38px] w-auto min-w-[140px] appearance-none bg-transparent pl-9 pr-8 font-medium text-on-surface focus:outline-none transition-colors duration-300 cursor-pointer"
-            >
-              <option value="">All Months</option>
-              {availableMonths.map((m) => {
-                const [year, month] = m.split("-");
-                const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1);
-                return (
-                  <option key={m} value={m}>
-                    {date.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                  </option>
-                );
-              })}
-            </select>
-            <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary pointer-events-none transition-colors duration-300 group-hover:text-primary group-focus-within:text-primary" style={{ fontSize: 18 }}>expand_more</span>
-          </label>
+              {isStatusDropdownOpen && (
+                <div className="absolute left-0 top-full z-30 mt-2 w-[205px] overflow-hidden rounded-xl border border-outline-variant bg-surface p-1.5 shadow-lg filter-dropdown-enter">
+                  {STATUS_FILTER_OPTIONS.map((status) => {
+                    const isSelected = statusFilter === status;
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(status);
+                          setIsStatusDropdownOpen(false);
+                        }}
+                        className={`group/status flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-300 ${isSelected
+                            ? "bg-[#EEEDFE] text-[#3C3489]"
+                            : "text-on-surface hover:bg-surface-container"
+                          }`}
+                      >
+                        <span className={`h-2 w-2 rounded-full transition-colors duration-300 ${status === "Pending" ? "bg-[#f59e0b]" :
+                            status === "Resolved" ? "bg-[#22c55e]" :
+                              status === "Closed" ? "bg-[#9ca3af]" :
+                                status === "Reprimand" ? "bg-[#ef4444]" :
+                                  "bg-[#7B6FE8]"
+                          }`} />
+                        <span className="flex-1 font-medium">{status === "All Statuses" ? "All" : status}</span>
+                        {isSelected && (
+                          <span className="material-symbols-outlined text-[#7B6FE8]" style={{ fontSize: 16 }}>check</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
-          <DatePicker
-            value={startDate}
-            onChange={handleStartDateChange}
-            prefix="Start Date:"
-            placeholder="Pick start date"
-            max={todayDate}
-          />
-
-          <DatePicker
-            value={endDate}
-            onChange={handleEndDateChange}
-            prefix="End Date:"
-            placeholder="Pick end date"
-            min={startDate || undefined}
-            max={todayDate}
-          />
+            <MonthYearRangePicker
+              startDate={startDate}
+              endDate={endDate}
+              placeholder="Pick range"
+              onRangeChange={(start, end) => {
+                setStartDate(start);
+                setEndDate(end);
+              }}
+            />
+          </div>
         </div>
 
         {/* Active Filters Row */}
@@ -1282,16 +1190,7 @@ export default function CaseCatalog() {
               </div>
             )}
 
-            {monthFilter && (
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-xs text-on-surface">
-                <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '14px' }}>calendar_month</span>
-                <span className="text-on-surface-variant">Month:</span>
-                <span className="font-medium">{formatMonthFilter(monthFilter)}</span>
-                <button onClick={() => setMonthFilter("")} className="text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors duration-500">
-                  <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: '14px' }}>close</span>
-                </button>
-              </div>
-            )}
+
 
             {(startDate || endDate) && (
               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-xs text-on-surface">
@@ -1699,18 +1598,21 @@ export default function CaseCatalog() {
             />
             <div className="flex items-center justify-center gap-3">
               <button
+                type="button"
                 onClick={closeDeleteConfirm}
-                className="flex-1 px-4 py-2 rounded-lg font-bold text-sm bg-surface-container hover:bg-surface-container-high transition-colors duration-500 text-on-surface border border-outline-variant"
+                className="btn-secondary flex-1 px-2 whitespace-nowrap"
               >
-                Cancel
+                <span className="material-symbols-outlined text-[18px]">close</span>
+                <span>Cancel</span>
               </button>
               <button
+                type="button"
                 onClick={handleDeleteCase}
                 disabled={deleteConfirmText !== `Confirm${formatCaseId(deleteConfirmId)}`}
-                className="flex-1 px-4 py-2 rounded-lg font-bold text-sm bg-error hover:bg-[#b91c1c] transition-colors duration-500 text-white shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-error"
+                className="btn-primary bg-error hover:bg-red-700 disabled:bg-error/50 flex-1 px-2 whitespace-nowrap"
               >
-                <span className="material-symbols-outlined text-[16px] transition-colors duration-500">delete_forever</span>
-                Delete Record
+                <span className="material-symbols-outlined text-[18px]">delete_forever</span>
+                <span>Delete Record</span>
               </button>
             </div>
           </div>

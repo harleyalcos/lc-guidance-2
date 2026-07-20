@@ -190,20 +190,22 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
 
               <div className="flex flex-col sm:flex-row gap-3 mt-2">
                 <button
+                  type="button"
                   onClick={handleSelectFile}
                   disabled={isLoading}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary text-on-primary rounded-xl font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm animate-fade-in"
+                  className="btn-primary flex-1"
                 >
                   <span className="material-symbols-outlined text-[20px]">{isLoading ? "hourglass_empty" : "upload_file"}</span>
-                  {isLoading ? "Parsing File..." : "Select File"}
+                  <span>{isLoading ? "Parsing File..." : "Select File"}</span>
                 </button>
                 <button
+                  type="button"
                   onClick={handleDownloadTemplate}
                   disabled={isLoading}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-surface-container border border-outline-variant text-on-surface rounded-xl font-medium hover:bg-surface-variant transition-colors disabled:opacity-50 text-sm"
+                  className="btn-secondary flex-1"
                 >
                   <span className="material-symbols-outlined text-[20px]">download</span>
-                  Download Template
+                  <span>Download Template</span>
                 </button>
               </div>
             </div>

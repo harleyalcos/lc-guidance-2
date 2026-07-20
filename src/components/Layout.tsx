@@ -35,6 +35,8 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
   }, []);
 
   const isImportReview = pageKey === "/import-review";
+  const isPendingPage = pageKey === "/pending";
+  const isEdgeToEdge = isImportReview || isPendingPage;
 
   return (
     <div className="app-shell text-on-background font-body-md text-body-md antialiased min-h-screen overflow-x-hidden">
@@ -52,9 +54,11 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
       } ${
         isImportReview 
           ? "h-screen flex flex-col overflow-hidden" 
-          : "min-h-[calc(100vh-64px)] p-margin-page gap-gutter pb-12"
+          : isPendingPage
+            ? "h-[calc(100vh-64px)] flex flex-col overflow-hidden"
+            : "min-h-[calc(100vh-64px)] p-margin-page gap-gutter pb-12"
       }`}>
-        <div key={pageKey} className={`page-transition flex flex-col ${isImportReview ? "h-full overflow-hidden" : "gap-gutter"}`}>
+        <div key={pageKey} className={`page-transition flex flex-col ${isEdgeToEdge ? "h-full overflow-hidden" : "gap-gutter"}`}>
           {children}
         </div>
       </main>

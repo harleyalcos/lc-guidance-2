@@ -238,14 +238,14 @@ export default function ImportReview() {
           <button
             onClick={handleImportReady}
             disabled={readyRows.length === 0 || isImporting}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm shadow-sm"
+            className="btn-primary"
           >
             {isImporting ? (
               <span className="material-symbols-outlined animate-spin text-[20px]">sync</span>
             ) : (
               <span className="material-symbols-outlined text-[20px]">publish</span>
             )}
-            Import All Ready Rows ({readyRows.length})
+            <span>Import All Ready Rows ({readyRows.length})</span>
           </button>
         </div>
       </div>
@@ -687,24 +687,25 @@ export default function ImportReview() {
               <button
                 onClick={handleEditCancel}
                 disabled={isSavingRow}
-                className="px-5 py-2.5 bg-surface-container border border-outline-variant text-on-surface rounded-xl text-xs font-bold hover:bg-surface-variant transition-colors disabled:opacity-50"
+                className="btn-secondary"
               >
-                Cancel
+                <span className="material-symbols-outlined text-sm">close</span>
+                <span>Cancel</span>
               </button>
               <button
                 onClick={() => handleEditSave(editingRowIndex)}
                 disabled={isSavingRow}
-                className="px-5 py-2.5 bg-primary text-on-primary rounded-xl text-xs font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+                className="btn-primary"
               >
                 {isSavingRow ? (
                   <>
-                    <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
-                    Saving...
+                    <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                    <span>Saving...</span>
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[16px]">check</span>
-                    Save & Validate
+                    <span className="material-symbols-outlined text-sm">check</span>
+                    <span>Save & Validate</span>
                   </>
                 )}
               </button>

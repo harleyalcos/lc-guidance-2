@@ -50,6 +50,7 @@ fn main() {
             commands::get_backups,
             commands::create_backup,
             commands::restore_backup,
+            commands::delete_backup,
             commands::save_pdf,
             commands::save_file,
             commands::parse_import_file,

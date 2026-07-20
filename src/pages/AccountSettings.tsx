@@ -378,12 +378,14 @@ export default function AccountSettings() {
               type="button"
               onClick={() => void handlePinEdit()}
               disabled={pinChangeOtpSending}
-              className="inline-flex h-10 w-fit justify-self-center items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-on-primary shadow-sm transition-colors duration-500 hover:bg-[#122e66] disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-primary w-fit justify-self-center animate-none"
             >
-              {pinChangeOtpSending && (
+              {pinChangeOtpSending ? (
                 <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined text-[20px]">lock_reset</span>
               )}
-              {pinChangeOtpSending ? "Sending code..." : "Change PIN"}
+              <span>{pinChangeOtpSending ? "Sending code..." : "Change PIN"}</span>
             </button>
           ) : (
             <>
@@ -423,17 +425,22 @@ export default function AccountSettings() {
                     setNewPin("");
                     setConfirmPin("");
                   }}
-                  className="h-10 rounded-lg border border-outline-variant bg-surface-container px-4 text-sm font-bold text-on-surface transition-colors duration-500 hover:bg-surface-container-high"
+                  className="btn-secondary"
                 >
-                  Cancel
+                  <span className="material-symbols-outlined text-sm">close</span>
+                  <span>Cancel</span>
                 </button>
                 <button
                   type="submit"
                   disabled={pinBusy}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-on-primary shadow-sm transition-colors duration-500 hover:bg-[#122e66] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-primary"
                 >
-                  {pinBusy && <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>}
-                  {pinBusy ? "Saving..." : "Save New PIN"}
+                  {pinBusy ? (
+                    <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[20px]">save</span>
+                  )}
+                  <span>{pinBusy ? "Saving..." : "Save New PIN"}</span>
                 </button>
               </div>
             </>
@@ -572,18 +579,18 @@ export default function AccountSettings() {
           <button
             type="button"
             onClick={() => handleOpenVerification("export")}
-            className="flex-1 bg-[#0B1E43] hover:bg-[#122e66] text-white font-bold text-sm py-3 px-5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
+            className="btn-primary flex-1"
           >
             <span className="material-symbols-outlined text-[18px]">upload</span>
-            Export Database for Migration
+            <span>Export Database for Migration</span>
           </button>
           <button
             type="button"
             onClick={() => handleOpenVerification("import")}
-            className="flex-1 border border-outline-variant hover:bg-surface-container text-on-surface font-bold text-sm py-3 px-5 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
+            className="btn-secondary flex-1"
           >
             <span className="material-symbols-outlined text-[18px]">download</span>
-            Import Database
+            <span>Import Database</span>
           </button>
         </div>
       </div>
@@ -623,16 +630,22 @@ export default function AccountSettings() {
               <button
                 type="button"
                 onClick={handleCloseVerification}
-                className="px-4 py-2 rounded-lg font-bold text-sm bg-surface-container hover:bg-surface-container-high transition-colors duration-500 text-on-surface border border-outline-variant"
+                className="btn-secondary"
               >
-                Cancel
+                <span className="material-symbols-outlined text-sm">close</span>
+                <span>Cancel</span>
               </button>
               <button
                 type="submit"
                 disabled={verificationBusy}
-                className="px-4 py-2 rounded-lg font-bold text-sm bg-primary hover:bg-[#122e66] transition-colors duration-500 text-white shadow-sm flex items-center gap-1.5 disabled:opacity-60"
+                className="btn-primary"
               >
-                {verificationBusy ? "Verifying..." : "Verify & Proceed"}
+                {verificationBusy ? (
+                  <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                ) : (
+                  <span className="material-symbols-outlined text-[18px]">lock_open</span>
+                )}
+                <span>Verify & Proceed</span>
               </button>
             </div>
           </form>
@@ -672,16 +685,22 @@ export default function AccountSettings() {
               <button
                 type="button"
                 onClick={() => setIsRecoveryOtpOpen(false)}
-                className="flex-1 px-4 py-2 rounded-lg font-bold text-sm bg-surface-container hover:bg-surface-container-high transition-colors duration-500 text-on-surface border border-outline-variant"
+                className="btn-secondary flex-1"
               >
-                Cancel
+                <span className="material-symbols-outlined text-sm">close</span>
+                <span>Cancel</span>
               </button>
               <button
                 type="submit"
                 disabled={recoveryOtpVerifying || !validatePin(recoveryOtp)}
-                className="flex-1 px-4 py-2 rounded-lg font-bold text-sm bg-primary hover:bg-[#122e66] transition-colors duration-500 text-white shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                className="btn-primary flex-1"
               >
-                {recoveryOtpVerifying ? "Verifying..." : "Verify"}
+                {recoveryOtpVerifying ? (
+                  <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                ) : (
+                  <span className="material-symbols-outlined text-[18px]">verified</span>
+                )}
+                <span>Verify</span>
               </button>
             </div>
           </form>
@@ -721,16 +740,22 @@ export default function AccountSettings() {
               <button
                 type="button"
                 onClick={() => setIsPinChangeOtpOpen(false)}
-                className="flex-1 px-4 py-2 rounded-lg font-bold text-sm bg-surface-container hover:bg-surface-container-high transition-colors duration-500 text-on-surface border border-outline-variant"
+                className="btn-secondary flex-1"
               >
-                Cancel
+                <span className="material-symbols-outlined text-sm">close</span>
+                <span>Cancel</span>
               </button>
               <button
                 type="submit"
                 disabled={pinChangeOtpVerifying || !validatePin(pinChangeOtp)}
-                className="flex-1 px-4 py-2 rounded-lg font-bold text-sm bg-primary hover:bg-[#122e66] transition-colors duration-500 text-white shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                className="btn-primary flex-1"
               >
-                {pinChangeOtpVerifying ? "Verifying..." : "Verify"}
+                {pinChangeOtpVerifying ? (
+                  <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                ) : (
+                  <span className="material-symbols-outlined text-[18px]">verified</span>
+                )}
+                <span>Verify</span>
               </button>
             </div>
           </form>

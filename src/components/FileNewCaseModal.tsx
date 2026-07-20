@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import DatePicker from "./DatePicker";
 
 interface ProofItem {
   name: string;
@@ -168,6 +169,14 @@ const getTodayDateTimeString = () => {
   return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
 };
 
+const getTodayDateString = () => {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 const emptyStudentInfo = (): StudentInfo => ({
   firstName: "",
   lastName: "",
@@ -182,7 +191,7 @@ const emptyStudentInfo = (): StudentInfo => ({
 const emptyFormData = () => ({
   ...emptyStudentInfo(),
   role: "Respondent",
-  date: getTodayDateTimeString(),
+  date: "",
   case: "",
   caseCategory: "",
   description: "",
@@ -890,21 +899,48 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         Set to Today/Now
                       </button>
                     </div>
-                    <input
-                      type="datetime-local"
-                      value={formData.date}
-                      max={getTodayDateTimeString()}
-                      onChange={(e) => {
-                        const nextDate = e.target.value;
-                        if (nextDate > getTodayDateTimeString()) {
-                          showToast("Date & Time of incident cannot be later than current time.");
-                          setFormData({ ...formData, date: getTodayDateTimeString() });
-                          return;
-                        }
-                        setFormData({ ...formData, date: nextDate });
-                      }}
-                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
-                    />
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-3">
+                        <DatePicker 
+                          value={formData.date ? formData.date.split('T')[0] : ""} 
+                          onChange={(val) => {
+                            const timePart = formData.date.includes('T') ? formData.date.split('T')[1] : "";
+                            setFormData({ ...formData, date: val ? `${val}${timePart ? 'T' + timePart : ''}` : "" });
+                          }}
+                          placeholder="Select the Incident Date"
+                          max={getTodayDateString()}
+                        />
+                        <label className="flex items-center gap-2 text-xs font-bold text-secondary uppercase tracking-wider cursor-pointer select-none">
+                          <input 
+                            type="checkbox"
+                            className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary"
+                            checked={formData.date.includes('T')}
+                            onChange={(e) => {
+                              const datePart = formData.date.split('T')[0] || getTodayDateString();
+                              if (e.target.checked) {
+                                const now = new Date();
+                                const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                                setFormData({ ...formData, date: `${datePart}T${timeStr}` });
+                              } else {
+                                setFormData({ ...formData, date: datePart });
+                              }
+                            }}
+                          />
+                          Add Time
+                        </label>
+                      </div>
+                      {formData.date.includes('T') && (
+                        <input
+                          type="time"
+                          value={formData.date.split('T')[1] || ""}
+                          onChange={(e) => {
+                            const datePart = formData.date.split('T')[0] || getTodayDateString();
+                            setFormData({ ...formData, date: `${datePart}T${e.target.value}` });
+                          }}
+                          className="w-[180px] bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        />
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-2">
@@ -1229,10 +1265,10 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 <button
                   type="button"
                   onClick={handleAddStudent}
-                  className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-xs font-bold text-primary hover:border-primary hover:bg-primary hover:text-white transition-colors duration-500"
+                  className="btn-secondary"
                 >
-                  <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 16 }}>person_add</span>
-                  Add another student
+                  <span className="material-symbols-outlined text-[18px]">person_add</span>
+                  <span>Add another student</span>
                 </button>
               </div>
             </div>
@@ -1358,13 +1394,14 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                   {isEditingReview ? "Editing fields — click Done when finished" : "Review before filing"}
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsEditingReview((v) => !v)}
-                  className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border border-outline-variant hover:bg-surface-container transition-colors duration-500 text-secondary hover:text-on-surface"
+                  className="btn-secondary py-1.5 px-4 text-xs font-bold"
                 >
-                  <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
                     {isEditingReview ? "check" : "edit"}
                   </span>
-                  {isEditingReview ? "Done" : "Edit fields"}
+                  <span>{isEditingReview ? "Done" : "Edit fields"}</span>
                 </button>
               </div>
 
@@ -1419,16 +1456,51 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     <div key={key}>
                       <p className="text-[10px] text-secondary font-bold uppercase tracking-wider mb-1">{label}</p>
                       {isEditingReview && key === "date" ? (
-                        <div className="flex flex-col gap-1.5 w-full">
-                          <input type="datetime-local" value={formData.date}
-                            max={getTodayDateTimeString()}
-                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                            className="w-full bg-surface-container border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                          />
+                        <div className="flex flex-col gap-2 w-full">
+                          <div className="flex items-center gap-3">
+                            <DatePicker 
+                              value={formData.date ? formData.date.split('T')[0] : ""} 
+                              onChange={(val) => {
+                                const timePart = formData.date.includes('T') ? formData.date.split('T')[1] : "";
+                                setFormData({ ...formData, date: val ? `${val}${timePart ? 'T' + timePart : ''}` : "" });
+                              }}
+                              placeholder="Select the Incident Date"
+                              max={getTodayDateString()}
+                            />
+                            <label className="flex items-center gap-2 text-[10px] font-bold text-secondary uppercase tracking-wider cursor-pointer select-none">
+                              <input 
+                                type="checkbox"
+                                className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary"
+                                checked={formData.date.includes('T')}
+                                onChange={(e) => {
+                                  const datePart = formData.date.split('T')[0] || getTodayDateString();
+                                  if (e.target.checked) {
+                                    const now = new Date();
+                                    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                                    setFormData({ ...formData, date: `${datePart}T${timeStr}` });
+                                  } else {
+                                    setFormData({ ...formData, date: datePart });
+                                  }
+                                }}
+                              />
+                              Add Time
+                            </label>
+                          </div>
+                          {formData.date.includes('T') && (
+                            <input
+                              type="time"
+                              value={formData.date.split('T')[1] || ""}
+                              onChange={(e) => {
+                                const datePart = formData.date.split('T')[0] || getTodayDateString();
+                                setFormData({ ...formData, date: `${datePart}T${e.target.value}` });
+                              }}
+                              className="w-[180px] bg-surface-container border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                            />
+                          )}
                           <button
                             type="button"
                             onClick={() => setFormData({ ...formData, date: getTodayDateTimeString() })}
-                            className="text-[9px] font-bold text-primary hover:text-primary-hover uppercase tracking-wider bg-primary/5 hover:bg-primary/10 px-2 py-0.5 rounded transition-colors self-start"
+                            className="text-[9px] font-bold text-primary hover:text-primary-hover uppercase tracking-wider bg-primary/5 hover:bg-primary/10 px-2 py-0.5 rounded transition-colors self-start mt-1"
                           >
                             Set to Today/Now
                           </button>
@@ -1441,7 +1513,9 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       ) : (
                         <p className="text-sm text-on-surface font-medium">
                           {key === "date" 
-                            ? new Date(formData.date).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
+                            ? (formData.date.includes('T') 
+                                ? new Date(formData.date).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
+                                : formData.date ? new Date(formData.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Not selected")
                             : (formData as any)[key] || <span className="text-secondary italic font-normal">Not set</span>}
                         </p>
                       )}
@@ -1695,29 +1769,41 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           </div>
           <div className="flex items-center gap-2">
             {currentStep > 1 && (
-              <button onClick={handleBack} className="px-4 py-2 border border-outline-variant text-on-surface hover:bg-surface-container font-bold text-xs rounded-lg transition-colors duration-500">
-                Back
+              <button
+                type="button"
+                onClick={handleBack}
+                className="btn-secondary"
+              >
+                <span className="material-symbols-outlined text-sm">arrow_back</span>
+                <span>Back</span>
               </button>
             )}
-            <button onClick={handleCloseAttempt} className="px-4 py-2 border border-outline-variant text-on-surface hover:bg-surface-container font-bold text-xs rounded-lg transition-colors duration-500">
-              Cancel
+            <button
+              type="button"
+              onClick={handleCloseAttempt}
+              className="btn-secondary"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+              <span>Cancel</span>
             </button>
             {currentStep < 4 ? (
               <button
+                type="button"
                 onClick={handleNext}
-                className="px-5 py-2 bg-[#0B1E43] text-white hover:bg-[#0F2451] font-bold text-xs rounded-lg transition-colors duration-500 flex items-center gap-1.5"
+                className="btn-primary"
               >
-                Continue
-                <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>arrow_forward</span>
+                <span>Continue</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_forward</span>
               </button>
             ) : (
               <button
+                type="button"
                 onClick={handleFileCase}
                 disabled={isSubmitting}
-                className="px-5 py-2 bg-[#0B1E43] text-white hover:bg-[#0F2451] disabled:opacity-60 disabled:cursor-not-allowed font-bold text-xs rounded-lg transition-colors duration-500 flex items-center gap-1.5"
+                className="btn-primary"
               >
-                <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 14 }}>check</span>
-                {isSubmitting ? "Saving…" : "File case"}
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check</span>
+                <span>{isSubmitting ? "Saving…" : "File case"}</span>
               </button>
             )}
           </div>
@@ -1738,28 +1824,34 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
               </div>
               <div className="flex flex-col gap-2">
                 <button
+                  type="button"
                   onClick={() => {
                     localStorage.setItem("new_case_draft", JSON.stringify(formData));
                     closeConfirmClose(onClose);
                   }}
-                  className="w-full py-2.5 bg-[#0B1E43] text-white font-bold text-xs rounded-xl hover:bg-[#0F2451] transition-all duration-500"
+                  className="btn-primary w-full"
                 >
-                  Save draft & close
+                  <span className="material-symbols-outlined text-sm">save</span>
+                  <span>Save draft & close</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
                     localStorage.removeItem("new_case_draft");
                     closeConfirmClose(onClose);
                   }}
-                  className="w-full py-2.5 border border-red-300 text-red-600 font-bold text-xs rounded-xl hover:bg-red-50 transition-all duration-500"
+                  className="btn-secondary text-error border-error w-full"
                 >
-                  Discard changes
+                  <span className="material-symbols-outlined text-sm">delete_forever</span>
+                  <span>Discard changes</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => closeConfirmClose()}
-                  className="w-full py-2.5 border border-outline-variant text-on-surface font-bold text-xs rounded-xl hover:bg-surface-container transition-all duration-500"
+                  className="btn-secondary w-full"
                 >
-                  Keep editing
+                  <span className="material-symbols-outlined text-sm">edit</span>
+                  <span>Keep editing</span>
                 </button>
               </div>
             </div>
@@ -1796,16 +1888,20 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
             </div>
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={() => closeDeleteProofConfirm()}
-                className="flex-1 py-2.5 border border-outline-variant text-on-surface font-bold text-xs rounded-xl hover:bg-surface-container transition-colors duration-500"
+                className="btn-secondary flex-1"
               >
-                Cancel
+                <span className="material-symbols-outlined text-sm">close</span>
+                <span>Cancel</span>
               </button>
               <button
+                type="button"
                 onClick={confirmDeleteProof}
-                className="flex-1 py-2.5 bg-error text-white font-bold text-xs rounded-xl hover:bg-[#b91c1c] transition-colors duration-500"
+                className="btn-primary bg-error hover:bg-red-700 flex-1"
               >
-                Delete
+                <span className="material-symbols-outlined text-sm">delete</span>
+                <span>Delete</span>
               </button>
             </div>
           </div>
