@@ -3,6 +3,7 @@ import { HashRouter as Router, Routes, Route, useLocation } from "react-router-d
 import { invoke } from "@tauri-apps/api/core";
 import Layout from "./components/Layout";
 import SummaryReports from "./pages/SummaryReports";
+import Dashboard from "./pages/Dashboard";
 import CaseCatalog from "./pages/CaseCatalog";
 import CaseDetails from "./pages/CaseDetails";
 import PendingCases from "./pages/PendingCases";
@@ -22,13 +23,15 @@ function AppRoutes() {
     if (location.pathname === "/backup") return "Backup";
     if (location.pathname === "/account") return "Profile";
     if (location.pathname === "/import-review") return "Import Review";
-    return "Summary & Reports";
+    if (location.pathname === "/reports") return "Reports";
+    return "Dashboard";
   };
 
   return (
     <Layout title={getTitle()} pageKey={location.pathname}>
       <Routes location={location}>
-        <Route path="/" element={<SummaryReports />} />
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/reports" element={<SummaryReports />} />
         <Route path="/catalog" element={<CaseCatalog />} />
         <Route path="/pending" element={<PendingCases />} />
         <Route path="/case/:id" element={<CaseDetails />} />

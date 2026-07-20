@@ -671,6 +671,30 @@ pub fn restore_backup(
 }
 
 #[tauri::command]
+pub fn delete_backup(
+    app: tauri::AppHandle,
+    filename: String,
+) -> Result<(), String> {
+    use tauri::Manager;
+    use std::fs;
+
+    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+        return Err("Invalid backup filename".to_string());
+    }
+
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let backup_dir = app_data_dir.join("backups").join(&filename);
+
+    if !backup_dir.exists() {
+        return Err(format!("Backup folder {} does not exist", filename));
+    }
+
+    fs::remove_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn save_file(
     app: tauri::AppHandle,
     base64_data: String,

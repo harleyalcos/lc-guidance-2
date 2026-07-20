@@ -19,8 +19,11 @@ export default function Backup() {
   // Operation states
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [restoringFilename, setRestoringFilename] = useState<string | null>(null);
+  const [deletingFilename, setDeletingFilename] = useState<string | null>(null);
   const [confirmRestoreFilename, setConfirmRestoreFilename] = useState<string | null>(null);
+  const [confirmDeleteFilename, setConfirmDeleteFilename] = useState<string | null>(null);
   const [isRestoreConfirmClosing, setIsRestoreConfirmClosing] = useState(false);
+  const [isDeleteConfirmClosing, setIsDeleteConfirmClosing] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [isNotificationVisible, setIsNotificationVisible] = useState(false);
   const notificationTimerRef = useRef<number | null>(null);
@@ -140,6 +143,29 @@ export default function Backup() {
     }
   };
 
+  const closeDeleteConfirm = (afterClose?: () => void) => {
+    setIsDeleteConfirmClosing(true);
+    window.setTimeout(() => {
+      setConfirmDeleteFilename(null);
+      setIsDeleteConfirmClosing(false);
+      afterClose?.();
+    }, MODAL_EXIT_MS);
+  };
+
+  const handleDelete = async (filename: string) => {
+    setConfirmDeleteFilename(null);
+    setDeletingFilename(filename);
+    try {
+      await invoke("delete_backup", { filename });
+      showNotification("Backup deleted successfully!", "success");
+      loadBackups();
+    } catch (err) {
+      showNotification(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setDeletingFilename(null);
+    }
+  };
+
   // Get date of the last backup
   const getLastBackupText = () => {
     if (backups.length === 0) return "No backups created yet";
@@ -184,15 +210,12 @@ export default function Backup() {
           <button
             onClick={handleBackupNow}
             disabled={isBackingUp}
-            className="group bg-[#0B1E43] dark:bg-primary hover:bg-[#001c59] dark:hover:bg-opacity-95 text-white font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 transition-all duration-500 shadow-sm text-xs disabled:opacity-60 active:scale-95 animate-none"
+            className="btn-primary"
           >
             <span 
-              className={`material-symbols-outlined text-[16px] transition-[font-variation-settings] duration-500 ${
-                isBackingUp ? "animate-spin" : "group-hover:[font-variation-settings:'FILL'_1]"
+              className={`material-symbols-outlined text-[18px] ${
+                isBackingUp ? "animate-spin" : ""
               }`}
-              style={{
-                fontVariationSettings: isBackingUp ? undefined : "'FILL' 0"
-              }}
             >
               {isBackingUp ? "sync" : "backup"}
             </span>
@@ -209,14 +232,14 @@ export default function Backup() {
           </h3>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto max-h-[340px] overflow-y-auto">
+          <table className="w-full text-left border-collapse relative">
             <thead>
-              <tr className="bg-surface-container-low dark:bg-surface-container-low border-b border-outline-variant text-secondary dark:text-on-surface-variant font-section-header text-xs uppercase tracking-wider">
-                <th className="px-6 py-3.5 font-semibold">Date & Time</th>
-                <th className="px-6 py-3.5 font-semibold">Type</th>
-                <th className="px-6 py-3.5 font-semibold">File Size</th>
-                <th className="px-6 py-3.5 font-semibold text-right">Action</th>
+              <tr className="sticky top-0 z-10 bg-surface-container-low dark:bg-surface-container-low border-b border-outline-variant text-secondary dark:text-on-surface-variant font-section-header text-xs uppercase tracking-wider">
+                <th className="px-6 py-3.5 font-semibold bg-surface-container-low dark:bg-surface-container-low">Date & Time</th>
+                <th className="px-6 py-3.5 font-semibold bg-surface-container-low dark:bg-surface-container-low">Type</th>
+                <th className="px-6 py-3.5 font-semibold bg-surface-container-low dark:bg-surface-container-low">File Size</th>
+                <th className="px-6 py-3.5 font-semibold text-right bg-surface-container-low dark:bg-surface-container-low">Action</th>
               </tr>
             </thead>
             <tbody className="font-body-md text-sm text-on-surface">
@@ -265,16 +288,30 @@ export default function Backup() {
                     </td>
                     <td className="px-6 py-4 font-medium text-secondary">{backup.file_size}</td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => {
-                          setIsRestoreConfirmClosing(false);
-                          setConfirmRestoreFilename(backup.filename);
-                        }}
-                        disabled={restoringFilename !== null || isBackingUp}
-                        className="border border-[#0B1E43] dark:border-[#7f9cf8] text-[#0B1E43] dark:text-[#7f9cf8] hover:bg-[#0B1E43]/5 dark:hover:bg-[#7f9cf8]/10 font-bold py-1 px-4 rounded transition-all duration-500 text-xs active:scale-95 disabled:opacity-50"
-                      >
-                        {restoringFilename === backup.filename ? "Restoring..." : "Restore"}
-                      </button>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => {
+                            setIsRestoreConfirmClosing(false);
+                            setConfirmRestoreFilename(backup.filename);
+                          }}
+                          disabled={restoringFilename !== null || isBackingUp || deletingFilename !== null}
+                          className="btn-secondary py-1.5 px-4 text-xs"
+                        >
+                          <span className="material-symbols-outlined text-sm">settings_backup_restore</span>
+                          <span>{restoringFilename === backup.filename ? "Restoring..." : "Restore"}</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsDeleteConfirmClosing(false);
+                            setConfirmDeleteFilename(backup.filename);
+                          }}
+                          disabled={restoringFilename !== null || isBackingUp || deletingFilename !== null}
+                          className="btn-secondary border-red-500/20 text-[#ba1a1a] hover:bg-red-50/50 dark:hover:bg-red-950/10 py-1.5 px-3 text-xs"
+                          title="Delete backup"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -385,16 +422,66 @@ export default function Backup() {
             </div>
             <div className="flex gap-3 mt-2">
               <button
+                type="button"
                 onClick={() => closeRestoreConfirm()}
-                className="flex-1 py-2 border border-outline-variant text-on-surface font-bold text-xs rounded-lg hover:bg-surface-container transition-all duration-500"
+                className="btn-secondary flex-1"
               >
-                Cancel
+                <span className="material-symbols-outlined text-sm">close</span>
+                <span>Cancel</span>
               </button>
               <button
+                type="button"
                 onClick={() => closeRestoreConfirm(() => handleRestore(confirmRestoreFilename))}
-                className="flex-1 py-2 bg-red-600 text-white font-bold text-xs rounded-lg hover:bg-red-700 transition-all duration-500 shadow-sm"
+                className="btn-primary bg-error hover:bg-red-700 flex-1"
               >
-                Proceed & Restore
+                <span className="material-symbols-outlined text-sm">settings_backup_restore</span>
+                <span>Proceed & Restore</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Delete Confirmation Dialog Modal */}
+      {confirmDeleteFilename && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className={`absolute inset-0 bg-black/60 backdrop-blur-sm ${
+              isDeleteConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={() => closeDeleteConfirm()}
+          />
+          <div className={`bg-surface dark:bg-surface-container border border-outline-variant max-w-md w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center z-10 ${
+            isDeleteConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+          }`}>
+            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/20 text-[#ba1a1a] flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-2xl font-bold">delete_forever</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-on-surface">Delete Backup</h3>
+              <p className="text-xs text-secondary mt-1.5 leading-relaxed">
+                Are you sure you want to delete the backup file{" "}
+                <strong className="text-on-surface font-semibold">{confirmDeleteFilename}</strong>? 
+                This action is permanent and cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3 mt-2">
+              <button
+                type="button"
+                onClick={() => closeDeleteConfirm()}
+                className="btn-secondary flex-1"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+                <span>Cancel</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => closeDeleteConfirm(() => handleDelete(confirmDeleteFilename))}
+                className="btn-primary bg-error hover:bg-red-700 flex-1"
+              >
+                <span className="material-symbols-outlined text-sm">delete</span>
+                <span>Delete Backup</span>
               </button>
             </div>
           </div>

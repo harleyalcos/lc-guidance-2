@@ -12,7 +12,7 @@ export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = 
   const navigate = useNavigate();
   const isCaseDetails = location.pathname.startsWith("/case/");
   const showBackButton = isCaseDetails;
-  const showNewCaseButton = location.pathname === "/catalog" || location.pathname === "/pending";
+  const showNewCaseButton = location.pathname === "/catalog" || location.pathname === "/pending" || location.pathname === "/";
 
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -44,14 +44,13 @@ export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = 
     <header className={`app-topbar-surface h-16 sticky top-0 border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page min-w-0 z-10 transition-[background-color,border-color,margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
       isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
     }`}>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-1">
         {showBackButton && (
           <Link to={-1 as any} className="text-secondary hover:text-primary transition-colors duration-500">
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
         )}
-        <h2 className="font-section-header text-section-header text-primary dark:text-primary-fixed-dim font-bold">{title}</h2>
-
+        <h2 className="font-section-header text-section-header text-primary dark:text-primary-fixed-dim font-bold shrink-0">{title}</h2>
       </div>
 
       <div className="flex items-center gap-4">
@@ -61,15 +60,16 @@ export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = 
             {pendingCount > 0 && (
               <button
                 onClick={() => navigate("/import-review")}
-                className="bg-[#FEF7E0] hover:bg-[#FEEFC3] text-[#B06000] border border-[#FEEFC3] px-3.5 py-2 rounded-lg font-body-md text-body-md font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                className="border-2 border-[#FAC775] text-[#B06000] bg-[#FEF7E0] hover:bg-[#FEEFC3] font-bold py-2.5 px-6 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-all duration-300 shadow-sm cursor-pointer"
                 title="Click to resume pending imports review"
               >
                 <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>pending</span>
-                {pendingCount} Pending {pendingCount === 1 ? "Import" : "Imports"}
+                <span>{pendingCount} Pending {pendingCount === 1 ? "Import" : "Imports"}</span>
               </button>
             )}
-            <button onClick={onNewCaseClick} className="bg-primary text-white px-4 py-2 rounded-md font-body-md text-body-md font-medium hover:bg-on-primary-fixed-variant transition-colors duration-500 ml-2">
-              + New Case
+            <button onClick={onNewCaseClick} className="btn-primary ml-2">
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              <span>New Case</span>
             </button>
           </div>
         )}
