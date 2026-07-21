@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -31,6 +31,7 @@ interface CaseRecord {
   title: string;
   reporting_student?: string;
   group_id?: string | null;
+  update_history: string;
 }
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
@@ -585,7 +586,7 @@ export default function CaseDetails() {
     loadCase();
   }, [loadCase]);
 
-  const saveProofs = useCallback(async (proofs: ProofItem[]) => {
+  const saveProofs = useCallback(async (proofs: ProofItem[], updateLog?: string) => {
     if (!caseRecord) return;
     await invoke("update_case", {
       id: caseRecord.id,
@@ -599,7 +600,8 @@ export default function CaseDetails() {
       proofs: JSON.stringify(proofs),
       title: caseRecord.title,
       reportingStudent: caseRecord.reporting_student || "",
-      groupId: caseRecord.group_id || null
+      groupId: caseRecord.group_id || null,
+      updateLog
     });
     setUploadedProofs(proofs);
     setCaseRecord({ ...caseRecord, proofs: JSON.stringify(proofs) });
@@ -621,7 +623,7 @@ export default function CaseDetails() {
           data: reader.result as string,
             created_at: new Date().toISOString(),
           },
-        ]);
+        ], `Uploaded proof: ${file.name}`);
       } catch (err) {
         alert("Failed to upload proof: " + err);
       }
@@ -641,7 +643,11 @@ export default function CaseDetails() {
     const indexToDelete = deleteProofIndex;
     closeDeleteProofConfirm(async () => {
       try {
-        await saveProofs(uploadedProofs.filter((_, i) => i !== indexToDelete));
+        const deletedProof = uploadedProofs[indexToDelete];
+        await saveProofs(
+            uploadedProofs.filter((_, i) => i !== indexToDelete),
+            `Deleted proof: ${deletedProof?.name || "unknown"}`
+        );
       } catch (err) {
         alert("Failed to delete proof: " + err);
       }
@@ -654,6 +660,40 @@ export default function CaseDetails() {
     const date = editForm.date > getTodayDateString() ? getTodayDateString() : editForm.date;
     const normalizedStudents = editForm.students.map(normalizeStudent);
     const normalizedTitle = caseRecord.group_id ? capitalizeWords(editForm.title).slice(0, CASE_TITLE_LIMIT) : "";
+    const diffs: Array<{ label: string; oldVal: string; newVal: string }> = [];
+    let oldStatus: string | undefined = undefined;
+    let newStatus: string | undefined = undefined;
+
+    if (editForm.progress !== caseRecord.progress) {
+      oldStatus = caseRecord.progress;
+      newStatus = editForm.progress;
+      diffs.push({ label: "Case Status", oldVal: caseRecord.progress, newVal: editForm.progress });
+    }
+    if (normalizeCaseType(editForm.case) !== caseRecord.case) {
+      diffs.push({ label: "Case Type", oldVal: caseRecord.case, newVal: normalizeCaseType(editForm.case) });
+    }
+    if (editForm.sanction.trim() !== caseRecord.sanction) {
+      diffs.push({ label: "Sanction", oldVal: caseRecord.sanction || "None", newVal: editForm.sanction.trim() || "None" });
+    }
+    if (date !== caseRecord.date) {
+      diffs.push({ label: "Incident Date", oldVal: formatDate(caseRecord.date), newVal: formatDate(date) });
+    }
+    if (editForm.description.trim() !== caseRecord.description) {
+      diffs.push({ label: "Description", oldVal: "Previous description", newVal: "Updated description" });
+    }
+
+    let actionText = "Case details were updated.";
+    if (diffs.length > 0) {
+      actionText = `Updated ${diffs.map((d) => d.label).join(", ")}.`;
+    }
+
+    const updateLog = JSON.stringify({
+      text: actionText,
+      oldStatus,
+      newStatus,
+      diffs,
+    });
+
     try {
       await invoke("update_case", {
         id: caseRecord.id,
@@ -667,7 +707,8 @@ export default function CaseDetails() {
         proofs: caseRecord.proofs,
         title: normalizedTitle,
         reportingStudent: caseRecord.reporting_student || "",
-        groupId: caseRecord.group_id || null
+        groupId: caseRecord.group_id || null,
+        updateLog
       });
       setIsEditing(false);
       window.dispatchEvent(new Event("cases:changed"));
@@ -682,6 +723,15 @@ export default function CaseDetails() {
   const displayedRespondents = displayedStudents.filter(isRespondent);
   const displayedComplainantSubjects = displayedStudents.filter(isComplainantSubject);
   const hasLinkedGroup = Boolean(caseRecord?.group_id);
+  const updateHistory = useMemo(() => {
+    if (!caseRecord || !caseRecord.update_history) return [];
+    try {
+      const history = JSON.parse(caseRecord.update_history);
+      return Array.isArray(history) ? history.reverse() : [];
+    } catch (e) {
+      return [];
+    }
+  }, [caseRecord?.update_history]);
   const editRespondents = editForm.students
     .map((student, index) => ({ student, index }))
     .filter(({ student }) => isRespondent(student));
@@ -1233,6 +1283,91 @@ export default function CaseDetails() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Update History Section */}
+      <div className="mt-8 mb-12 print:hidden bg-surface border border-outline-variant rounded-2xl p-6 shadow-sm">
+        <div className="flex justify-between items-center mb-6 pb-3 border-b border-outline-variant">
+          <h3 className="font-section-header text-section-header text-on-surface flex items-center gap-2 font-bold text-lg">
+            <span className="material-symbols-outlined text-primary text-xl">history</span>
+            <span>Update History</span>
+          </h3>
+          <span className="text-xs font-semibold text-secondary bg-surface-container px-2.5 py-1 rounded-full border border-outline-variant/60">
+            {updateHistory.length} {updateHistory.length === 1 ? "Record" : "Records"}
+          </span>
+        </div>
+        
+        {updateHistory.length === 0 ? (
+          <div className="text-center text-secondary text-sm italic py-6">
+            No history recorded yet.
+          </div>
+        ) : (
+          <div className="divide-y divide-outline-variant/50">
+            {updateHistory.map((entry: any, i: number) => {
+              let text = entry.action;
+              let oldStatus: string | undefined = undefined;
+              let newStatus: string | undefined = undefined;
+              let diffs: Array<{ label: string; oldVal: string; newVal: string }> = [];
+
+              if (typeof entry.action === "string") {
+                try {
+                  const parsedAction = JSON.parse(entry.action);
+                  if (parsedAction && typeof parsedAction === "object") {
+                    text = parsedAction.text || entry.action;
+                    oldStatus = parsedAction.oldStatus;
+                    newStatus = parsedAction.newStatus;
+                    if (Array.isArray(parsedAction.diffs)) {
+                      diffs = parsedAction.diffs;
+                    }
+                  }
+                } catch {
+                  const match = entry.action.match(/from\s+([A-Za-z\s]+)\s+to\s+([A-Za-z\s]+)/i);
+                  if (match) {
+                    oldStatus = match[1].trim();
+                    newStatus = match[2].trim();
+                  }
+                }
+              }
+
+              // Fallback to oldStatus/newStatus single diff if no diffs array present
+              if (diffs.length === 0 && oldStatus && newStatus) {
+                diffs.push({ label: "Case Status", oldVal: oldStatus, newVal: newStatus });
+              }
+
+              return (
+                <div key={i} className="py-4 first:pt-0 last:pb-0 flex flex-col gap-2">
+                  <p className="text-sm font-semibold text-on-surface leading-snug">
+                    {text}
+                  </p>
+                  <p className="text-xs text-secondary font-normal">
+                    {formatDateTime(entry.timestamp)}
+                  </p>
+
+                  {diffs.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-2.5 items-center">
+                      {diffs.map((diff, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 text-xs">
+                          {diffs.length > 1 && (
+                            <span className="font-semibold text-secondary text-[11px] uppercase tracking-wider mr-0.5">
+                              {diff.label}:
+                            </span>
+                          )}
+                          <span className="px-2.5 py-0.5 rounded-md border border-rose-200 bg-rose-50 dark:bg-rose-950/50 dark:border-rose-800/60 text-rose-600 dark:text-rose-400 text-xs font-semibold line-through">
+                            {diff.oldVal}
+                          </span>
+                          <span className="material-symbols-outlined text-[15px] text-secondary">arrow_forward</span>
+                          <span className="px-2.5 py-0.5 rounded-md border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/50 dark:border-emerald-800/60 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
+                            {diff.newVal}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

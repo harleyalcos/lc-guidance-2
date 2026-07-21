@@ -17,6 +17,7 @@ export interface CaseRecord {
   title: string;
   reporting_student?: string;
   group_id?: string | null;
+  update_history: string;
 }
 
 export interface ImportRow {

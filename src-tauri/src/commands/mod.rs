@@ -29,6 +29,7 @@ pub struct CaseRecord {
     pub title: String,
     pub reporting_student: String,
     pub group_id: Option<String>,
+    pub update_history: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -75,6 +76,7 @@ pub fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
         title: row.get("title")?,
         reporting_student: row.get("reporting_student")?,
         group_id: row.get("group_id").unwrap_or(None),
+        update_history: row.get("update_history")?,
     })
 }
 
@@ -362,7 +364,7 @@ pub fn get_cases(state: State<'_, DbState>) -> Result<Vec<CaseRecord>, String> {
     let mut statement = connection
         .prepare(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id, update_history
 FROM cases
 ORDER BY id DESC
 "#,
@@ -396,12 +398,17 @@ pub fn add_case(
     let primary_student = primary_student(&students)?;
     let connection = state.connection.lock().map_err(db_error)?;
 
+    let initial_history = format!(
+        r#"[{{\"timestamp\":\"{}T00:00:00.000Z\",\"action\":\"Case created\"}}]"#,
+        date_filed
+    );
+
     connection
         .execute(
             r#"
 INSERT INTO cases (
-  students, date, date_filed, "case", description, sanction, progress, proofs, title, reporting_student, group_id, first_name, last_name, middle_initial, level, section, adviser
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+  students, date, date_filed, "case", description, sanction, progress, proofs, title, reporting_student, group_id, first_name, last_name, middle_initial, level, section, adviser, update_history
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
 "#,
             params![
                 students, date, date_filed, r#case, description,
@@ -409,7 +416,7 @@ INSERT INTO cases (
                 group_id,
                 primary_student.first_name, primary_student.last_name,
                 primary_student.middle_initial, primary_student.level,
-                primary_student.section, primary_student.adviser
+                primary_student.section, primary_student.adviser, initial_history
             ],
         )
         .map_err(db_error)?;
@@ -432,9 +439,11 @@ pub fn update_case(
     title: String,
     reporting_student: Option<String>,
     group_id: Option<String>,
+    update_log: Option<String>,
 ) -> Result<(), String> {
     let primary_student = primary_student(&students)?;
     let connection = state.connection.lock().map_err(db_error)?;
+    let timestamp = chrono::Utc::now().to_rfc3339();
 
     let rows_updated = connection
         .execute(
@@ -456,8 +465,12 @@ SET students = ?1,
     middle_initial = ?14,
     level = ?15,
     section = ?16,
-    adviser = ?17
-WHERE id = ?18
+    adviser = ?17,
+    update_history = CASE 
+        WHEN ?18 IS NOT NULL THEN json_insert(update_history, '$[#]', json_object('timestamp', ?19, 'action', ?18))
+        ELSE update_history
+    END
+WHERE id = ?20
 "#,
             params![
                 students, date, date_filed, r#case, description,
@@ -465,7 +478,8 @@ WHERE id = ?18
                 group_id,
                 primary_student.first_name, primary_student.last_name,
                 primary_student.middle_initial, primary_student.level,
-                primary_student.section, primary_student.adviser, id
+                primary_student.section, primary_student.adviser,
+                update_log, timestamp, id
             ],
         )
         .map_err(db_error)?;
@@ -497,7 +511,7 @@ pub fn get_case(state: State<'_, DbState>, id: i64) -> Result<CaseRecord, String
     let case = connection
         .query_row(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id, update_history
 FROM cases
 WHERE id = ?1
 "#,

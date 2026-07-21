@@ -360,6 +360,7 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
                         title: prev.title.clone(),
                         reporting_student: String::new(),
                         group_id: None,
+                        update_history: String::from("[]"),
                     });
                 }
             }
@@ -400,8 +401,8 @@ pub fn batch_import_cases(state: State<'_, DbState>, rows: Vec<ImportRowInput>) 
             r#"
             INSERT INTO cases (
                 id, first_name, last_name, middle_initial, level, section, date, date_filed,
-                adviser, "case", description, sanction, progress, proofs, students, title
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+                adviser, "case", description, sanction, progress, proofs, students, title, update_history
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, json_array(json_object('timestamp', ?8 || 'T00:00:00.000Z', 'action', 'Case imported')))
             "#
         ).map_err(db_error)?;
 
@@ -409,8 +410,8 @@ pub fn batch_import_cases(state: State<'_, DbState>, rows: Vec<ImportRowInput>) 
             r#"
             INSERT INTO cases (
                 first_name, last_name, middle_initial, level, section, date, date_filed,
-                adviser, "case", description, sanction, progress, proofs, students, title
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+                adviser, "case", description, sanction, progress, proofs, students, title, update_history
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, json_array(json_object('timestamp', ?7 || 'T00:00:00.000Z', 'action', 'Case imported')))
             "#
         ).map_err(db_error)?;
 

@@ -718,7 +718,7 @@ export default function Dashboard() {
             startDate={dashStartDate}
             endDate={dashEndDate}
             className="max-w-[200px]"
-            placeholder="Filter range"
+            placeholder="All Records"
             onRangeChange={(start, end) => {
               setDashStartDate(start);
               setDashEndDate(end);
