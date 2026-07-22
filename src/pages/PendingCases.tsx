@@ -230,17 +230,19 @@ export default function PendingCases() {
     try {
       await invoke("update_case", { 
         id: caseRecord.id,
-        students: caseRecord.students,
-        date: caseRecord.date,
-        dateFiled: caseRecord.date_filed,
-        case: caseRecord.case,
-        description: caseRecord.description,
-        sanction: caseRecord.sanction,
-        progress: newProgress,
-        proofs: caseRecord.proofs,
-        title: caseRecord.title,
-        reportingStudent: caseRecord.reporting_student || "",
-        groupId: caseRecord.group_id || null
+        payload: {
+          students: parseStudents(caseRecord.students),
+          date: caseRecord.date,
+          dateFiled: caseRecord.date_filed,
+          case: caseRecord.case,
+          description: caseRecord.description,
+          sanction: caseRecord.sanction,
+          progress: newProgress,
+          proofs: caseRecord.proofs,
+          title: caseRecord.title,
+          reportingStudent: caseRecord.reporting_student || "",
+          groupId: caseRecord.group_id || null
+        }
       });
       
       const caseIdFormatted = `#${caseId.toString().padStart(4, "0")}`;
@@ -326,7 +328,7 @@ export default function PendingCases() {
       )}
 
       <div 
-        className="flex flex-col bg-surface w-full h-full overflow-hidden animate-fade-in"
+        className="flex flex-col bg-surface dark:bg-surface-container-lowest w-full h-full overflow-hidden animate-fade-in"
       >
         <style>{`
           @keyframes fadeSlideOut {
@@ -340,10 +342,10 @@ export default function PendingCases() {
         <div className="flex flex-1 min-h-0">
 
           {/* ── LEFT: Case list ── */}
-          <div className="w-[340px] shrink-0 border-r border-outline-variant flex flex-col bg-white h-full overflow-hidden">
+          <div className="w-[340px] shrink-0 border-r border-outline-variant flex flex-col bg-white dark:bg-surface-container h-full overflow-hidden">
             {/* Header / Active Queue */}
-            <div className="px-5 py-4 flex items-center justify-between bg-white shrink-0">
-              <span className="text-xs font-bold tracking-widest uppercase text-secondary">Active Queue</span>
+            <div className="px-5 py-4 flex items-center justify-between bg-white dark:bg-surface-container shrink-0">
+              <span className="text-xs font-bold tracking-widest uppercase text-secondary dark:text-slate-400">Active Queue</span>
               {cases.length > 0 && (
                 <span className="bg-[#fee2e2] text-[#b91c1c] text-[10px] font-extrabold px-2 py-0.5 rounded-full">
                   {cases.length} PENDING
@@ -352,21 +354,21 @@ export default function PendingCases() {
             </div>
 
             {/* Search Input */}
-            <div className="px-4 pb-3 border-b border-outline-variant shrink-0 bg-white">
-              <div className="flex items-center gap-2 bg-[#FAF9F6] border border-outline-variant rounded-xl px-3 py-2">
-                <span className="material-symbols-outlined text-secondary text-[18px]">search</span>
+            <div className="px-4 pb-3 border-b border-outline-variant shrink-0 bg-white dark:bg-surface-container">
+              <div className="flex items-center gap-2 bg-[#FAF9F6] dark:bg-surface-container-high/40 border border-outline-variant rounded-xl px-3 py-2">
+                <span className="material-symbols-outlined text-secondary dark:text-slate-400 text-[18px]">search</span>
                 <input
                   type="text"
                   placeholder="Search active queue..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent text-xs text-on-surface placeholder:text-secondary focus:outline-none w-full"
+                  className="bg-transparent text-xs text-on-surface dark:text-slate-200 placeholder:text-secondary focus:outline-none w-full"
                 />
                 {searchQuery && (
                   <button 
                     type="button"
                     onClick={() => setSearchQuery("")} 
-                    className="text-secondary hover:text-on-surface transition-colors"
+                    className="text-secondary dark:text-slate-400 hover:text-on-surface dark:text-slate-200 transition-colors"
                   >
                     <span className="material-symbols-outlined text-base">close</span>
                   </button>
@@ -375,28 +377,28 @@ export default function PendingCases() {
             </div>
 
             {/* List */}
-            <div className="overflow-y-auto flex-1 flex flex-col bg-white">
+            <div className="overflow-y-auto flex-1 flex flex-col bg-white dark:bg-surface-container">
               {isLoading ? (
                 <div className="flex flex-col gap-2">
                   {[...Array(5)].map((_, i) => (
-                    <div key={i} className="h-16 bg-surface-container rounded-xl animate-pulse" />
+                    <div key={i} className="h-16 bg-surface-container dark:bg-surface-container rounded-xl animate-pulse" />
                   ))}
                 </div>
               ) : sortedCases.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center py-12">
                   {searchQuery ? (
                     <>
-                      <span className="material-symbols-outlined text-secondary" style={{ fontSize: 36 }}>search_off</span>
-                      <p className="text-sm font-bold text-on-surface">No results</p>
-                      <p className="text-xs text-secondary">Try a different name or case type.</p>
+                      <span className="material-symbols-outlined text-secondary dark:text-slate-400" style={{ fontSize: 36 }}>search_off</span>
+                      <p className="text-sm font-bold text-on-surface dark:text-slate-200">No results</p>
+                      <p className="text-xs text-secondary dark:text-slate-400">Try a different name or case type.</p>
                     </>
                   ) : (
                     <>
-                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-1 bg-[#E1F5EE]">
-                        <span className="material-symbols-outlined" style={{ fontSize: 28, color: "#0F6E56" }}>task_alt</span>
+                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-1 bg-[#E1F5EE] dark:bg-emerald-900/40">
+                        <span className="material-symbols-outlined text-[#0F6E56] dark:text-emerald-400" style={{ fontSize: 28 }}>task_alt</span>
                       </div>
-                      <p className="text-sm font-bold text-on-surface">All caught up</p>
-                      <p className="text-xs text-secondary leading-relaxed">No pending cases right now. New cases filed as "Pending" will appear here.</p>
+                      <p className="text-sm font-bold text-on-surface dark:text-slate-200">All caught up</p>
+                      <p className="text-xs text-secondary dark:text-slate-400 leading-relaxed">No pending cases right now. New cases filed as "Pending" will appear here.</p>
                     </>
                   )}
                 </div>
@@ -412,7 +414,7 @@ export default function PendingCases() {
                       className={`relative w-full text-left p-4 border-b border-outline-variant transition-all duration-300 ${
                         isSelected
                           ? "bg-[#0B1E43]/10"
-                          : "bg-white hover:bg-[#FAF9F6]"
+                          : "bg-white dark:bg-surface-container hover:bg-[#FAF9F6] dark:hover:bg-surface-container-high/40 dark:bg-surface-container-high/40"
                       } ${isExiting ? "case-row-exit" : ""}`}
                     >
                       {isSelected && (
@@ -438,8 +440,8 @@ export default function PendingCases() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-secondary truncate italic leading-none">{c.case}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-secondary font-medium">
+                        <p className="text-xs text-secondary dark:text-slate-400 truncate italic leading-none">{c.case}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-secondary dark:text-slate-400 font-medium">
                           <span>
                             {(() => {
                               const students = parseStudents(c.students);
@@ -469,26 +471,26 @@ export default function PendingCases() {
           </div>
 
           {/* ── RIGHT: Case detail ── */}
-          <div className="flex-1 flex flex-col min-w-0 bg-white h-full overflow-hidden">
+          <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-surface-container h-full overflow-hidden">
             {!selectedCase ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 px-8 text-center bg-surface">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-surface-container" style={{ background: "#F1EFE8" }}>
-                  <span className="material-symbols-outlined text-[#888780]" style={{ fontSize: 28 }}>folder_open</span>
+              <div className="flex flex-col items-center justify-center h-full gap-3 px-8 text-center bg-surface dark:bg-surface-container-lowest">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-surface-container dark:bg-surface-container">
+                  <span className="material-symbols-outlined text-secondary dark:text-slate-500" style={{ fontSize: 28 }}>folder_open</span>
                 </div>
-                <p className="text-sm font-bold text-on-surface">Select a case</p>
-                <p className="text-xs text-secondary">Pick a case from the list to see its details and resolve it.</p>
+                <p className="text-sm font-bold text-on-surface dark:text-slate-200">Select a case</p>
+                <p className="text-xs text-secondary dark:text-slate-400">Pick a case from the list to see its details and resolve it.</p>
               </div>
             ) : (
-              <div className="flex flex-col h-full bg-white">
+              <div className="flex flex-col h-full bg-white dark:bg-surface-container">
                 {/* Detail body */}
-                <div className="flex-1 px-8 py-6 flex flex-col gap-6 overflow-y-auto bg-white">
+                <div className="flex-1 px-8 py-6 flex flex-col gap-6 overflow-y-auto bg-white dark:bg-surface-container">
                   
                   {/* Case Title Section */}
                   <div className="flex flex-col gap-1">
-                    <p className="text-xs text-secondary">
+                    <p className="text-xs text-secondary dark:text-slate-400">
                       Case no. {selectedCase.group_id || `2026-${selectedCase.id.toString().padStart(4, "0")}`}
                     </p>
-                    <h3 className="text-2xl font-bold text-primary leading-tight">
+                    <h3 className="text-2xl font-bold text-primary dark:text-[#7f9cf8] leading-tight">
                       {(() => {
                         const students = parseStudents(selectedCase.students);
                         if (students.length === 0) return "—";
@@ -501,7 +503,7 @@ export default function PendingCases() {
                         return name;
                       })()}
                     </h3>
-                    <p className="text-xs text-secondary mt-0.5">
+                    <p className="text-xs text-secondary dark:text-slate-400 mt-0.5">
                       {(() => {
                         const students = parseStudents(selectedCase.students);
                         if (students.length === 0) return "";
@@ -520,31 +522,31 @@ export default function PendingCases() {
                   {/* Case information */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
                     <div>
-                      <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Case type</p>
-                      <p className="text-sm font-bold text-on-surface">{selectedCase.case || "—"}</p>
+                      <p className="text-[11px] text-secondary dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Case type</p>
+                      <p className="text-sm font-bold text-on-surface dark:text-slate-200">{selectedCase.case || "—"}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Date of Incident</p>
-                      <p className="text-sm font-medium text-on-surface">
+                      <p className="text-[11px] text-secondary dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Date of Incident</p>
+                      <p className="text-sm font-medium text-on-surface dark:text-slate-200">
                         {selectedCase.date.includes('T')
                           ? `${formatDate(selectedCase.date)} ${new Date(selectedCase.date).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
                           : formatDate(selectedCase.date)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Date filed</p>
-                      <p className="text-sm font-medium text-on-surface">{formatDateTime(selectedCase.date_filed || selectedCase.date)}</p>
+                      <p className="text-[11px] text-secondary dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Date filed</p>
+                      <p className="text-sm font-medium text-on-surface dark:text-slate-200">{formatDateTime(selectedCase.date_filed || selectedCase.date)}</p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Description</p>
-                      <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
-                        {selectedCase.description || <span className="italic text-secondary">No description recorded.</span>}
+                      <p className="text-[11px] text-secondary dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Description</p>
+                      <p className="text-sm text-on-surface dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                        {selectedCase.description || <span className="italic text-secondary dark:text-slate-400">No description recorded.</span>}
                       </p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Sanction / action taken</p>
-                      <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
-                        {selectedCase.sanction || <span className="italic text-secondary">No sanction recorded.</span>}
+                      <p className="text-[11px] text-secondary dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Sanction / action taken</p>
+                      <p className="text-sm text-on-surface dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                        {selectedCase.sanction || <span className="italic text-secondary dark:text-slate-400">No sanction recorded.</span>}
                       </p>
                     </div>
                   </div>
@@ -553,38 +555,38 @@ export default function PendingCases() {
 
                   {/* Students Involved section */}
                   <div className="flex flex-col gap-3">
-                    <h4 className="text-sm font-bold text-on-surface">Students Involved</h4>
+                    <h4 className="text-sm font-bold text-on-surface dark:text-slate-200">Students Involved</h4>
                     {(() => {
                       const students = parseStudents(selectedCase.students);
-                      if (students.length === 0) return <p className="text-xs text-secondary italic">No students recorded.</p>;
+                      if (students.length === 0) return <p className="text-xs text-secondary dark:text-slate-400 italic">No students recorded.</p>;
                       return (
                         <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse text-xs">
                             <thead>
                               <tr className="border-b border-outline-variant">
-                                <th className="py-2 text-[10px] font-bold text-secondary uppercase tracking-wider">Full name</th>
-                                <th className="py-2 text-[10px] font-bold text-secondary uppercase tracking-wider w-24">Grade level</th>
-                                <th className="py-2 text-[10px] font-bold text-secondary uppercase tracking-wider w-24">Section</th>
-                                <th className="py-2 text-[10px] font-bold text-secondary uppercase tracking-wider w-36">Adviser</th>
-                                <th className="py-2 text-[10px] font-bold text-secondary uppercase tracking-wider w-36">Role</th>
+                                <th className="py-2 text-[10px] font-bold text-secondary dark:text-slate-400 uppercase tracking-wider">Full name</th>
+                                <th className="py-2 text-[10px] font-bold text-secondary dark:text-slate-400 uppercase tracking-wider w-24">Grade level</th>
+                                <th className="py-2 text-[10px] font-bold text-secondary dark:text-slate-400 uppercase tracking-wider w-24">Section</th>
+                                <th className="py-2 text-[10px] font-bold text-secondary dark:text-slate-400 uppercase tracking-wider w-36">Adviser</th>
+                                <th className="py-2 text-[10px] font-bold text-secondary dark:text-slate-400 uppercase tracking-wider w-36">Role</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-outline-variant">
                               {students.map((student, idx) => (
-                                <tr key={idx} className="hover:bg-surface-container/10">
+                                <tr key={idx} className="hover:bg-surface-container dark:hover:bg-surface-container-high/40 dark:bg-surface-container/10">
                                   <td className="py-3 font-bold text-primary dark:text-[#7f9cf8]">
                                     {`${student.lastName}, ${student.firstName}${student.middleInitial ? ` ${student.middleInitial}.` : ""}`}
                                   </td>
-                                  <td className="py-3 text-secondary">
+                                  <td className="py-3 text-secondary dark:text-slate-400">
                                     {student.level || "—"}
                                   </td>
-                                  <td className="py-3 text-secondary">
+                                  <td className="py-3 text-secondary dark:text-slate-400">
                                     {student.section || "—"}
                                   </td>
-                                  <td className="py-3 text-secondary">
+                                  <td className="py-3 text-secondary dark:text-slate-400">
                                     {student.adviser || "—"}
                                   </td>
-                                  <td className="py-3 text-secondary">
+                                  <td className="py-3 text-secondary dark:text-slate-400">
                                     {student.role || "—"}
                                   </td>
                                 </tr>
@@ -600,12 +602,12 @@ export default function PendingCases() {
                     <>
                       <hr className="border-outline-variant" />
                       <div className="flex flex-col gap-3">
-                        <h4 className="text-sm font-bold text-on-surface">Attachments</h4>
+                        <h4 className="text-sm font-bold text-on-surface dark:text-slate-200">Attachments</h4>
                         <div className="grid grid-cols-3 gap-3">
                           {selectedProofs.map((proof, index) => (
                             <div
                               key={`${proof.name}-${proof.created_at}-${index}`}
-                              className="group relative bg-[#FAF9F6] border border-outline-variant rounded-xl overflow-hidden cursor-pointer aspect-video flex items-center justify-center bg-surface-container"
+                              className="group relative bg-[#FAF9F6] dark:bg-surface-container-high/40 border border-outline-variant rounded-xl overflow-hidden cursor-pointer aspect-video flex items-center justify-center bg-surface-container dark:bg-surface-container"
                               onClick={() => setSelectedProofUrl(proof.data)}
                             >
                               <img 
@@ -648,15 +650,15 @@ export default function PendingCases() {
                 </div>
 
                 {/* ── Resolve / Action bar ── */}
-                <div className="px-8 py-4 border-t border-outline-variant bg-white shrink-0 flex items-center">
+                <div className="px-8 py-4 border-t border-outline-variant bg-white dark:bg-surface-container shrink-0 flex items-center">
                   {confirmState === "idle" && (
                     <div className="flex items-center gap-4 w-full">
-                      <p className="text-xs font-bold text-secondary flex-1">Update the status of this case:</p>
+                      <p className="text-xs font-bold text-secondary dark:text-slate-400 flex-1">Update the status of this case:</p>
                       <button
                         type="button"
                         onClick={() => setConfirmState("reprimanding")}
                         disabled={resolvingId !== null}
-                        className="btn-secondary text-error border-error hover:bg-error/5 font-bold text-xs flex items-center gap-1.5 shadow-sm px-5 py-2.5 bg-white cursor-pointer"
+                        className="btn-secondary text-error border-error hover:bg-error/5 font-bold text-xs flex items-center gap-1.5 shadow-sm px-5 py-2.5 bg-white dark:bg-surface-container cursor-pointer"
                       >
                         <span className="material-symbols-outlined text-[16px]">gavel</span>
                         <span>Mark reprimand</span>
@@ -665,7 +667,7 @@ export default function PendingCases() {
                         type="button"
                         onClick={() => setConfirmState("closing")}
                         disabled={resolvingId !== null}
-                        className="btn-secondary text-secondary border-outline-variant hover:bg-surface-container font-bold text-xs flex items-center gap-1.5 shadow-sm px-5 py-2.5 bg-white cursor-pointer"
+                        className="btn-secondary text-secondary dark:text-slate-400 border-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high/40 dark:bg-surface-container font-bold text-xs flex items-center gap-1.5 shadow-sm px-5 py-2.5 bg-white dark:bg-surface-container cursor-pointer"
                       >
                         <span className="material-symbols-outlined text-[16px]">inventory_2</span>
                         <span>Mark closed</span>
@@ -683,15 +685,15 @@ export default function PendingCases() {
                   )}
 
                   {confirmState === "resolving" && (
-                    <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-3 border border-outline-variant w-full">
-                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#0F6E56" }}>check_circle</span>
-                      <p className="text-sm text-on-surface flex-1">
+                    <div className="flex items-center gap-3 bg-surface-container dark:bg-surface-container rounded-xl px-4 py-3 border border-outline-variant w-full">
+                      <span className="material-symbols-outlined text-[#0F6E56] dark:text-emerald-400" style={{ fontSize: 18 }}>check_circle</span>
+                      <p className="text-sm text-on-surface dark:text-slate-200 flex-1">
                         Mark case <span className="font-bold">#{selectedCase.id}</span> as <span className="font-bold">Resolved</span>?
                       </p>
                       <button
                         type="button"
                         onClick={() => setConfirmState("idle")}
-                        className="btn-secondary py-1.5 px-4 text-xs font-bold bg-white"
+                        className="btn-secondary py-1.5 px-4 text-xs font-bold bg-white dark:bg-surface-container"
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
                         <span>Cancel</span>
@@ -713,15 +715,15 @@ export default function PendingCases() {
                   )}
 
                   {confirmState === "closing" && (
-                    <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-3 border border-outline-variant w-full">
-                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#4D5A66" }}>inventory_2</span>
-                      <p className="text-sm text-on-surface flex-1">
+                    <div className="flex items-center gap-3 bg-surface-container dark:bg-surface-container rounded-xl px-4 py-3 border border-outline-variant w-full">
+                      <span className="material-symbols-outlined text-[#4D5A66] dark:text-slate-400" style={{ fontSize: 18 }}>inventory_2</span>
+                      <p className="text-sm text-on-surface dark:text-slate-200 flex-1">
                         Mark case <span className="font-bold">#{selectedCase.id}</span> as <span className="font-bold">Closed</span>?
                       </p>
                       <button
                         type="button"
                         onClick={() => setConfirmState("idle")}
-                        className="btn-secondary py-1.5 px-4 text-xs font-bold bg-white"
+                        className="btn-secondary py-1.5 px-4 text-xs font-bold bg-white dark:bg-surface-container"
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
                         <span>Cancel</span>
@@ -743,15 +745,15 @@ export default function PendingCases() {
                   )}
 
                   {confirmState === "reprimanding" && (
-                    <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-3 border border-outline-variant w-full">
-                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#A32D2D" }}>gavel</span>
-                      <p className="text-sm text-on-surface flex-1">
+                    <div className="flex items-center gap-3 bg-surface-container dark:bg-surface-container rounded-xl px-4 py-3 border border-outline-variant w-full">
+                      <span className="material-symbols-outlined text-[#A32D2D] dark:text-red-400" style={{ fontSize: 18 }}>gavel</span>
+                      <p className="text-sm text-on-surface dark:text-slate-200 flex-1">
                         Mark case <span className="font-bold">#{selectedCase.id}</span> as <span className="font-bold">Reprimand</span>?
                       </p>
                       <button
                         type="button"
                         onClick={() => setConfirmState("idle")}
-                        className="btn-secondary py-1.5 px-4 text-xs font-bold bg-white"
+                        className="btn-secondary py-1.5 px-4 text-xs font-bold bg-white dark:bg-surface-container"
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
                         <span>Cancel</span>
@@ -787,7 +789,7 @@ export default function PendingCases() {
             }`}
             onClick={closeProofLightbox}
           />
-          <div className={`relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface rounded-xl shadow-2xl flex flex-col ${
+          <div className={`relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface dark:bg-surface-container-lowest rounded-xl shadow-2xl flex flex-col ${
             isProofLightboxClosing ? "modal-panel-exit" : "modal-panel-enter"
           }`}>
             <button

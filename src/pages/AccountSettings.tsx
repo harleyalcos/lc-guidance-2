@@ -49,6 +49,13 @@ export default function AccountSettings() {
   const [verificationBusy, setVerificationBusy] = useState(false);
   const [isVerificationModalClosing, setIsVerificationModalClosing] = useState(false);
 
+  // Gemini AI State
+  const [geminiKey, setGeminiKey] = useState("");
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [isSavingGeminiKey, setIsSavingGeminiKey] = useState(false);
+  const [isTestingGemini, setIsTestingGemini] = useState(false);
+  const [geminiStatus, setGeminiStatus] = useState<"not_configured" | "connected" | "invalid">("not_configured");
+
   const handleOpenVerification = (action: "export" | "import") => {
     setPinVerificationAction(action);
     setVerificationPin("");
@@ -153,7 +160,103 @@ export default function AccountSettings() {
         setRecoveryEmailBeforeEdit(email);
       })
       .catch((err) => showToast("error", err instanceof Error ? err.message : String(err)));
+
+    invoke<string>("get_gemini_api_key")
+      .then((key) => {
+        setGeminiKey(key);
+        if (key) {
+          setGeminiStatus("connected"); // Default to connected if key exists, or you could auto-test
+        }
+      })
+      .catch(console.error);
   }, []);
+
+  const handleSaveGeminiKey = async (e: FormEvent) => {
+    e.preventDefault();
+    const trimmedKey = geminiKey.trim();
+    setIsSavingGeminiKey(true);
+
+    if (!trimmedKey) {
+      try {
+        await invoke("set_gemini_api_key", { apiKey: "" });
+        setGeminiStatus("not_configured");
+        showToast("success", "Gemini API key cleared.");
+      } catch (err) {
+        console.error("[Gemini Save Error]", err);
+        showToast("error", err instanceof Error ? err.message : String(err));
+      } finally {
+        setIsSavingGeminiKey(false);
+      }
+      return;
+    }
+
+    try {
+      console.log("[Gemini API] Verifying key with gemini-3.1-flash-lite...");
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${trimmedKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Ping" }] }],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[Gemini API Error] gemini-3.1-flash-lite returned ${response.status}:`, errText);
+        setGeminiStatus("invalid");
+        showToast("error", `Invalid API Key or Gemini error (${response.status}). Check console (F12).`);
+        return;
+      }
+
+      await invoke("set_gemini_api_key", { apiKey: trimmedKey });
+      setGeminiStatus("connected");
+      showToast("success", "Gemini 3.1 Flash Lite API key verified and saved successfully!");
+    } catch (err) {
+      setGeminiStatus("invalid");
+      console.error("[Gemini API Save Exception]", err);
+      showToast("error", `Connection failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsSavingGeminiKey(false);
+    }
+  };
+
+  const handleTestGeminiConnection = async () => {
+    if (!geminiKey.trim()) return;
+    setIsTestingGemini(true);
+    try {
+      console.log("[Gemini API] Testing connection with gemini-3.1-flash-lite...");
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiKey.trim()}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Hello" }] }],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[Gemini API Error] gemini-3.1-flash-lite returned ${response.status}:`, errText);
+        setGeminiStatus("invalid");
+        showToast("error", `Connection failed (${response.status}). Check console (F12).`);
+        return;
+      }
+
+      setGeminiStatus("connected");
+      showToast("success", "Connection to Gemini 3.1 Flash Lite API successful!");
+    } catch (err) {
+      setGeminiStatus("invalid");
+      console.error("[Gemini Test Exception]", err);
+      showToast("error", "Failed to connect. Please check your API key.");
+    } finally {
+      setIsTestingGemini(false);
+    }
+  };
 
   const validatePin = (value: string) => /^\d{6}$/.test(value);
 
@@ -560,6 +663,123 @@ export default function AccountSettings() {
               />
             </button>
           </div>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">AI Settings</h2>
+          <div className="h-px flex-1 bg-outline-variant" />
+        </div>
+        <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
+            <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+              Guidance AI Assistant
+            </h3>
+            <p className="text-xs text-secondary mt-1">
+              Enter your Gemini API key. This key is stored locally and is never transmitted anywhere except directly to Google's Gemini API.
+            </p>
+          </div>
+          <form onSubmit={handleSaveGeminiKey} className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1.5">Model</label>
+                <input
+                  type="text"
+                  value="Gemini 3.1 Flash Lite"
+                  disabled
+                  className={`${inputClass} bg-surface-container-low dark:bg-surface-container-high/40 text-secondary cursor-not-allowed`}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1.5">Gemini API Key</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showGeminiKey ? "text" : "password"}
+                      value={geminiKey}
+                      onChange={(e) => setGeminiKey(e.target.value)}
+                      className={secretInputClass}
+                      placeholder="AIza..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowGeminiKey((value) => !value)}
+                      className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-secondary hover:text-primary transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">
+                        {showGeminiKey ? "visibility" : "visibility_off"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={isSavingGeminiKey}
+                  className="btn-primary"
+                >
+                  {isSavingGeminiKey ? (
+                    <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[20px]">save</span>
+                  )}
+                  <span>Save Key</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTestGeminiConnection}
+                  disabled={isTestingGemini || !geminiKey.trim()}
+                  className="btn-secondary"
+                >
+                  {isTestingGemini ? (
+                    <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[20px]">network_check</span>
+                  )}
+                  <span>Test Connection</span>
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1.5">Connection Status</label>
+              <div className="flex items-center gap-3 p-4 rounded-lg border border-outline-variant bg-surface-container-lowest">
+                {geminiStatus === "connected" ? (
+                  <>
+                    <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center text-green-600 shrink-0">
+                      <span className="material-symbols-outlined">check_circle</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-on-surface">Connected</p>
+                      <p className="text-xs text-secondary mt-0.5">Ready to answer questions</p>
+                    </div>
+                  </>
+                ) : geminiStatus === "invalid" ? (
+                  <>
+                    <div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center text-error shrink-0">
+                      <span className="material-symbols-outlined">error</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-on-surface">Invalid API Key</p>
+                      <p className="text-xs text-secondary mt-0.5">Please check your key and try again</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary shrink-0">
+                      <span className="material-symbols-outlined">help</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-on-surface">Not Configured</p>
+                      <p className="text-xs text-secondary mt-0.5">Enter an API key to enable AI features</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </form>
         </div>
       </section>
 

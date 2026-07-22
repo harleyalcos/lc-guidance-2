@@ -58,7 +58,10 @@ fn main() {
             commands::generate_import_template,
             commands::validate_import_row,
             commands::export_db_file,
-            commands::import_db_file
+            commands::import_db_file,
+            commands::get_gemini_api_key,
+            commands::set_gemini_api_key,
+            commands::query_database_for_ai
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

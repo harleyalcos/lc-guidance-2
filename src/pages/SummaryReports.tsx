@@ -5,24 +5,7 @@ import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
 import MonthYearRangePicker from "../components/MonthYearRangePicker";
 
-interface CaseRecord {
-  id: number;
-  first_name: string;
-  last_name: string;
-  middle_initial: string;
-  level: string;
-  section: string;
-  date: string;
-  date_filed: string;
-  adviser: string;
-  case: string;
-  description: string;
-  sanction: string;
-  progress: string;
-  proofs: string;
-  students: string;
-  title: string;
-}
+import { CaseRecord } from "../types";
 
 interface StudentInfo {
   firstName: string;

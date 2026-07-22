@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS cases (
   student_roles TEXT NOT NULL DEFAULT '[]',
   title      TEXT NOT NULL DEFAULT '',
   reporting_student TEXT NOT NULL DEFAULT '',
-  group_id   TEXT
+  group_id   TEXT,
+  update_history TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS app_config (
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
     let mut has_title = false;
     let mut has_reporting_student = false;
     let mut has_group_id = false;
+    let mut has_update_history = false;
     while let Some(row) = rows.next()? {
         let name: String = row.get(1)?;
         if name == "date_filed" {
@@ -81,6 +83,9 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
         }
         if name == "group_id" {
             has_group_id = true;
+        }
+        if name == "update_history" {
+            has_update_history = true;
         }
     }
 
@@ -275,6 +280,15 @@ ALTER TABLE cases ADD COLUMN reporting_student TEXT NOT NULL DEFAULT '';
         connection.execute_batch(
             r#"
 ALTER TABLE cases ADD COLUMN group_id TEXT;
+"#,
+        )?;
+    }
+
+    if !has_update_history {
+        connection.execute_batch(
+            r#"
+ALTER TABLE cases ADD COLUMN update_history TEXT NOT NULL DEFAULT '[]';
+UPDATE cases SET update_history = json_insert('[]', '$[0]', json_object('timestamp', date_filed || 'T00:00:00.000Z', 'action', 'Case created')) WHERE date_filed != '';
 "#,
         )?;
     }

@@ -320,7 +320,7 @@ export default function MonthYearRangePicker({
         className={`flex items-center h-[38px] rounded-lg border text-sm transition-all duration-500 ease-in-out text-left select-none relative overflow-hidden pl-3.5 pr-8 ${
           open 
             ? "bg-surface-container border-primary ring-2 ring-primary/20 shadow-sm" 
-            : "bg-surface border-outline-variant hover:bg-surface-container"
+            : "bg-surface border-gray-300 dark:border-outline-variant hover:border-primary/60 hover:bg-surface-container"
         } ${className}`}
       >
         <div className="flex items-center gap-1.5 min-w-0 w-full transition-colors duration-500">

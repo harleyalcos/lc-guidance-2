@@ -4,7 +4,7 @@ use super::DbResult;
 
 pub fn export_csv(connection: &rusqlite::Connection, csv_path: &Path) -> Result<(), String> {
     let mut wtr = csv::Writer::from_path(csv_path).map_err(|e| e.to_string())?;
-    wtr.write_record(&[
+    wtr.write_record([
         "id", "students", "date", "date_filed", "case", "description", 
         "sanction", "progress", "proofs", "first_name", "last_name", 
         "middle_initial", "level", "section", "adviser", "title", "reporting_student"

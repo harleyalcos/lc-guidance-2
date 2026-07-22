@@ -36,7 +36,8 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
 
   const isImportReview = pageKey === "/import-review";
   const isPendingPage = pageKey === "/pending";
-  const isEdgeToEdge = isImportReview || isPendingPage;
+  const isAiPage = pageKey === "/ai";
+  const isEdgeToEdge = isImportReview || isPendingPage || isAiPage;
 
   return (
     <div className="app-shell text-on-background font-body-md text-body-md antialiased min-h-screen overflow-x-hidden">
@@ -54,7 +55,7 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
       } ${
         isImportReview 
           ? "h-screen flex flex-col overflow-hidden" 
-          : isPendingPage
+          : (isPendingPage || isAiPage)
             ? "h-[calc(100vh-64px)] flex flex-col overflow-hidden"
             : "min-h-[calc(100vh-64px)] p-margin-page gap-gutter pb-12"
       }`}>

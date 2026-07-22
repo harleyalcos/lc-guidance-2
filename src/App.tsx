@@ -11,6 +11,7 @@ import Backup from "./pages/Backup";
 import AccountSettings from "./pages/AccountSettings";
 import ImportReview from "./pages/ImportReview";
 import SignIn from "./pages/SignIn";
+import GuidanceAI from "./pages/GuidanceAI";
 import "./App.css";
 
 function AppRoutes() {
@@ -24,6 +25,7 @@ function AppRoutes() {
     if (location.pathname === "/account") return "Profile";
     if (location.pathname === "/import-review") return "Import Review";
     if (location.pathname === "/reports") return "Reports";
+    if (location.pathname === "/ai") return "Guidance AI";
     return "Dashboard";
   };
 
@@ -38,6 +40,7 @@ function AppRoutes() {
         <Route path="/backup" element={<Backup />} />
         <Route path="/account" element={<AccountSettings />} />
         <Route path="/import-review" element={<ImportReview />} />
+        <Route path="/ai" element={<GuidanceAI />} />
       </Routes>
     </Layout>
   );

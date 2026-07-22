@@ -1,5 +1,6 @@
 pub mod backup;
 pub mod schema;
+pub mod repository;
 
 use rusqlite::Connection;
 use std::{
