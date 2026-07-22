@@ -6,34 +6,7 @@ import MonthYearRangePicker from "../components/MonthYearRangePicker";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
 
-interface CaseRecord {
-  id: number;
-  first_name: string;
-  last_name: string;
-  middle_initial: string;
-  level: string;
-  section: string;
-  date: string;
-  date_filed: string;
-  adviser: string;
-  case: string;
-  description: string;
-  sanction: string;
-  progress: string;
-  proofs: string;
-  students: string;
-  title: string;
-}
-
-interface StudentInfo {
-  firstName: string;
-  lastName: string;
-  middleInitial: string;
-  level: string;
-  section: string;
-  adviser: string;
-  role?: string;
-}
+import { CaseRecord, StudentInfo } from "../types";
 
 const normalizeRole = (value?: string) => {
   const normalized = value?.trim() ?? "";

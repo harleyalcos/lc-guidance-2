@@ -2,7 +2,7 @@ import { useState, useMemo, Fragment, useEffect, useRef } from "react";
 import { useLocation, useNavigate, Navigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
-import { ImportRow, ParseFileResult, ImportRowInput } from "../types";
+import { ImportRow, ParseFileResult } from "../types";
 
 export default function ImportReview() {
   const location = useLocation();
@@ -66,7 +66,7 @@ export default function ImportReview() {
 
   // Edit Modal state
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
-  const [editData, setEditData] = useState<ImportRowInput | null>(null);
+  const [editData, setEditData] = useState<ImportRow | null>(null);
   const [isSavingRow, setIsSavingRow] = useState(false);
 
   // Duplicate Comparison state (stores index of expanded duplicate row)
@@ -120,27 +120,10 @@ export default function ImportReview() {
 
   const handleEditStart = (index: number, row: ImportRow) => {
     setEditingRowIndex(index);
-    setEditData({
-      id: row.id,
-      first_name: row.first_name,
-      last_name: row.last_name,
-      middle_initial: row.middle_initial,
-      level: row.level,
-      section: row.section,
-      date: row.date,
-      date_filed: row.date_filed,
-      adviser: row.adviser,
-      case: row.case,
-      description: row.description,
-      sanction: row.sanction,
-      progress: row.progress,
-      proofs: row.proofs,
-      students: row.students,
-      title: row.title || "",
-    });
+    setEditData({ ...row });
   };
 
-  const handleEditChange = (field: keyof ImportRowInput, value: string) => {
+  const handleEditChange = (field: keyof ImportRow, value: string) => {
     if (editData) {
       setEditData({ ...editData, [field]: value });
     }

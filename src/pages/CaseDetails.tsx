@@ -7,32 +7,7 @@ import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
 
 
-interface StudentInfo {
-  firstName: string;
-  lastName: string;
-  middleInitial: string;
-  level: string;
-  section: string;
-  adviser: string;
-  role: string;
-  sanction?: string;
-}
-
-interface CaseRecord {
-  id: number;
-  students: string;
-  date: string;
-  date_filed: string;
-  case: string;
-  description: string;
-  sanction: string;
-  progress: string;
-  proofs: string;
-  title: string;
-  reporting_student?: string;
-  group_id?: string | null;
-  update_history: string;
-}
+import { CaseRecord, StudentInfo } from "../types";
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
@@ -463,7 +438,7 @@ export default function CaseDetails() {
           return { ...student, adviser: capitalizeWords(student.adviser).slice(0, ADVISER_LIMIT) };
         }
         if (field === "firstName" || field === "lastName" || field === "role") {
-          return { ...student, [field]: capitalizeWords(student[field]) };
+          return { ...student, [field]: capitalizeWords(student[field] || "") };
         }
         if (field === "middleInitial") return { ...student, middleInitial: normalizeMiddleInitial(student.middleInitial) };
         if (field === "level") return { ...student, level: normalizeGradeLevel(student.level) };
@@ -558,17 +533,19 @@ export default function CaseDetails() {
         }));
         await invoke("update_case", {
           id: data.id,
-          students: data.students,
-          date: data.date,
-          dateFiled: data.date_filed,
-          case: data.case,
-          description: data.description,
-          sanction: data.sanction,
-          progress: data.progress,
-          proofs: JSON.stringify(proofs),
-          title: data.title,
-          reportingStudent: data.reporting_student || "",
-          groupId: data.group_id || null
+          payload: {
+            students: parseStudents(data.students),
+            date: data.date,
+            dateFiled: data.date_filed,
+            case: data.case,
+            description: data.description,
+            sanction: data.sanction,
+            progress: data.progress,
+            proofs: JSON.stringify(proofs),
+            title: data.title,
+            reportingStudent: data.reporting_student || "",
+            groupId: data.group_id || null
+          }
         });
         localStorage.removeItem(`case_proofs_${id}`);
       }
@@ -590,17 +567,19 @@ export default function CaseDetails() {
     if (!caseRecord) return;
     await invoke("update_case", {
       id: caseRecord.id,
-      students: caseRecord.students,
-      date: caseRecord.date,
-      dateFiled: caseRecord.date_filed,
-      case: caseRecord.case,
-      description: caseRecord.description,
-      sanction: caseRecord.sanction,
-      progress: caseRecord.progress,
-      proofs: JSON.stringify(proofs),
-      title: caseRecord.title,
-      reportingStudent: caseRecord.reporting_student || "",
-      groupId: caseRecord.group_id || null,
+      payload: {
+        students: parseStudents(caseRecord.students),
+        date: caseRecord.date,
+        dateFiled: caseRecord.date_filed,
+        case: caseRecord.case,
+        description: caseRecord.description,
+        sanction: caseRecord.sanction,
+        progress: caseRecord.progress,
+        proofs: JSON.stringify(proofs),
+        title: caseRecord.title,
+        reportingStudent: caseRecord.reporting_student || "",
+        groupId: caseRecord.group_id || null,
+      },
       updateLog
     });
     setUploadedProofs(proofs);
@@ -697,17 +676,19 @@ export default function CaseDetails() {
     try {
       await invoke("update_case", {
         id: caseRecord.id,
-        students: JSON.stringify(normalizedStudents),
-        date,
-        dateFiled: editForm.date_filed,
-        case: normalizeCaseType(editForm.case),
-        description: editForm.description.trim().slice(0, TEXT_FIELD_LIMIT),
-        sanction: editForm.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
-        progress: editForm.progress,
-        proofs: caseRecord.proofs,
-        title: normalizedTitle,
-        reportingStudent: caseRecord.reporting_student || "",
-        groupId: caseRecord.group_id || null,
+        payload: {
+          students: normalizedStudents,
+          date,
+          dateFiled: editForm.date_filed,
+          case: normalizeCaseType(editForm.case),
+          description: editForm.description.trim().slice(0, TEXT_FIELD_LIMIT),
+          sanction: editForm.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
+          progress: editForm.progress,
+          proofs: caseRecord.proofs,
+          title: normalizedTitle,
+          reportingStudent: caseRecord.reporting_student || "",
+          groupId: caseRecord.group_id || null,
+        },
         updateLog
       });
       setIsEditing(false);

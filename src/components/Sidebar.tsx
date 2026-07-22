@@ -14,6 +14,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
     { path: "/pending", label: "Pending Cases", icon: "pending_actions", activePaths: ["/pending"] },
     { path: "/catalog", label: "Case Catalog", icon: "folder_open", activePaths: ["/catalog", "/case"] },
     { path: "/reports", label: "Reports", icon: "assessment", activePaths: ["/reports"] },
+    { path: "/ai", label: "Guidance AI", icon: "smart_toy", activePaths: ["/ai"] },
     { path: "/backup", label: "Backup", icon: "backup", activePaths: ["/backup"] },
   ];
 

@@ -6,78 +6,18 @@ use tauri::State;
 pub mod import;
 pub use import::*;
 
+pub mod ai;
+pub use ai::*;
+
 use crate::db::DbState;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CaseRecord {
-    pub id: i64,
-    pub first_name: String,
-    pub last_name: String,
-    pub middle_initial: String,
-    pub level: String,
-    pub section: String,
-    pub date: String,
-    pub date_filed: String,
-    pub adviser: String,
-    #[serde(rename = "case")]
-    pub r#case: String,
-    pub description: String,
-    pub sanction: String,
-    pub progress: String,
-    pub proofs: String,
-    pub students: String,
-    pub title: String,
-    pub reporting_student: String,
-    pub group_id: Option<String>,
-    pub update_history: String,
-}
+use crate::models::CaseRecord;
+use crate::db::repository::CaseRepository;
 
-#[derive(Debug, Default, Deserialize)]
-struct StoredStudent {
-    #[serde(rename = "firstName", default)]
-    first_name: String,
-    #[serde(rename = "lastName", default)]
-    last_name: String,
-    #[serde(rename = "middleInitial", default)]
-    middle_initial: String,
-    #[serde(default)]
-    level: String,
-    #[serde(default)]
-    section: String,
-    #[serde(default)]
-    adviser: String,
-}
-
-fn primary_student(students: &str) -> Result<StoredStudent, String> {
-    serde_json::from_str::<Vec<StoredStudent>>(students)
-        .map_err(|error| format!("Invalid students data: {error}"))?
-        .into_iter()
-        .next()
-        .ok_or_else(|| "At least one student is required".to_string())
-}
+// primary_student logic moved to repository
 
 pub fn map_case(row: &Row<'_>) -> rusqlite::Result<CaseRecord> {
-    Ok(CaseRecord {
-        id: row.get("id")?,
-        first_name: row.get("first_name")?,
-        last_name: row.get("last_name")?,
-        middle_initial: row.get("middle_initial")?,
-        level: row.get("level")?,
-        section: row.get("section")?,
-        date: row.get("date")?,
-        date_filed: row.get("date_filed")?,
-        adviser: row.get("adviser")?,
-        r#case: row.get("case")?,
-        description: row.get("description")?,
-        sanction: row.get("sanction")?,
-        progress: row.get("progress")?,
-        proofs: row.get("proofs")?,
-        students: row.get("students")?,
-        title: row.get("title")?,
-        reporting_student: row.get("reporting_student")?,
-        group_id: row.get("group_id").unwrap_or(None),
-        update_history: row.get("update_history")?,
-    })
+    CaseRepository::map_case(row)
 }
 
 fn db_error(error: impl std::fmt::Display) -> String {
@@ -181,9 +121,9 @@ fn request_otp_for_purpose(
     let code = crate::auth::generate_otp();
     let code_hash = crate::auth::hash_secret(&code)?;
     let expires_at = (now + Duration::minutes(10)).to_rfc3339();
-    let smtp_email = require_config(&connection, "smtp_email")?;
-    let smtp_password = require_config(&connection, "smtp_password")?;
-    let recovery_email = require_config(&connection, "recovery_email")?;
+    let smtp_email = require_config(connection, "smtp_email")?;
+    let smtp_password = require_config(connection, "smtp_password")?;
+    let recovery_email = require_config(connection, "recovery_email")?;
 
     connection
         .execute("DELETE FROM otp_tokens WHERE purpose = ?1", params![purpose])
@@ -380,115 +320,27 @@ ORDER BY id DESC
     Ok(cases)
 }
 
+use crate::models::CasePayload;
+
+
 #[tauri::command]
 pub fn add_case(
     state: State<'_, DbState>,
-    students: String,
-    date: String,
-    date_filed: String,
-    r#case: String,
-    description: String,
-    sanction: String,
-    progress: String,
-    proofs: String,
-    title: String,
-    reporting_student: Option<String>,
-    group_id: Option<String>,
+    payload: CasePayload,
 ) -> Result<i64, String> {
-    let primary_student = primary_student(&students)?;
     let connection = state.connection.lock().map_err(db_error)?;
-
-    let initial_history = format!(
-        r#"[{{\"timestamp\":\"{}T00:00:00.000Z\",\"action\":\"Case created\"}}]"#,
-        date_filed
-    );
-
-    connection
-        .execute(
-            r#"
-INSERT INTO cases (
-  students, date, date_filed, "case", description, sanction, progress, proofs, title, reporting_student, group_id, first_name, last_name, middle_initial, level, section, adviser, update_history
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
-"#,
-            params![
-                students, date, date_filed, r#case, description,
-                sanction, progress, proofs, title, reporting_student.unwrap_or_default(),
-                group_id,
-                primary_student.first_name, primary_student.last_name,
-                primary_student.middle_initial, primary_student.level,
-                primary_student.section, primary_student.adviser, initial_history
-            ],
-        )
-        .map_err(db_error)?;
-
-    Ok(connection.last_insert_rowid())
+    CaseRepository::insert(&connection, &payload)
 }
 
 #[tauri::command]
 pub fn update_case(
     state: State<'_, DbState>,
     id: i64,
-    students: String,
-    date: String,
-    date_filed: String,
-    r#case: String,
-    description: String,
-    sanction: String,
-    progress: String,
-    proofs: String,
-    title: String,
-    reporting_student: Option<String>,
-    group_id: Option<String>,
+    payload: CasePayload,
     update_log: Option<String>,
 ) -> Result<(), String> {
-    let primary_student = primary_student(&students)?;
     let connection = state.connection.lock().map_err(db_error)?;
-    let timestamp = chrono::Utc::now().to_rfc3339();
-
-    let rows_updated = connection
-        .execute(
-            r#"
-UPDATE cases
-SET students = ?1,
-    date = ?2,
-    date_filed = ?3,
-    "case" = ?4,
-    description = ?5,
-    sanction = ?6,
-    progress = ?7,
-    proofs = ?8,
-    title = ?9,
-    reporting_student = COALESCE(?10, reporting_student),
-    group_id = ?11,
-    first_name = ?12,
-    last_name = ?13,
-    middle_initial = ?14,
-    level = ?15,
-    section = ?16,
-    adviser = ?17,
-    update_history = CASE 
-        WHEN ?18 IS NOT NULL THEN json_insert(update_history, '$[#]', json_object('timestamp', ?19, 'action', ?18))
-        ELSE update_history
-    END
-WHERE id = ?20
-"#,
-            params![
-                students, date, date_filed, r#case, description,
-                sanction, progress, proofs, title, reporting_student,
-                group_id,
-                primary_student.first_name, primary_student.last_name,
-                primary_student.middle_initial, primary_student.level,
-                primary_student.section, primary_student.adviser,
-                update_log, timestamp, id
-            ],
-        )
-        .map_err(db_error)?;
-
-    if rows_updated == 0 {
-        return Err(format!("Case with id {id} was not found"));
-    }
-
-    Ok(())
+    CaseRepository::update(&connection, id, &payload, update_log)
 }
 
 #[tauri::command]

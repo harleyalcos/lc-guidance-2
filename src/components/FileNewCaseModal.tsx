@@ -659,32 +659,36 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         for (const student of respondents) {
           const caseStudents = [student, ...complainantSubjects];
           await invoke<number>("add_case", {
-            students: JSON.stringify(caseStudents),
-            date: normalized.date,
-            dateFiled,
-            case: normalized.case.trim(),
-            description: normalized.description.trim().slice(0, TEXT_FIELD_LIMIT),
-            sanction: student.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
-            progress: normalized.progress,
-            proofs,
-            title: isGroupedCase ? normalized.title.trim() : "",
-            reportingStudent: "",
-            groupId: isGroupedCase ? groupId : null,
+            payload: {
+              students: caseStudents,
+              date: normalized.date,
+              dateFiled,
+              case: normalized.case.trim(),
+              description: normalized.description.trim().slice(0, TEXT_FIELD_LIMIT),
+              sanction: student.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
+              progress: normalized.progress,
+              proofs,
+              title: isGroupedCase ? normalized.title.trim() : "",
+              reportingStudent: "",
+              groupId: isGroupedCase ? groupId : null,
+            }
           });
         }
       } else {
         await invoke<number>("add_case", {
-          students: JSON.stringify(students),
-          date: normalized.date,
-          dateFiled,
-          case: normalized.case.trim(),
-          description: normalized.description.trim().slice(0, TEXT_FIELD_LIMIT),
-          sanction: students[0].sanction.trim().slice(0, TEXT_FIELD_LIMIT),
-          progress: normalized.progress,
-          proofs,
-          title: "",
-          reportingStudent: "",
-          groupId: null,
+          payload: {
+            students,
+            date: normalized.date,
+            dateFiled,
+            case: normalized.case.trim(),
+            description: normalized.description.trim().slice(0, TEXT_FIELD_LIMIT),
+            sanction: students[0].sanction.trim().slice(0, TEXT_FIELD_LIMIT),
+            progress: normalized.progress,
+            proofs,
+            title: "",
+            reportingStudent: "",
+            groupId: null,
+          }
         });
       }
 
