@@ -31,7 +31,7 @@ export default {
         "error": "var(--color-error)",
         "error-container": "var(--color-error-container)",
         "on-error-container": "var(--color-on-error-container)",
-        
+
         /* Add some specific hardcoded tokens we haven't mapped yet, to avoid compilation errors if used */
         "primary-fixed-dim": "#b4c5ff",
         "secondary-fixed-dim": "#c0c7d6",

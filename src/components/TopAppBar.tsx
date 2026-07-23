@@ -27,7 +27,7 @@ export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = 
             return;
           }
         }
-      } catch {}
+      } catch { }
       setPendingCount(0);
     };
 
@@ -41,9 +41,8 @@ export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = 
   }, [location.pathname]);
 
   return (
-    <header className={`app-topbar-surface h-16 sticky top-0 border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page min-w-0 z-10 transition-[background-color,border-color,margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-      isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
-    }`}>
+    <header className={`app-topbar-surface h-16 sticky top-0 border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page min-w-0 z-10 transition-[background-color,border-color,margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
+      }`}>
       <div className="flex items-center gap-4 flex-1">
         {showBackButton && (
           <Link to={-1 as any} className="text-secondary hover:text-primary transition-colors duration-500">

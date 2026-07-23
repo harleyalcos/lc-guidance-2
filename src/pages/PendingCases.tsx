@@ -58,10 +58,10 @@ function getPendingIndicator(dateStr: string) {
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const created = new Date(createdDate);
   created.setHours(0, 0, 0, 0);
-  
+
   const diffTime = today.getTime() - created.getTime();
   const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
@@ -74,8 +74,8 @@ function getPendingIndicator(dateStr: string) {
     label = `${diffDays} days pending`;
   }
 
-  let color = ""; 
-  let bg = "";    
+  let color = "";
+  let bg = "";
   let border = "";
 
   if (diffDays >= 14) {
@@ -116,7 +116,7 @@ function formatDateTime(dateStr: string) {
   }
 
   const hasTime = dateStr.includes("T") || dateStr.includes(":") || dateStr.includes(" ");
-  
+
   if (!hasTime) {
     return parsed.toLocaleDateString("en-PH", {
       month: "short",
@@ -141,14 +141,14 @@ function formatDateTime(dateStr: string) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function PendingCases() {
-  const [cases, setCases]               = useState<Case[]>([]);
-  const [selectedId, setSelectedId]     = useState<number | null>(null);
-  const [isLoading, setIsLoading]       = useState(false);
-  const [resolvingId, setResolvingId]   = useState<number | null>(null);
+  const [cases, setCases] = useState<Case[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [resolvingId, setResolvingId] = useState<number | null>(null);
   const [confirmState, setConfirmState] = useState<"idle" | "resolving" | "reprimanding" | "closing">("idle");
-  const [resolvedIds, setResolvedIds]   = useState<Set<number>>(new Set());
-  const [searchQuery, setSearchQuery]   = useState("");
-  const [dateSort]                      = useState<"desc" | "asc">("desc");
+  const [resolvedIds, setResolvedIds] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateSort] = useState<"desc" | "asc">("desc");
   const [selectedProofs, setSelectedProofs] = useState<ProofItem[]>([]);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
   const [isProofLightboxClosing, setIsProofLightboxClosing] = useState(false);
@@ -228,7 +228,7 @@ export default function PendingCases() {
     if (!caseRecord) return;
     setResolvingId(caseId);
     try {
-      await invoke("update_case", { 
+      await invoke("update_case", {
         id: caseRecord.id,
         payload: {
           students: parseStudents(caseRecord.students),
@@ -244,7 +244,7 @@ export default function PendingCases() {
           groupId: caseRecord.group_id || null
         }
       });
-      
+
       const caseIdFormatted = `#${caseId.toString().padStart(4, "0")}`;
       showToast("success", `Case ${caseIdFormatted} successfully marked as ${newProgress}.`);
 
@@ -285,11 +285,11 @@ export default function PendingCases() {
     const matchesStudent = students.some(s => {
       const nameStr = `${s.firstName} ${s.middleInitial} ${s.lastName}`.toLowerCase();
       return s.firstName.toLowerCase().includes(q) ||
-             s.lastName.toLowerCase().includes(q) ||
-             s.middleInitial.toLowerCase().includes(q) ||
-             nameStr.includes(q) ||
-             (s.level || "").toLowerCase().includes(q) ||
-             (s.section || "").toLowerCase().includes(q);
+        s.lastName.toLowerCase().includes(q) ||
+        s.middleInitial.toLowerCase().includes(q) ||
+        nameStr.includes(q) ||
+        (s.level || "").toLowerCase().includes(q) ||
+        (s.section || "").toLowerCase().includes(q);
     });
 
     return (
@@ -314,11 +314,10 @@ export default function PendingCases() {
   return (
     <>
       {toast && createPortal(
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
-          toast.type === "success"
+        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${toast.type === "success"
             ? "border border-green-500/30 bg-green-50 text-green-900"
             : "border border-error/30 bg-error-container text-on-error-container"
-        } ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+          } ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
           <span className={`material-symbols-outlined ${toast.type === "success" ? "text-green-600" : "text-error"}`} style={{ fontSize: 18 }}>
             {toast.type === "success" ? "check_circle" : "error"}
           </span>
@@ -327,7 +326,7 @@ export default function PendingCases() {
         document.body
       )}
 
-      <div 
+      <div
         className="flex flex-col bg-surface dark:bg-surface-container-lowest w-full h-full overflow-hidden animate-fade-in"
       >
         <style>{`
@@ -365,9 +364,9 @@ export default function PendingCases() {
                   className="bg-transparent text-xs text-on-surface dark:text-slate-200 placeholder:text-secondary focus:outline-none w-full"
                 />
                 {searchQuery && (
-                  <button 
+                  <button
                     type="button"
-                    onClick={() => setSearchQuery("")} 
+                    onClick={() => setSearchQuery("")}
                     className="text-secondary dark:text-slate-400 hover:text-on-surface dark:text-slate-200 transition-colors"
                   >
                     <span className="material-symbols-outlined text-base">close</span>
@@ -405,17 +404,16 @@ export default function PendingCases() {
               ) : (
                 sortedCases.map((c) => {
                   const isSelected = selectedId === c.id;
-                  const isExiting  = resolvedIds.has(c.id);
-                  const indicator  = getPendingIndicator(c.date_filed || c.date);
+                  const isExiting = resolvedIds.has(c.id);
+                  const indicator = getPendingIndicator(c.date_filed || c.date);
                   return (
                     <button
                       key={c.id}
                       onClick={() => { setSelectedId(c.id); setConfirmState("idle"); }}
-                      className={`relative w-full text-left p-4 border-b border-outline-variant transition-all duration-300 ${
-                        isSelected
+                      className={`relative w-full text-left p-4 border-b border-outline-variant transition-all duration-300 ${isSelected
                           ? "bg-[#0B1E43]/10"
                           : "bg-white dark:bg-surface-container hover:bg-[#FAF9F6] dark:hover:bg-surface-container-high/40 dark:bg-surface-container-high/40"
-                      } ${isExiting ? "case-row-exit" : ""}`}
+                        } ${isExiting ? "case-row-exit" : ""}`}
                     >
                       {isSelected && (
                         <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#07132c]" />
@@ -432,7 +430,7 @@ export default function PendingCases() {
                             })()}
                           </p>
                           {indicator && (
-                            <span 
+                            <span
                               className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold border shrink-0 mt-0.5 leading-none"
                               style={{ backgroundColor: indicator.bg, color: indicator.color, borderColor: indicator.border }}
                             >
@@ -451,14 +449,14 @@ export default function PendingCases() {
                             })()}
                           </span>
                           {(() => {
-                              const students = parseStudents(c.students);
-                              if (students.length === 0 || !students[0].section) return null;
-                              return (
-                                <>
-                                  <span className="opacity-40">·</span>
-                                  <span>{students[0].section}</span>
-                                </>
-                              );
+                            const students = parseStudents(c.students);
+                            if (students.length === 0 || !students[0].section) return null;
+                            return (
+                              <>
+                                <span className="opacity-40">·</span>
+                                <span>{students[0].section}</span>
+                              </>
+                            );
                           })()}
                           <span className="ml-auto opacity-70">{formatDate(c.date)}</span>
                         </div>
@@ -484,7 +482,7 @@ export default function PendingCases() {
               <div className="flex flex-col h-full bg-white dark:bg-surface-container">
                 {/* Detail body */}
                 <div className="flex-1 px-8 py-6 flex flex-col gap-6 overflow-y-auto bg-white dark:bg-surface-container">
-                  
+
                   {/* Case Title Section */}
                   <div className="flex flex-col gap-1">
                     <p className="text-xs text-secondary dark:text-slate-400">
@@ -610,10 +608,10 @@ export default function PendingCases() {
                               className="group relative bg-[#FAF9F6] dark:bg-surface-container-high/40 border border-outline-variant rounded-xl overflow-hidden cursor-pointer aspect-video flex items-center justify-center bg-surface-container dark:bg-surface-container"
                               onClick={() => setSelectedProofUrl(proof.data)}
                             >
-                              <img 
-                                src={proof.data} 
-                                alt={proof.name} 
-                                className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" 
+                              <img
+                                src={proof.data}
+                                alt={proof.name}
+                                className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                               />
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <span className="material-symbols-outlined text-white text-3xl">visibility</span>
@@ -784,14 +782,12 @@ export default function PendingCases() {
       {selectedProofUrl && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className={`absolute inset-0 bg-black/80 backdrop-blur-sm ${
-              isProofLightboxClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
-            }`}
+            className={`absolute inset-0 bg-black/80 backdrop-blur-sm ${isProofLightboxClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+              }`}
             onClick={closeProofLightbox}
           />
-          <div className={`relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface dark:bg-surface-container-lowest rounded-xl shadow-2xl flex flex-col ${
-            isProofLightboxClosing ? "modal-panel-exit" : "modal-panel-enter"
-          }`}>
+          <div className={`relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface dark:bg-surface-container-lowest rounded-xl shadow-2xl flex flex-col ${isProofLightboxClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}>
             <button
               onClick={closeProofLightbox}
               className="absolute top-3 right-3 bg-black/60 text-white hover:bg-black rounded-full p-2 transition-all duration-500"
