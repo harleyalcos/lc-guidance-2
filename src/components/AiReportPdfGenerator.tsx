@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import html2pdf from "html2pdf.js";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
@@ -11,11 +11,13 @@ export interface AiReportMetadata {
   reporting_period: string;
   scope: string;
   status_filter: string;
+  orientation?: "portrait" | "landscape";
 }
 
 interface AiReportPdfGeneratorProps {
   metadata: AiReportMetadata;
   bodyMarkdown: string;
+  isPreview?: boolean;
 }
 
 export interface AiReportPdfGeneratorRef {
@@ -23,9 +25,18 @@ export interface AiReportPdfGeneratorRef {
 }
 
 const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGeneratorProps>(
-  ({ metadata, bodyMarkdown }, ref) => {
+  ({ metadata, bodyMarkdown, isPreview = false }, ref) => {
     const reportRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [scale, setScale] = useState(1);
+    const [scaledHeight, setScaledHeight] = useState("auto");
+
+    const isLandscape = metadata.orientation === "landscape";
+    const A4_WIDTH_MM = isLandscape ? 297 : 210;
+    const A4_HEIGHT_MM = isLandscape ? 210 : 297;
+    // Assuming 96dpi
+    const A4_WIDTH_PX = isLandscape ? 1122 : 794; 
 
     useImperativeHandle(ref, () => ({
       generatePdf: async () => {
@@ -34,6 +45,12 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
         const element = reportRef.current;
         const filenameLabel = metadata.reporting_period || "Report";
         const filename = `Guidance_AI_Report_${filenameLabel.replace(/[\s\.,-]/g, "_")}.pdf`;
+
+        // Temporarily remove scaling for clean PDF export if we are in preview mode
+        const originalTransform = element.style.transform;
+        if (isPreview) {
+          element.style.transform = "none";
+        }
 
         const opt = {
           margin: [10, 10, 10, 10], // Adjust margin as needed
@@ -48,7 +65,7 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
               clonedDocument.documentElement.classList.remove("dark");
             },
           },
-          jsPDF: { unit: "mm", format: [297, 210] as [number, number], orientation: "portrait" as const },
+          jsPDF: { unit: "mm", format: [A4_WIDTH_MM, A4_HEIGHT_MM] as [number, number], orientation: isLandscape ? "landscape" : "portrait" },
         };
 
         try {
@@ -60,14 +77,63 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
         } catch (err) {
           alert("Failed to export PDF: " + err);
         } finally {
+          if (isPreview) {
+            element.style.transform = originalTransform;
+          }
           setIsExporting(false);
         }
       },
     }));
 
+    useEffect(() => {
+      if (!isPreview || !containerRef.current) return;
+      
+      const observer = new ResizeObserver((entries) => {
+        const { width } = entries[0].contentRect;
+        // If container is smaller than A4, scale it down. Otherwise keep it at 1.
+        const newScale = Math.min(1, width / A4_WIDTH_PX);
+        setScale(newScale);
+      });
+      
+      observer.observe(containerRef.current);
+      return () => observer.disconnect();
+    }, [isPreview]);
+
+    useEffect(() => {
+      if (!isPreview || !reportRef.current) return;
+      // Calculate the wrapper height based on the scaled inner content height
+      // Add a slight delay to allow markdown to render fully before calculating height
+      const timeout = setTimeout(() => {
+        if (reportRef.current) {
+          setScaledHeight(`${reportRef.current.offsetHeight * scale}px`);
+        }
+      }, 150);
+      return () => clearTimeout(timeout);
+    }, [scale, isPreview, bodyMarkdown]);
+
     return (
-      <div style={{ position: "absolute", visibility: "hidden", top: "-9999px", left: "0", pointerEvents: "none" }} aria-hidden="true">
-        <div ref={reportRef} className="bg-white text-gray-800 font-sans relative box-border w-[210mm] px-12 py-8">
+      <div 
+        ref={containerRef}
+        className={isPreview ? "w-full flex justify-center bg-gray-50 border border-gray-200 rounded-xl overflow-hidden shadow-inner my-4" : ""}
+        style={isPreview ? { height: scaledHeight, position: "relative" } : { position: "absolute", visibility: "hidden", top: "-9999px", left: "0", pointerEvents: "none" }}
+        aria-hidden={!isPreview}
+      >
+        <div 
+          ref={reportRef} 
+          className="bg-white text-gray-800 font-sans box-border px-12 py-8"
+          style={isPreview ? { 
+            width: `${A4_WIDTH_PX}px`, 
+            transform: `scale(${scale})`, 
+            transformOrigin: "top center",
+            position: "absolute",
+            top: 0,
+            left: "50%",
+            marginLeft: `-${A4_WIDTH_PX / 2}px`
+          } : {
+            width: isLandscape ? "297mm" : "210mm",
+            position: "relative"
+          }}
+        >
           {/* Header */}
           <div className="flex flex-col">
             <div className="grid grid-cols-[84px_1fr_84px] items-center gap-4 mb-4 font-sans">

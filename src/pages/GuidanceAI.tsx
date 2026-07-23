@@ -45,13 +45,15 @@ IMPORTANT RULES & QUERY GUIDANCE:
 4. Keep queries efficient (e.g. use COUNT, GROUP BY). Use case-insensitive matching like LOWER(...) or LIKE '%...%' for text comparisons.
 5. Generate professional reports suitable for counselors and administrators.
 6. Prioritize clarity, accuracy, and actionable insights. Format using Markdown.
-7. PDF REPORT GENERATION: If you generate a formal report (like a weekly/monthly summary), YOU MUST append the following JSON block at the very end of your message to enable PDF download. This metadata will be used for the PDF letterhead:
+7. STUDENT TABLES: Always put the students involved in a proper markdown table with the right spacing and columns (e.g., Name, Grade, Section, Role, Incident).
+8. PDF REPORT GENERATION: If you generate a formal report (like a weekly/monthly summary or a list of students), YOU MUST append the following JSON block at the very end of your message to enable PDF download. This metadata will be used for the PDF letterhead:
 \`\`\`json report_metadata
 {
   "title": "Title of the Report",
   "reporting_period": "e.g., August 1, 2025 - January 31, 2026",
   "scope": "e.g., All year levels",
-  "status_filter": "e.g., All statuses"
+  "status_filter": "e.g., All statuses",
+  "orientation": "portrait" // Use "landscape" ONLY if your report includes a wide table of students or if the length of the rows will be too long to fit in portrait mode
 }
 \`\`\`
 `;
@@ -94,6 +96,62 @@ const SUGGESTIONS = [
   "Predict High-Risk Students",
 ];
 
+const MessageBubble = ({ msg, isUser, cleanText, metadata }: { msg: Message, isUser: boolean, cleanText: string, metadata: AiReportMetadata | null }) => {
+  const pdfGeneratorRef = useRef<AiReportPdfGeneratorRef>(null);
+
+  const handleDownload = () => {
+    // Small timeout to ensure no lingering state issues, though typically immediate is fine
+    setTimeout(() => {
+      pdfGeneratorRef.current?.generatePdf();
+    }, 50);
+  };
+
+  return (
+    <div className={`flex gap-4 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+        isUser ? "bg-primary text-on-primary" : "bg-primary-container text-on-primary-container"
+      }`}>
+        <span className="material-symbols-outlined text-[18px]">
+          {isUser ? "person" : "smart_toy"}
+        </span>
+      </div>
+      <div className={`max-w-[85%] ${!metadata ? "rounded-2xl p-4 shadow-sm" : "w-full"} ${
+        isUser 
+          ? "bg-primary text-on-primary rounded-tr-none" 
+          : !metadata ? "bg-surface-container-low dark:bg-surface-container border border-outline-variant text-on-surface rounded-tl-none" : ""
+      }`}>
+        {isUser ? (
+          <p className="whitespace-pre-wrap font-body-md text-sm">{cleanText}</p>
+        ) : (
+          <div className="flex flex-col gap-4 w-full">
+            {metadata ? (
+              <div className="flex flex-col w-full items-start">
+                <AiReportPdfGenerator
+                  ref={pdfGeneratorRef}
+                  metadata={metadata}
+                  bodyMarkdown={cleanText}
+                  isPreview={true}
+                />
+                <button
+                  onClick={handleDownload}
+                  className="btn-secondary text-xs h-8 px-4 mt-2"
+                >
+                  <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                  Download PDF Report
+                </button>
+              </div>
+            ) : (
+              <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-surface-container-lowest prose-pre:border prose-pre:border-outline-variant prose-th:bg-surface-container-high">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanText}</ReactMarkdown>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function GuidanceAI() {
   const [apiKey, setApiKey] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -102,16 +160,6 @@ export default function GuidanceAI() {
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const pdfGeneratorRef = useRef<AiReportPdfGeneratorRef>(null);
-  const [activeReport, setActiveReport] = useState<{ metadata: AiReportMetadata; bodyMarkdown: string } | null>(null);
-
-  const handleDownloadPdf = (metadata: AiReportMetadata, bodyMarkdown: string) => {
-    setActiveReport({ metadata, bodyMarkdown });
-    // setTimeout to ensure React re-renders the hidden component with the new props before triggering PDF generation
-    setTimeout(() => {
-      pdfGeneratorRef.current?.generatePdf();
-    }, 100);
-  };
 
   useEffect(() => {
     invoke<string>("get_gemini_api_key")
@@ -477,41 +525,13 @@ export default function GuidanceAI() {
               if (!cleanText && isUser) return null;
 
               return (
-                <div key={msg.id} className={`flex gap-4 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                    isUser ? "bg-primary text-on-primary" : "bg-primary-container text-on-primary-container"
-                  }`}>
-                    <span className="material-symbols-outlined text-[18px]">
-                      {isUser ? "person" : "smart_toy"}
-                    </span>
-                  </div>
-                  <div className={`max-w-[85%] rounded-2xl p-4 shadow-sm ${
-                    isUser 
-                      ? "bg-primary text-on-primary rounded-tr-none" 
-                      : "bg-surface-container-low dark:bg-surface-container border border-outline-variant text-on-surface rounded-tl-none"
-                  }`}>
-                    {isUser ? (
-                      <p className="whitespace-pre-wrap font-body-md text-sm">{cleanText}</p>
-                    ) : (
-                      <div className="flex flex-col gap-4">
-                        <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-surface-container-lowest prose-pre:border prose-pre:border-outline-variant prose-th:bg-surface-container-high">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanText}</ReactMarkdown>
-                        </div>
-                        {metadata && (
-                          <div className="mt-2 pt-4 border-t border-outline-variant flex justify-end">
-                            <button
-                              onClick={() => handleDownloadPdf(metadata, cleanText)}
-                              className="btn-secondary text-xs h-8 px-4"
-                            >
-                              <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
-                              Download PDF Report
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <MessageBubble 
+                  key={msg.id} 
+                  msg={msg} 
+                  isUser={isUser} 
+                  cleanText={cleanText} 
+                  metadata={metadata} 
+                />
               );
             })}
             
@@ -562,14 +582,6 @@ export default function GuidanceAI() {
           Guidance AI can make mistakes. Always verify important statistics and recommendations.
         </p>
       </div>
-      {/* Hidden PDF Generator Component */}
-      {activeReport && (
-        <AiReportPdfGenerator
-          ref={pdfGeneratorRef}
-          metadata={activeReport.metadata}
-          bodyMarkdown={activeReport.bodyMarkdown}
-        />
-      )}
     </div>
   );
 }
