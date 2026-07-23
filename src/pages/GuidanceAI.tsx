@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import AiReportPdfGenerator, { AiReportMetadata, AiReportPdfGeneratorRef } from "../components/AiReportPdfGenerator";
 
 interface Message {
   role: "user" | "model";
@@ -44,7 +45,41 @@ IMPORTANT RULES & QUERY GUIDANCE:
 4. Keep queries efficient (e.g. use COUNT, GROUP BY). Use case-insensitive matching like LOWER(...) or LIKE '%...%' for text comparisons.
 5. Generate professional reports suitable for counselors and administrators.
 6. Prioritize clarity, accuracy, and actionable insights. Format using Markdown.
+7. PDF REPORT GENERATION: If you generate a formal report (like a weekly/monthly summary), YOU MUST append the following JSON block at the very end of your message to enable PDF download. This metadata will be used for the PDF letterhead:
+\`\`\`json report_metadata
+{
+  "title": "Title of the Report",
+  "reporting_period": "e.g., August 1, 2025 - January 31, 2026",
+  "scope": "e.g., All year levels",
+  "status_filter": "e.g., All statuses"
+}
+\`\`\`
 `;
+
+const extractPdfMetadata = (text: string): { metadata: AiReportMetadata | null; cleanText: string } => {
+  const marker1 = "\`\`\`json report_metadata";
+  const marker2 = "\`\`\`json\nreport_metadata";
+  let startIdx = text.indexOf(marker1);
+  let markerLength = marker1.length;
+  if (startIdx === -1) {
+    startIdx = text.indexOf(marker2);
+    markerLength = marker2.length;
+  }
+  
+  if (startIdx === -1) return { metadata: null, cleanText: text };
+
+  const endIdx = text.indexOf("\`\`\`", startIdx + markerLength);
+  if (endIdx === -1) return { metadata: null, cleanText: text };
+
+  const jsonStr = text.substring(startIdx + markerLength, endIdx).trim();
+  try {
+    const metadata = JSON.parse(jsonStr) as AiReportMetadata;
+    const cleanText = text.substring(0, startIdx).trim() + "\n" + text.substring(endIdx + 3).trim();
+    return { metadata, cleanText: cleanText.trim() };
+  } catch (e) {
+    return { metadata: null, cleanText: text };
+  }
+};
 
 const SUGGESTIONS = [
   "Generate Weekly Report",
@@ -67,6 +102,16 @@ export default function GuidanceAI() {
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pdfGeneratorRef = useRef<AiReportPdfGeneratorRef>(null);
+  const [activeReport, setActiveReport] = useState<{ metadata: AiReportMetadata; bodyMarkdown: string } | null>(null);
+
+  const handleDownloadPdf = (metadata: AiReportMetadata, bodyMarkdown: string) => {
+    setActiveReport({ metadata, bodyMarkdown });
+    // setTimeout to ensure React re-renders the hidden component with the new props before triggering PDF generation
+    setTimeout(() => {
+      pdfGeneratorRef.current?.generatePdf();
+    }, 100);
+  };
 
   useEffect(() => {
     invoke<string>("get_gemini_api_key")
@@ -426,9 +471,10 @@ export default function GuidanceAI() {
               }
 
               const isUser = msg.role === "user";
-              const textContent = msg.parts.map(p => p.text).join("");
+              const rawTextContent = msg.parts.map(p => p.text).join("");
+              const { metadata, cleanText } = isUser ? { metadata: null, cleanText: rawTextContent } : extractPdfMetadata(rawTextContent);
               
-              if (!textContent && isUser) return null;
+              if (!cleanText && isUser) return null;
 
               return (
                 <div key={msg.id} className={`flex gap-4 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -445,10 +491,23 @@ export default function GuidanceAI() {
                       : "bg-surface-container-low dark:bg-surface-container border border-outline-variant text-on-surface rounded-tl-none"
                   }`}>
                     {isUser ? (
-                      <p className="whitespace-pre-wrap font-body-md text-sm">{textContent}</p>
+                      <p className="whitespace-pre-wrap font-body-md text-sm">{cleanText}</p>
                     ) : (
-                      <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-surface-container-lowest prose-pre:border prose-pre:border-outline-variant prose-th:bg-surface-container-high">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{textContent}</ReactMarkdown>
+                      <div className="flex flex-col gap-4">
+                        <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-surface-container-lowest prose-pre:border prose-pre:border-outline-variant prose-th:bg-surface-container-high">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanText}</ReactMarkdown>
+                        </div>
+                        {metadata && (
+                          <div className="mt-2 pt-4 border-t border-outline-variant flex justify-end">
+                            <button
+                              onClick={() => handleDownloadPdf(metadata, cleanText)}
+                              className="btn-secondary text-xs h-8 px-4"
+                            >
+                              <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                              Download PDF Report
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -503,6 +562,14 @@ export default function GuidanceAI() {
           Guidance AI can make mistakes. Always verify important statistics and recommendations.
         </p>
       </div>
+      {/* Hidden PDF Generator Component */}
+      {activeReport && (
+        <AiReportPdfGenerator
+          ref={pdfGeneratorRef}
+          metadata={activeReport.metadata}
+          bodyMarkdown={activeReport.bodyMarkdown}
+        />
+      )}
     </div>
   );
 }

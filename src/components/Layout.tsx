@@ -50,15 +50,13 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
           <TopAppBar title={title} onNewCaseClick={() => setIsNewCaseModalOpen(true)} isSidebarCollapsed={isSidebarCollapsed} />
         )}
       </div>
-      <main className={`print:ml-0 print:min-h-0 print:p-0 transition-[margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
-      } ${
-        isImportReview 
-          ? "h-screen flex flex-col overflow-hidden" 
+      <main className={`print:ml-0 print:min-h-0 print:p-0 transition-[margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
+        } ${isImportReview
+          ? "h-screen flex flex-col overflow-hidden"
           : (isPendingPage || isAiPage)
             ? "h-[calc(100vh-64px)] flex flex-col overflow-hidden"
             : "min-h-[calc(100vh-64px)] p-margin-page gap-gutter pb-12"
-      }`}>
+        }`}>
         <div key={pageKey} className={`page-transition flex flex-col ${isEdgeToEdge ? "h-full overflow-hidden" : "gap-gutter"}`}>
           {children}
         </div>

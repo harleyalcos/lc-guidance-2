@@ -27,9 +27,8 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
 
   const getLinkClasses = (index: number) => {
     const isActive = index === activeIndex;
-    const baseClasses = `relative z-10 flex h-12 items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 group ${
-      isCollapsed ? "justify-center px-0" : "gap-3 px-4"
-    }`;
+    const baseClasses = `relative z-10 flex h-12 items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 group ${isCollapsed ? "justify-center px-0" : "gap-3 px-4"
+      }`;
 
     if (isActive) {
       return `${baseClasses} text-primary dark:text-on-primary-container font-semibold`;
@@ -43,9 +42,8 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
   };
 
   return (
-    <nav className={`app-sidebar-surface h-screen fixed left-0 top-0 border-r border-outline-variant dark:border-on-surface-variant flex flex-col py-stack-md z-20 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-      isCollapsed ? "w-[84px]" : "w-[280px]"
-    }`}>
+    <nav className={`app-sidebar-surface h-screen fixed left-0 top-0 border-r border-outline-variant dark:border-on-surface-variant flex flex-col py-stack-md z-20 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isCollapsed ? "w-[84px]" : "w-[280px]"
+      }`}>
       <button
         type="button"
         onClick={() => onCollapsedChange(!isCollapsed)}
@@ -58,13 +56,11 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
         </span>
       </button>
 
-      <div className={`mb-8 mt-4 flex items-center transition-[gap,padding] duration-500 ${
-        isCollapsed ? "justify-center gap-0 px-0" : "gap-4 px-5"
-      }`}>
-        <img src={lcLogo} alt="Laguna College Logo" className="w-14 h-14 object-contain shrink-0 transition-[width,height] duration-500" />
-        <div className={`min-w-0 overflow-hidden transition-[opacity,width,transform] duration-300 ${
-          isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
+      <div className={`mb-8 mt-4 flex items-center transition-[gap,padding] duration-500 ${isCollapsed ? "justify-center gap-0 px-0" : "gap-4 px-5"
         }`}>
+        <img src={lcLogo} alt="Laguna College Logo" className="w-14 h-14 object-contain shrink-0 transition-[width,height] duration-500" />
+        <div className={`min-w-0 overflow-hidden transition-[opacity,width,transform] duration-300 ${isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
+          }`}>
           <h1 className="whitespace-nowrap text-[16px] leading-[18px] text-primary dark:text-primary-fixed-dim font-bold" style={{ fontFamily: "Georgia, serif" }}>Laguna College</h1>
           <p className="font-label-caps text-[11px] text-secondary dark:text-secondary-fixed-dim mt-1.5 tracking-wider leading-none">GUIDANCE OFFICE</p>
         </div>
@@ -86,17 +82,20 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
               >
                 {item.icon}
               </span>
-              <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
-                isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
-              }`}>{item.label}</span>
+              <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden flex items-center gap-2 transition-[opacity,width,transform] duration-300 ${isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
+                }`}>
+                {item.label}
+                {item.label === "Guidance AI" && (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-primary/10 text-primary uppercase tracking-wider mt-0.5">Beta</span>
+                )}
+              </span>
             </Link>
           ))}
         </div>
       </div>
 
-      <div className={`relative mt-auto flex flex-col gap-1 border-t border-surface-variant pt-4 transition-[margin,padding] duration-500 ${
-        isCollapsed ? "mx-3 px-0" : "mx-4 px-0"
-      }`}>
+      <div className={`relative mt-auto flex flex-col gap-1 border-t border-surface-variant pt-4 transition-[margin,padding] duration-500 ${isCollapsed ? "mx-3 px-0" : "mx-4 px-0"
+        }`}>
         {isProfileActive && (
           <div
             className={`nav-active-indicator ${isCollapsed ? "nav-active-indicator-collapsed" : ""}`}
@@ -106,9 +105,8 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
         <Link
           to="/account"
           title={isCollapsed ? "Profile" : undefined}
-          className={`relative z-10 flex items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 w-full text-left group ${
-            isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
-          } ${isProfileActive ? "text-primary dark:text-on-primary-container font-semibold" : "text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim"}`}
+          className={`relative z-10 flex items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 w-full text-left group ${isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
+            } ${isProfileActive ? "text-primary dark:text-on-primary-container font-semibold" : "text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim"}`}
         >
           <span
             className="material-symbols-outlined shrink-0 transition-[font-variation-settings] duration-300 group-hover:[font-variation-settings:'FILL'_1]"
@@ -116,9 +114,8 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
           >
             account_circle
           </span>
-          <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${
-            isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
-              }`}>Profile</span>
+          <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
+            }`}>Profile</span>
         </Link>
       </div>
     </nav>
