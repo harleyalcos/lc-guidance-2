@@ -377,15 +377,49 @@
   }
 
   .group-row-expand {
-    animation: group-row-slide-down 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    transform-origin: top center;
-    will-change: opacity, transform;
+    animation: group-row-fade-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    will-change: opacity;
   }
 
   .group-row-collapse {
-    animation: group-row-slide-up 240ms cubic-bezier(0.4, 0, 0.2, 1) both;
-    transform-origin: top center;
-    will-change: opacity, transform;
+    animation: group-row-fade-out 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    will-change: opacity;
+  }
+
+  .group-row-expand td,
+  .group-row-collapse td {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    animation-delay: inherit;
+  }
+
+  .group-row-expand td {
+    animation: td-border-expand 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .group-row-collapse td {
+    animation: td-border-collapse 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  .td-inner {
+    --target-padding-y: 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .td-inner-action {
+    --target-padding-y: 4px;
+  }
+
+  .group-row-expand .td-inner {
+    animation: td-inner-expand 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: inherit;
+  }
+
+  .group-row-collapse .td-inner {
+    animation: td-inner-collapse 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    animation-delay: inherit;
   }
 
   .additional-student-card {
@@ -664,27 +698,68 @@ input[type="password"]::-webkit-caps-lock-indicator {
   }
 }
 
-@keyframes group-row-slide-down {
+@keyframes group-row-fade-in {
   0% {
     opacity: 0;
-    transform: translateY(-10px) scale(0.98);
   }
-
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
-@keyframes group-row-slide-up {
+@keyframes group-row-fade-out {
   0% {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
-
   100% {
     opacity: 0;
-    transform: translateY(-10px) scale(0.97);
+  }
+}
+
+@keyframes td-border-expand {
+  0% {
+    border-bottom-color: transparent;
+    border-left-color: transparent;
+  }
+  100% {
+    /* Browser automatically interpolates back to original */
+  }
+}
+
+@keyframes td-border-collapse {
+  100% {
+    border-bottom-color: transparent;
+    border-left-color: transparent;
+  }
+}
+
+@keyframes td-inner-expand {
+  0% {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    transform: translateY(-8px);
+  }
+  100% {
+    max-height: 80px;
+    padding-top: var(--target-padding-y);
+    padding-bottom: var(--target-padding-y);
+    transform: translateY(0);
+  }
+}
+
+@keyframes td-inner-collapse {
+  0% {
+    max-height: 80px;
+    padding-top: var(--target-padding-y);
+    padding-bottom: var(--target-padding-y);
+    transform: translateY(0);
+  }
+  100% {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    transform: translateY(-8px);
   }
 }
 

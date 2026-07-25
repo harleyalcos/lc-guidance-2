@@ -49,6 +49,29 @@ function formatUnit(u: DateUnit) {
   return `${u.year}`;
 }
 
+function isFutureUnit(unit: DateUnit) {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
+  const currentDay = today.getDate();
+
+  if (unit.year > currentYear) return true;
+  if (unit.year < currentYear) return false;
+
+  if (unit.month === null) {
+    return false;
+  }
+
+  if (unit.month > currentMonth) return true;
+  if (unit.month < currentMonth) return false;
+
+  if (unit.day === null) {
+    return false;
+  }
+
+  return unit.day > currentDay;
+}
+
 function getDayGrid(year: number, month: number) {
   const firstWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -228,10 +251,27 @@ export default function MonthYearRangePicker({
 
   const handleCellEnter = useCallback(
     (unit: DateUnit) => {
-      if (dragging) setDragEnd(unit);
+      if (dragging) {
+        if (isFutureUnit(unit)) return;
+        setDragEnd(unit);
+      }
     },
     [dragging]
   );
+
+  const isNextPageDisabled = () => {
+    const today = new Date();
+    const currentYr = today.getFullYear();
+    const currentMon = today.getMonth();
+
+    if (view === "day") {
+      return currentYear > currentYr || (currentYear === currentYr && currentMonth >= currentMon);
+    } else if (view === "month") {
+      return currentYear >= currentYr;
+    } else {
+      return decadeStart + YEARS_PER_PAGE > currentYr;
+    }
+  };
 
   function resetDrag() {
     setDragging(false);
@@ -384,7 +424,10 @@ export default function MonthYearRangePicker({
             <button
               type="button"
               onClick={() => pageStep(1)}
-              className="w-8 h-8 rounded-lg border border-outline-variant flex items-center justify-center hover:bg-surface-container text-secondary hover:text-on-surface transition-colors duration-500"
+              disabled={isNextPageDisabled()}
+              className={`w-8 h-8 rounded-lg border border-outline-variant flex items-center justify-center text-secondary transition-colors duration-500 ${
+                isNextPageDisabled() ? "opacity-20 cursor-not-allowed bg-transparent" : "hover:bg-surface-container hover:text-on-surface"
+              }`}
               aria-label="Next"
             >
               <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: 16 }}>chevron_right</span>
@@ -408,15 +451,17 @@ export default function MonthYearRangePicker({
               MONTHS.map((label, idx) => {
                 const unit = { year: currentYear, month: idx, day: null };
                 const { selected, isEdge } = inSelectionRange(unit);
+                const disabled = isFutureUnit(unit);
                 return (
                   <Cell
                     key={unitKey(unit)}
                     label={label}
                     selected={selected}
                     isEdge={isEdge}
-                    onMouseDown={() => handleCellDown(unit)}
-                    onMouseEnter={() => handleCellEnter(unit)}
-                    onDoubleClick={() => handleMonthDoubleClick(currentYear, idx)}
+                    disabled={disabled}
+                    onMouseDown={() => !disabled && handleCellDown(unit)}
+                    onMouseEnter={() => !disabled && handleCellEnter(unit)}
+                    onDoubleClick={() => !disabled && handleMonthDoubleClick(currentYear, idx)}
                   />
                 );
               })}
@@ -425,15 +470,17 @@ export default function MonthYearRangePicker({
               yearsThisPage.map((y) => {
                 const unit = { year: y, month: null, day: null };
                 const { selected, isEdge } = inSelectionRange(unit);
+                const disabled = isFutureUnit(unit);
                 return (
                   <Cell
                     key={unitKey(unit)}
                     label={y.toString()}
                     selected={selected}
                     isEdge={isEdge}
-                    onMouseDown={() => handleCellDown(unit)}
-                    onMouseEnter={() => handleCellEnter(unit)}
-                    onDoubleClick={() => handleYearDoubleClick(y)}
+                    disabled={disabled}
+                    onMouseDown={() => !disabled && handleCellDown(unit)}
+                    onMouseEnter={() => !disabled && handleCellEnter(unit)}
+                    onDoubleClick={() => !disabled && handleYearDoubleClick(y)}
                   />
                 );
               })}
@@ -442,6 +489,7 @@ export default function MonthYearRangePicker({
               dayGrid!.map((c) => {
                 const unit = { year: c.year, month: c.month, day: c.day };
                 const { selected, isEdge } = inSelectionRange(unit);
+                const disabled = isFutureUnit(unit);
                 return (
                   <Cell
                     key={unitKey(unit)}
@@ -450,8 +498,9 @@ export default function MonthYearRangePicker({
                     isEdge={isEdge}
                     faded={!c.inMonth}
                     small
-                    onMouseDown={() => handleCellDown(unit)}
-                    onMouseEnter={() => handleCellEnter(unit)}
+                    disabled={disabled}
+                    onMouseDown={() => !disabled && handleCellDown(unit)}
+                    onMouseEnter={() => !disabled && handleCellEnter(unit)}
                   />
                 );
               })}
@@ -485,26 +534,34 @@ interface CellProps {
   isEdge: boolean;
   faded?: boolean;
   small?: boolean;
+  disabled?: boolean;
   onMouseDown: () => void;
   onMouseEnter: () => void;
   onDoubleClick?: () => void;
 }
 
-function Cell({ label, selected, isEdge, faded, small, onMouseDown, onMouseEnter, onDoubleClick }: CellProps) {
+function Cell({ label, selected, isEdge, faded, small, disabled, onMouseDown, onMouseEnter, onDoubleClick }: CellProps) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onMouseDown={(e) => {
         e.preventDefault();
-        onMouseDown();
+        if (!disabled) onMouseDown();
       }}
-      onMouseEnter={onMouseEnter}
-      onDoubleClick={onDoubleClick}
+      onMouseEnter={() => {
+        if (!disabled) onMouseEnter();
+      }}
+      onDoubleClick={() => {
+        if (!disabled) onDoubleClick?.();
+      }}
       onDragStart={(e) => e.preventDefault()}
       className={`rounded-lg font-medium transition-colors duration-100 w-full flex items-center justify-center
         ${small ? "h-8 text-xs" : "h-10 text-sm"}
         ${
-          isEdge
+          disabled
+            ? "text-secondary opacity-20 cursor-not-allowed border border-transparent"
+            : isEdge
             ? "border border-primary text-primary font-bold"
             : selected
             ? "text-primary border border-transparent font-semibold"
@@ -513,7 +570,7 @@ function Cell({ label, selected, isEdge, faded, small, onMouseDown, onMouseEnter
             : "text-on-surface hover:bg-surface-container border border-transparent"
         }`}
       style={{
-        backgroundColor: (isEdge || selected)
+        backgroundColor: (!disabled && (isEdge || selected))
           ? "color-mix(in srgb, var(--color-primary) 12%, transparent)"
           : undefined
       }}
