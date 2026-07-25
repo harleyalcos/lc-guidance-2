@@ -53,7 +53,7 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
         }
 
         const opt = {
-          margin: [10, 10, 10, 10], // Adjust margin as needed
+          margin: [10, 10, 10, 10] as [number, number, number, number], // Adjust margin as needed
           filename,
           image: { type: "jpeg" as const, quality: 0.98 },
           html2canvas: {
@@ -65,7 +65,7 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
               clonedDocument.documentElement.classList.remove("dark");
             },
           },
-          jsPDF: { unit: "mm", format: [A4_WIDTH_MM, A4_HEIGHT_MM] as [number, number], orientation: isLandscape ? "landscape" : "portrait" },
+          jsPDF: { unit: "mm", format: [A4_WIDTH_MM, A4_HEIGHT_MM] as [number, number], orientation: (isLandscape ? "landscape" : "portrait") as "landscape" | "portrait" },
         };
 
         try {

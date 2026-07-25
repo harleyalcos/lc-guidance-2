@@ -120,6 +120,11 @@ const getCaseGradeLevel = (caseRecord: CaseRecord) => {
   return students[0]?.level || caseRecord.level || "Unspecified";
 };
 
+const isComplainantSubjectCaseRecord = (caseRecord: CaseRecord) => {
+  const firstStudent = parseStudents(caseRecord.students)[0];
+  return normalizeRole(firstStudent?.role) === "Complainant / Subject";
+};
+
 
 
 export default function Dashboard() {
@@ -148,8 +153,11 @@ export default function Dashboard() {
 
   // Filter cases by the selected date range
   const filteredCases = useMemo(() => {
-    if (!dashStartDate && !dashEndDate) return cases;
-    return cases.filter((c) => {
+    // Filter out Complainant / Subject records to match the Case Catalog and avoid double counting
+    const displayCases = cases.filter((c) => !isComplainantSubjectCaseRecord(c));
+
+    if (!dashStartDate && !dashEndDate) return displayCases;
+    return displayCases.filter((c) => {
       const d = getCaseDate(c);
       if (!d) return false;
       if (dashStartDate) {
@@ -170,10 +178,27 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     const total = filteredCases.length;
-    const pending = filteredCases.filter(c => c.progress.toLowerCase() === "pending").length;
-    const resolved = filteredCases.filter(c => c.progress.toLowerCase() === "resolved").length;
-    const closed = filteredCases.filter(c => c.progress.toLowerCase() === "closed").length;
-    const reprimand = filteredCases.filter(c => c.progress.toLowerCase() === "reprimand").length;
+    
+    const resolved = filteredCases.filter(
+      c => c.progress.toLowerCase() === "resolved" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+    
+    const closed = filteredCases.filter(
+      c => c.progress.toLowerCase() === "closed" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+    
+    const reprimand = filteredCases.filter(
+      c => c.progress.toLowerCase().includes("reprimand") ||
+      c.sanction.toLowerCase().includes("reprimand")
+    ).length;
+    
+    // Pending includes everything else (fallback for 'In Progress', 'Pending', etc.)
+    const pending = total - resolved - closed - reprimand;
+
     return { total, pending, resolved, closed, reprimand };
   }, [filteredCases]);
 
@@ -264,13 +289,38 @@ export default function Dashboard() {
   }, [dashStartDate, dashEndDate, filteredCases]);
 
   const statusDistribution = useMemo(() => {
-    return STATUS_CHART_SEGMENTS.map((segment) => ({
-      ...segment,
-      value: filteredCases.filter((c) => {
-        const progress = (c.progress || "").toLowerCase();
-        return progress === segment.label.toLowerCase();
-      }).length,
-    }));
+    const resolved = filteredCases.filter(
+      c => c.progress.toLowerCase() === "resolved" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+
+    const closed = filteredCases.filter(
+      c => c.progress.toLowerCase() === "closed" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+
+    const reprimand = filteredCases.filter(
+      c => c.progress.toLowerCase().includes("reprimand") ||
+      c.sanction.toLowerCase().includes("reprimand")
+    ).length;
+
+    const pending = filteredCases.length - resolved - closed - reprimand;
+
+    return STATUS_CHART_SEGMENTS.map((segment) => {
+      const label = segment.label.toLowerCase();
+      let value = 0;
+      if (label === "resolved") value = resolved;
+      else if (label === "closed") value = closed;
+      else if (label === "reprimand") value = reprimand;
+      else if (label === "pending") value = pending;
+
+      return {
+        ...segment,
+        value,
+      };
+    });
   }, [filteredCases]);
 
   const typeDistribution = useMemo(() => {

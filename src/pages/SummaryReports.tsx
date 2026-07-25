@@ -198,7 +198,21 @@ export default function SummaryReports() {
 
       // 3. Filter by status
       if (selectedStatus !== "all") {
-        if ((c.progress || "").toLowerCase() !== selectedStatus.toLowerCase()) return false;
+        const p = (c.progress || "").toLowerCase();
+        const s = (c.sanction || "").toLowerCase();
+        const isRep = p.includes("reprimand") || s.includes("reprimand");
+        const statusLower = selectedStatus.toLowerCase();
+        
+        if (statusLower === "resolved") {
+          if (p !== "resolved" || isRep) return false;
+        } else if (statusLower === "closed") {
+          if (p !== "closed" || isRep) return false;
+        } else if (statusLower === "reprimand") {
+          if (!isRep) return false;
+        } else if (statusLower === "pending") {
+          const isPending = p !== "resolved" && p !== "closed" && !isRep;
+          if (!isPending) return false;
+        }
       }
 
       return true;
@@ -226,10 +240,25 @@ export default function SummaryReports() {
 
   const stats = useMemo(() => {
     const total = activeCases.length;
-    const pending = activeCases.filter(c => c.progress.toLowerCase() === "pending").length;
-    const resolved = activeCases.filter(c => c.progress.toLowerCase() === "resolved").length;
-    const closed = activeCases.filter(c => c.progress.toLowerCase() === "closed").length;
-    const reprimand = activeCases.filter(c => c.progress.toLowerCase() === "reprimand").length;
+    const resolved = activeCases.filter(
+      c => c.progress.toLowerCase() === "resolved" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+    
+    const closed = activeCases.filter(
+      c => c.progress.toLowerCase() === "closed" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+    
+    const reprimand = activeCases.filter(
+      c => c.progress.toLowerCase().includes("reprimand") ||
+      c.sanction.toLowerCase().includes("reprimand")
+    ).length;
+    
+    // Pending includes everything else (fallback for 'In Progress', 'Pending', etc.)
+    const pending = total - resolved - closed - reprimand;
 
     return { total, pending, resolved, reprimand, closed };
   }, [activeCases]);

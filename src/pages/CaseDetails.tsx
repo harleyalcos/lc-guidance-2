@@ -1243,7 +1243,7 @@ export default function CaseDetails() {
                         console.error("Failed to download attachment", err);
                       }
                     }}
-                    className="bg-primary text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 hover:bg-primary-container transition-all duration-500 shadow-md flex items-center justify-center"
+                    className="bg-primary text-white rounded-full w-7 h-7 opacity-0 group-hover:opacity-100 hover:bg-primary-container transition-all duration-500 shadow-md flex items-center justify-center"
                     title="Download attachment"
                   >
                     <span className="material-symbols-outlined text-[16px] transition-colors duration-500">download</span>
@@ -1252,7 +1252,7 @@ export default function CaseDetails() {
                     <button
                       type="button"
                       onClick={(e) => handleDeleteProofRequest(e, index)}
-                      className="bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all duration-500 shadow-md flex items-center justify-center"
+                      className="bg-red-600 text-white rounded-full w-7 h-7 opacity-0 group-hover:opacity-100 hover:bg-red-700 transition-all duration-500 shadow-md flex items-center justify-center"
                       title="Delete attachment"
                     >
                       <span className="material-symbols-outlined text-[16px] transition-colors duration-500">delete</span>
@@ -1408,7 +1408,7 @@ export default function CaseDetails() {
           }`}>
             <button
               onClick={closeProofLightbox}
-              className="absolute top-3 right-3 bg-black/60 text-white hover:bg-black rounded-full p-2 transition-all duration-500"
+              className="absolute top-3 right-3 w-8 h-8 bg-black/60 text-white hover:bg-black rounded-full flex items-center justify-center transition-all duration-500"
             >
               <span className="material-symbols-outlined text-[20px] transition-colors duration-500">close</span>
             </button>

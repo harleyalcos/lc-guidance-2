@@ -153,6 +153,42 @@ export default function PendingCases() {
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
   const [isProofLightboxClosing, setIsProofLightboxClosing] = useState(false);
 
+  const [highlightStyle, setHighlightStyle] = useState({ top: 0, height: 0, opacity: 0 });
+  const listContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const measure = () => {
+      if (!active) return;
+      if (selectedId === null || !listContainerRef.current) {
+        setHighlightStyle((prev) => ({ ...prev, opacity: 0 }));
+        return;
+      }
+      
+      const container = listContainerRef.current;
+      const activeEl = container.querySelector(`[data-case-id="${selectedId}"]`) as HTMLElement;
+      
+      if (activeEl) {
+        setHighlightStyle({
+          top: activeEl.offsetTop,
+          height: activeEl.offsetHeight,
+          opacity: 1,
+        });
+      } else {
+        setHighlightStyle((prev) => ({ ...prev, opacity: 0 }));
+      }
+    };
+
+    // Run measurement on next frame to guarantee DOM layout is ready
+    const animId = requestAnimationFrame(measure);
+
+    return () => {
+      active = false;
+      cancelAnimationFrame(animId);
+    };
+  }, [selectedId, cases, searchQuery, isLoading]);
+
   const closeProofLightbox = () => {
     setIsProofLightboxClosing(true);
     window.setTimeout(() => {
@@ -376,7 +412,22 @@ export default function PendingCases() {
             </div>
 
             {/* List */}
-            <div className="overflow-y-auto flex-1 flex flex-col bg-white dark:bg-surface-container">
+            <div
+              ref={listContainerRef}
+              className="relative overflow-y-auto flex-1 flex flex-col bg-white dark:bg-surface-container"
+            >
+              {/* Sliding Highlight Indicator Bar */}
+              <div
+                className="absolute left-0 w-[4px] bg-[#07132c] dark:bg-primary pointer-events-none transition-all duration-300 cubic-bezier(0.22, 1, 0.36, 1)"
+                style={{
+                  top: 0,
+                  height: highlightStyle.height,
+                  transform: `translateY(${highlightStyle.top}px)`,
+                  opacity: highlightStyle.opacity,
+                  willChange: "transform, height, opacity",
+                  zIndex: 10,
+                }}
+              />
               {isLoading ? (
                 <div className="flex flex-col gap-2">
                   {[...Array(5)].map((_, i) => (
@@ -409,15 +460,13 @@ export default function PendingCases() {
                   return (
                     <button
                       key={c.id}
+                      data-case-id={c.id}
                       onClick={() => { setSelectedId(c.id); setConfirmState("idle"); }}
-                      className={`relative w-full text-left p-4 border-b border-outline-variant transition-all duration-300 ${isSelected
+                      className={`relative z-[1] w-full text-left p-4 border-b border-outline-variant transition-all duration-300 ${isSelected
                           ? "bg-[#0B1E43]/10"
-                          : "bg-white dark:bg-surface-container hover:bg-[#FAF9F6] dark:hover:bg-surface-container-high/40 dark:bg-surface-container-high/40"
+                          : "bg-white dark:bg-surface-container hover:bg-[#FAF9F6] dark:hover:bg-surface-container-high/40"
                         } ${isExiting ? "case-row-exit" : ""}`}
                     >
-                      {isSelected && (
-                        <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#07132c]" />
-                      )}
                       <div className="flex flex-col gap-1.5 min-w-0">
                         <div className="flex items-start justify-between gap-1.5">
                           <p className="text-sm font-bold text-primary dark:text-[#7f9cf8] truncate flex-1">
@@ -629,7 +678,7 @@ export default function PendingCases() {
                                       console.error("Failed to download attachment", err);
                                     }
                                   }}
-                                  className="bg-primary text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 hover:bg-primary-container transition-all duration-500 shadow-md flex items-center justify-center"
+                                  className="bg-primary text-white rounded-full w-7 h-7 opacity-0 group-hover:opacity-100 hover:bg-primary-container transition-all duration-500 shadow-md flex items-center justify-center"
                                   title="Download attachment"
                                 >
                                   <span className="material-symbols-outlined text-[16px] transition-colors duration-500">download</span>
@@ -790,7 +839,7 @@ export default function PendingCases() {
             }`}>
             <button
               onClick={closeProofLightbox}
-              className="absolute top-3 right-3 bg-black/60 text-white hover:bg-black rounded-full p-2 transition-all duration-500"
+              className="absolute top-3 right-3 w-8 h-8 bg-black/60 text-white hover:bg-black rounded-full flex items-center justify-center transition-all duration-500"
             >
               <span className="material-symbols-outlined text-[20px] transition-colors duration-500">close</span>
             </button>
