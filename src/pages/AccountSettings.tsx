@@ -491,7 +491,9 @@ export default function AccountSettings() {
         document.body
       )}
 
-      {/* Sub-tabs inside Settings & Security */}
+      <h1 className="page-header-h1 m-0 mb-4 shrink-0">Settings</h1>
+
+      {/* Sub-tabs inside Settings */}
       <div className="flex items-center gap-2 border-b border-outline-variant pb-3 mb-1">
         <button
           type="button"
@@ -525,13 +527,13 @@ export default function AccountSettings() {
         <>
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">Account</h2>
+          <h2 className="micro-label">Account</h2>
           <div className="h-px flex-1 bg-outline-variant" />
         </div>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
       <div className="h-full bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
         <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-          <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+          <h3 className="section-header-h2 mb-0">
             Change PIN
           </h3>
           <p className="text-xs text-secondary mt-1">Use this for normal PIN changes when you still know the current PIN.</p>
@@ -614,7 +616,7 @@ export default function AccountSettings() {
 
       <div className="h-full bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
         <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-          <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+          <h3 className="section-header-h2 mb-0">
             Recovery Email
           </h3>
           <p className="text-xs text-secondary mt-1">This is where PIN reset codes are sent.</p>
@@ -689,12 +691,12 @@ export default function AccountSettings() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">Academic Year Management</h2>
+          <h2 className="micro-label">Academic Year Management</h2>
           <div className="h-px flex-1 bg-outline-variant" />
         </div>
         <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-            <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+            <h3 className="section-header-h2 mb-0">
               Current Academic Year
             </h3>
             <p className="text-xs text-secondary mt-1">Manage the active academic school year for your reports and cases.</p>
@@ -720,12 +722,12 @@ export default function AccountSettings() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">Preference</h2>
+          <h2 className="micro-label">Preference</h2>
           <div className="h-px flex-1 bg-outline-variant" />
         </div>
         <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-            <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+            <h3 className="section-header-h2 mb-0">
               Appearance
             </h3>
             <p className="text-xs text-secondary mt-1">Choose the display mode used throughout the application.</p>
@@ -760,12 +762,12 @@ export default function AccountSettings() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">AI Settings</h2>
+          <h2 className="micro-label">AI Settings</h2>
           <div className="h-px flex-1 bg-outline-variant" />
         </div>
         <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-            <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+            <h3 className="section-header-h2 mb-0">
               Guidance AI Assistant
             </h3>
             <p className="text-xs text-secondary mt-1">
@@ -877,12 +879,12 @@ export default function AccountSettings() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">Academic Year Management</h2>
+          <h2 className="micro-label">Academic Year Management</h2>
           <div className="h-px flex-1 bg-outline-variant" />
         </div>
         <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
           <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-            <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+            <h3 className="section-header-h2 mb-0">
               Academic Year
             </h3>
             <p className="text-xs text-secondary mt-1">Start a new academic year to keep cases organized.</p>
@@ -905,13 +907,13 @@ export default function AccountSettings() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">Data Management</h2>
+          <h2 className="micro-label">Data Management</h2>
           <div className="h-px flex-1 bg-outline-variant" />
         </div>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
           <div className="flex flex-col h-full bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
             <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-              <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+              <h3 className="section-header-h2 mb-0">
                 System Backup & Recovery
               </h3>
               <p className="text-xs text-secondary mt-1">Access automatic backup configurations, manual backups, and restore points.</p>
@@ -934,7 +936,7 @@ export default function AccountSettings() {
 
           <div className="flex flex-col h-full bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
             <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-              <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+              <h3 className="section-header-h2 mb-0">
                 Database Migration
               </h3>
               <p className="text-xs text-secondary mt-1">Export or import the full database for migration.</p>

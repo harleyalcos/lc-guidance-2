@@ -49,7 +49,7 @@ export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = 
             <span className="material-symbols-outlined">arrow_back</span>
           </Link>
         )}
-        <h2 className="font-section-header text-section-header text-primary dark:text-primary-fixed-dim font-bold shrink-0">{title}</h2>
+        <h2 className="font-serif text-lg font-semibold text-primary dark:text-primary-fixed-dim text-left shrink-0">{title}</h2>
       </div>
 
       <div className="flex items-center gap-4">

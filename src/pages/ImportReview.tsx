@@ -209,7 +209,7 @@ export default function ImportReview() {
           >
             <span className="material-symbols-outlined text-[24px]">arrow_back</span>
           </button>
-          <h2 className="font-section-header text-section-header text-primary dark:text-primary-fixed-dim font-bold flex items-center gap-2">
+          <h2 className="font-serif text-lg font-semibold text-primary dark:text-primary-fixed-dim text-left flex items-center gap-2">
             Import Review
             <span className="text-xs font-normal text-on-surface-variant bg-surface-variant/70 dark:bg-surface-variant/30 border border-outline-variant/30 px-2 py-0.5 rounded-full font-body-md">
               {filename}
@@ -299,15 +299,15 @@ export default function ImportReview() {
           <div className="bg-surface border border-outline-variant rounded-xl overflow-hidden shadow-sm">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-surface-container border-b border-outline-variant text-on-surface-variant text-[11px] uppercase tracking-wider font-bold">
+                <tr className="bg-surface-container border-b border-outline-variant micro-label text-on-surface-variant">
                   <th className="py-3 px-4 w-16 text-center bg-surface-container-low/70">Row</th>
-                  <th className="py-3 px-4 min-w-[150px]">Student Name</th>
-                  <th className="py-3 px-4 min-w-[120px]">Incident Date</th>
-                  <th className="py-3 px-4 min-w-[150px]">Case Type</th>
+                  <th className="py-3 px-4 min-w-[150px] text-left">Student Name</th>
+                  <th className="py-3 px-4 min-w-[120px] text-left">Incident Date</th>
+                  <th className="py-3 px-4 min-w-[150px] text-left">Case Type</th>
                   
-                  {activeTab === "issues" && <th className="py-3 px-4 min-w-[220px]">Issues</th>}
-                  {activeTab === "duplicates" && <th className="py-3 px-4 min-w-[160px]">Database Match</th>}
-                  {activeTab === "ready" && <th className="py-3 px-4 w-28">Status</th>}
+                  {activeTab === "issues" && <th className="py-3 px-4 min-w-[220px] text-left">Issues</th>}
+                  {activeTab === "duplicates" && <th className="py-3 px-4 min-w-[160px] text-left">Database Match</th>}
+                  {activeTab === "ready" && <th className="py-3 px-4 w-28 text-left">Status</th>}
                   
                   <th className="py-3 px-4 w-52 text-center">Actions</th>
                 </tr>

@@ -58,12 +58,15 @@ export default {
         "gutter": "1.5rem"
       },
       fontFamily: {
-        "body-lg": ["Inter", "sans-serif"],
-        "label-caps": ["Inter", "sans-serif"],
-        "body-md": ["Inter", "sans-serif"],
-        "section-header": ["Poppins", "sans-serif"],
-        "data-mono": ["\"IBM Plex Mono\"", "monospace"],
-        "display-title": ["Poppins", "sans-serif"]
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        serif: ["var(--font-serif)", "Georgia", "serif"],
+        mono: ["var(--font-mono)", "'Courier New'", "monospace"],
+        "body-lg": ["var(--font-sans)", "system-ui", "sans-serif"],
+        "label-caps": ["var(--font-sans)", "system-ui", "sans-serif"],
+        "body-md": ["var(--font-sans)", "system-ui", "sans-serif"],
+        "section-header": ["var(--font-serif)", "Georgia", "serif"],
+        "data-mono": ["var(--font-mono)", "'Courier New'", "monospace"],
+        "display-title": ["var(--font-serif)", "Georgia", "serif"]
       },
       fontSize: {
         "body-lg": ["16px", { lineHeight: "24px", fontWeight: "400" }],

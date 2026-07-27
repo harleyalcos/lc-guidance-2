@@ -19,11 +19,11 @@ function AppRoutes() {
   const location = useLocation();
 
   const getTitle = () => {
-    if (location.pathname.startsWith("/case/")) return "Case Details";
-    if (location.pathname === "/catalog") return "Guidance Office";
+    if (location.pathname.startsWith("/case/")) return "Case Catalog";
+    if (location.pathname === "/catalog") return "Case Catalog";
     if (location.pathname === "/pending") return "Pending Cases";
-    if (location.pathname === "/backup") return "Settings & Security";
-    if (location.pathname === "/account") return "Settings & Security";
+    if (location.pathname === "/backup") return "Settings";
+    if (location.pathname === "/account") return "Settings";
     if (location.pathname === "/import-review") return "Import Review";
     if (location.pathname === "/reports") return "Reports";
     if (location.pathname === "/ai") return "Guidance AI";
