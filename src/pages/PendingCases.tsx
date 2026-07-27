@@ -611,11 +611,11 @@ export default function PendingCases() {
                           <table className="w-full text-left border-collapse text-xs">
                             <thead>
                               <tr className="border-b border-outline-variant">
-                                <th className="py-2 text-[10px] font-bold text-secondary dark:text-slate-400 uppercase tracking-wider">Full name</th>
-                                <th className="py-2 text-[10px] font-bold text-secondary dark:text-slate-400 uppercase tracking-wider w-24">Grade level</th>
-                                <th className="py-2 text-[10px] font-bold text-secondary dark:text-slate-400 uppercase tracking-wider w-24">Section</th>
-                                <th className="py-2 text-[10px] font-bold text-secondary dark:text-slate-400 uppercase tracking-wider w-36">Adviser</th>
-                                <th className="py-2 text-[10px] font-bold text-secondary dark:text-slate-400 uppercase tracking-wider w-36">Role</th>
+                                <th className="py-2 micro-label text-left">Full name</th>
+                                <th className="py-2 micro-label text-left w-24">Grade level</th>
+                                <th className="py-2 micro-label text-left w-24">Section</th>
+                                <th className="py-2 micro-label text-left w-36">Adviser</th>
+                                <th className="py-2 micro-label text-left w-36">Role</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-outline-variant">

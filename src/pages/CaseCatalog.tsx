@@ -9,6 +9,7 @@ import SchoolYearSelector from "../components/SchoolYearSelector";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
 import { useSchoolYears } from "../hooks/useSchoolYears";
+import StatCard from "../components/StatCard";
 
 import { CaseRecord, StudentInfo } from "../types";
 
@@ -1028,7 +1029,7 @@ export default function CaseCatalog() {
       )}
 
       <div className="flex justify-between items-end mb-4">
-        <h2 className="font-section-header text-section-header text-on-surface">Case Catalog</h2>
+        <h1 className="page-header-h1 m-0">Case Catalog</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsImportModalOpen(true)}
@@ -1049,22 +1050,10 @@ export default function CaseCatalog() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div className="bg-surface border border-surface-variant rounded-lg p-3 px-4 py-2.5 border-t-4 border-t-secondary-container shadow-sm">
-          <h3 className="font-body-md text-on-surface-variant text-xs mb-0.5">Total Cases</h3>
-          <div className="font-data-mono text-2xl text-on-surface mt-1">{isLoading ? "..." : stats.totalCases}</div>
-        </div>
-        <div className="bg-surface border border-surface-variant rounded-lg p-3 px-4 py-2.5 border-t-4 border-t-[#f59e0b] shadow-sm">
-          <h3 className="font-body-md text-on-surface-variant text-xs mb-0.5">Pending Cases</h3>
-          <div className="font-data-mono text-2xl text-on-surface mt-1">{isLoading ? "..." : stats.pendingReview}</div>
-        </div>
-        <div className="bg-surface border border-surface-variant rounded-lg p-3 px-4 py-2.5 border-t-4 border-t-[#22c55e] shadow-sm">
-          <h3 className="font-body-md text-on-surface-variant text-xs mb-0.5">Resolved Cases</h3>
-          <div className="font-data-mono text-2xl text-on-surface mt-1">{isLoading ? "..." : stats.resolvedAllTime}</div>
-        </div>
-        <div className="bg-surface border border-surface-variant rounded-lg p-3 px-4 py-2.5 border-t-4 border-t-[#ef4444] shadow-sm">
-          <h3 className="font-body-md text-on-surface-variant text-xs mb-0.5">Reprimanded Cases</h3>
-          <div className="font-data-mono text-2xl text-on-surface mt-1">{isLoading ? "..." : stats.reprimandedCases}</div>
-        </div>
+        <StatCard label="Total Cases" value={isLoading ? "..." : stats.totalCases} icon="analytics" colorClass="text-primary bg-primary/5 border-primary/10" />
+        <StatCard label="Pending Cases" value={isLoading ? "..." : stats.pendingReview} icon="pending_actions" colorClass="text-[#D9A23B] bg-[#D9A23B]/5 border-[#D9A23B]/10" />
+        <StatCard label="Resolved Cases" value={isLoading ? "..." : stats.resolvedAllTime} icon="task_alt" colorClass="text-[#15803D] bg-[#15803D]/5 border-[#15803D]/10" />
+        <StatCard label="Reprimanded Cases" value={isLoading ? "..." : stats.reprimandedCases} icon="gavel" colorClass="text-[#6B7280] bg-[#6B7280]/5 border-[#6B7280]/10" />
       </div>
 
       {/* Search & Filters System */}
@@ -1216,12 +1205,12 @@ export default function CaseCatalog() {
           <table className="w-full text-left border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
               <tr className="bg-surface-container font-section-header text-sm text-on-surface">
-                <th className="p-table-cell-padding font-semibold border-b border-surface-variant">ID</th>
+                <th className="p-table-cell-padding micro-label border-b border-surface-variant">ID</th>
                 <th
-                  className="p-table-cell-padding font-semibold cursor-pointer select-none group border-b border-surface-variant"
+                  className="p-table-cell-padding micro-label cursor-pointer select-none group border-b border-surface-variant hover:bg-surface-variant transition-colors"
                   onClick={() => handleSort("date")}
                 >
-                  <div className="flex items-center gap-1 text-[11px] tracking-wider uppercase text-secondary">
+                  <div className="flex items-center gap-1">
                     Incident Date
                     <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${sortBy === "date" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
                       } ${sortBy === "date" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
@@ -1229,11 +1218,23 @@ export default function CaseCatalog() {
                     </span>
                   </div>
                 </th>
-                <th className="p-table-cell-padding font-semibold border-b border-surface-variant">Student(s) Involved</th>
-                <th className="p-table-cell-padding font-semibold border-b border-surface-variant">Case Type</th>
-                <th className="p-table-cell-padding font-semibold text-center border-b border-surface-variant">Status</th>
-                <th className="p-table-cell-padding font-semibold border-b border-surface-variant">Adviser</th>
-                <th className="py-1 px-4 font-semibold text-right border-b border-surface-variant"></th>
+                <th
+                  className="p-table-cell-padding micro-label cursor-pointer select-none group border-b border-surface-variant hover:bg-surface-variant transition-colors"
+                  onClick={() => handleSort("date_filed")}
+                >
+                  <div className="flex items-center gap-1">
+                    Date Recorded
+                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${sortBy === "date_filed" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
+                      } ${sortBy === "date_filed" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
+                      arrow_upward
+                    </span>
+                  </div>
+                </th>
+                <th className="p-table-cell-padding micro-label border-b border-surface-variant">Student(s) Involved</th>
+                <th className="p-table-cell-padding micro-label border-b border-surface-variant">Case Type</th>
+                <th className="p-table-cell-padding micro-label text-center border-b border-surface-variant">Status</th>
+                <th className="p-table-cell-padding micro-label border-b border-surface-variant">Adviser</th>
+                <th className="py-1 px-4 border-b border-surface-variant"></th>
               </tr>
             </thead>
             {isLoading && (

@@ -4,7 +4,6 @@ import html2pdf from "html2pdf.js";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
 import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
-import SchoolYearSelector from "../components/SchoolYearSelector";
 import { useSchoolYears } from "../hooks/useSchoolYears";
 
 import { CaseRecord } from "../types";
@@ -113,14 +112,6 @@ const getCaseDate = (caseRecord: CaseRecord) => {
 };
 
 
-
-const getReportDateStamp = () => {
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, "0");
-  const dd = String(today.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-};
 
 const getCaseGradeLevel = (caseRecord: CaseRecord) => {
   const students = parseStudents(caseRecord.students);
@@ -280,8 +271,6 @@ export default function SummaryReports() {
 
     return { total, pending, resolved, reprimand, closed };
   }, [activeCases]);
-
-  const reportGeneratedDate = useMemo(() => getReportDateStamp(), []);
 
   const handleExportPDF = async () => {
     if (!reportRef.current || isExporting) return;
@@ -679,21 +668,26 @@ export default function SummaryReports() {
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-end print:hidden">
         <div>
-          <h1 className="text-3xl font-display font-bold text-on-surface m-0">Reports</h1>
+          <h1 className="page-header-h1 m-0">Reports</h1>
           <p className="text-sm text-secondary mt-1">
             Generate, customize, and export guidance office reports.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-          <SchoolYearSelector
+          <AcademicMonthRangePicker
             allYears={allYears}
-            selectedYear={selectedSchoolYear}
-            onSelectYear={setSelectedSchoolYear}
-            isLoading={isYearsLoading}
+            schoolYear={selectedSchoolYear}
+            onSelectSchoolYear={setSelectedSchoolYear}
+            isLoadingYears={isYearsLoading}
+            startDate={startDate}
+            endDate={endDate}
+            className="w-[240px]"
+            placeholder="All Records"
+            onRangeChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
           />
-          <div className="h-10 px-4 rounded-lg border border-outline-variant bg-surface text-primary text-xs font-data-mono hidden sm:flex items-center justify-center whitespace-nowrap">
-            REPORT_GEN_DATE: {reportGeneratedDate}
-          </div>
           <button 
             onClick={handleExportPDF}
             disabled={isExporting}
@@ -717,7 +711,7 @@ export default function SummaryReports() {
         {/* Report settings on top */}
         <div className="w-full bg-white dark:bg-surface-container border border-gray-200 dark:border-outline-variant rounded-xl p-6 shadow-sm print:hidden">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-sm font-bold text-primary">Report settings</h2>
+            <h2 className="section-header-h2 mb-0">Report settings</h2>
             <button
               onClick={handleClearFilters}
               className="btn-secondary py-1.5 px-4 text-xs"
@@ -836,7 +830,10 @@ export default function SummaryReports() {
               <div>
                 <label className="text-xs font-bold text-gray-400 dark:text-secondary uppercase tracking-wider mb-2 block">Period</label>
                 <AcademicMonthRangePicker
+                  allYears={allYears}
                   schoolYear={selectedSchoolYear}
+                  onSelectSchoolYear={setSelectedSchoolYear}
+                  isLoadingYears={isYearsLoading}
                   startDate={startDate}
                   endDate={endDate}
                   className="w-full max-w-[220px]"

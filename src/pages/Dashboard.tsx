@@ -3,12 +3,12 @@ import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import html2pdf from "html2pdf.js";
 import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
-import SchoolYearSelector from "../components/SchoolYearSelector";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
 import { useSchoolYears } from "../hooks/useSchoolYears";
 
 import { CaseRecord, StudentInfo } from "../types";
+import StatCard from "../components/StatCard";
 
 const normalizeRole = (value?: string) => {
   const normalized = value?.trim() ?? "";
@@ -505,7 +505,7 @@ export default function Dashboard() {
   const renderDashboardPanel = (title: string, children: React.ReactNode, className = "") => (
     <section className={`bg-surface border border-outline-variant rounded-lg shadow-sm overflow-hidden min-w-0 flex flex-col ${className}`}>
       <div className="px-5 pt-5 pb-3 border-b border-outline-variant/60">
-        <h3 className="font-bold text-primary text-[18px] leading-6 m-0">{title}</h3>
+        <h3 className="section-header-h2 m-0 mb-0">{title}</h3>
       </div>
       <div className="p-5 flex-1 flex flex-col justify-center">
         {children}
@@ -749,23 +749,20 @@ export default function Dashboard() {
       {/* Header - exactly identical to the reports page's Institutional Overview header layout */}
       <div className="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-end print:hidden">
         <div>
-          <h1 className="text-3xl font-display font-bold text-on-surface m-0">Institutional Overview</h1>
+          <h1 className="page-header-h1 m-0">Dashboard</h1>
           <p className="text-sm text-secondary mt-1">
             A statistical summary of guidance office activity for {formatDashboardDateRange(dashStartDate, dashEndDate, cases)}.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-          <SchoolYearSelector
-            allYears={allYears}
-            selectedYear={selectedSchoolYear}
-            onSelectYear={setSelectedSchoolYear}
-            isLoading={isYearsLoading}
-          />
           <AcademicMonthRangePicker
+            allYears={allYears}
             schoolYear={selectedSchoolYear}
+            onSelectSchoolYear={setSelectedSchoolYear}
+            isLoadingYears={isYearsLoading}
             startDate={dashStartDate}
             endDate={dashEndDate}
-            className="max-w-[200px]"
+            className="w-[240px]"
             placeholder="All Records"
             onRangeChange={(start, end) => {
               setDashStartDate(start);
@@ -787,22 +784,19 @@ export default function Dashboard() {
       {/* KPI/Summary Metric Cards / Chips */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: "Total Cases", value: stats.total, icon: "analytics", color: "text-primary bg-primary/5 border-primary/10" },
-          { label: "Pending", value: stats.pending, icon: "pending_actions", color: "text-[#D9A23B] bg-[#D9A23B]/5 border-[#D9A23B]/10" },
-          { label: "Resolved", value: stats.resolved, icon: "task_alt", color: "text-[#15803D] bg-[#15803D]/5 border-[#15803D]/10" },
-          { label: "Reprimand", value: stats.reprimand, icon: "gavel", color: "text-[#6B7280] bg-[#6B7280]/5 border-[#6B7280]/10" },
-          { label: "Closed", value: stats.closed, icon: "cancel", color: "text-[#4b5563] bg-[#4b5563]/5 border-[#4b5563]/10" },
+          { label: "Total Cases", value: stats.total, icon: "analytics", colorClass: "text-primary bg-primary/5 border-primary/10" },
+          { label: "Pending", value: stats.pending, icon: "pending_actions", colorClass: "text-[#D9A23B] bg-[#D9A23B]/5 border-[#D9A23B]/10" },
+          { label: "Resolved", value: stats.resolved, icon: "task_alt", colorClass: "text-[#15803D] bg-[#15803D]/5 border-[#15803D]/10" },
+          { label: "Reprimand", value: stats.reprimand, icon: "gavel", colorClass: "text-[#6B7280] bg-[#6B7280]/5 border-[#6B7280]/10" },
+          { label: "Closed", value: stats.closed, icon: "cancel", colorClass: "text-[#4b5563] bg-[#4b5563]/5 border-[#4b5563]/10" },
         ].map((kpi) => (
-          <div
+          <StatCard
             key={kpi.label}
-            className={`bg-surface border rounded-xl p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow duration-300 ${kpi.color}`}
-          >
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider opacity-85">{kpi.label}</span>
-              <span className="material-symbols-outlined text-[20px]">{kpi.icon}</span>
-            </div>
-            <span className="text-2xl font-bold text-on-surface">{kpi.value}</span>
-          </div>
+            label={kpi.label}
+            value={kpi.value}
+            icon={kpi.icon}
+            colorClass={kpi.colorClass}
+          />
         ))}
       </div>
 

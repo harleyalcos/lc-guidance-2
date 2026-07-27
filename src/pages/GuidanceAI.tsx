@@ -45,8 +45,20 @@ IMPORTANT RULES & QUERY GUIDANCE:
 4. Keep queries efficient (e.g. use COUNT, GROUP BY). Use case-insensitive matching like LOWER(...) or LIKE '%...%' for text comparisons.
 5. Generate professional reports suitable for counselors and administrators.
 6. Prioritize clarity, accuracy, and actionable insights. Format using Markdown.
-7. STUDENT TABLES: Always put the students involved in a proper markdown table with the right spacing and columns (e.g., Name, Grade, Section, Role, Incident).
-8. PDF REPORT GENERATION: If you generate a formal report (like a weekly/monthly summary or a list of students), YOU MUST append the following JSON block at the very end of your message to enable PDF download. This metadata will be used for the PDF letterhead:
+7. COMPACT SIDE-BY-SIDE SUMMARY TABLES:
+   - DO NOT create large, full-page-width stacked tables for short summary metrics (such as Case Status counts and Top Incident Categories).
+   - ALWAYS combine short summary breakdowns side-by-side into a single 4-column comparison table layout.
+   - Example format for side-by-side summary data:
+     | Case Status | Count | Top Incident Categories | Frequency |
+     | :--- | :---: | :--- | :---: |
+     | Pending | 16 | Poor Academic Performance | 5 |
+     | Closed | 9 | Vandalism | 5 |
+     | Resolved | 5 | Theft | 3 |
+     | Reprimand | 5 | Smoking/Vaping | 3 |
+     | **Total** | **35** | Academic Dishonesty | 3 |
+   - Keep short summary tables compact and side-by-side to save vertical document space.
+8. STUDENT DETAILED TABLES: Always put student lists in clean markdown tables with appropriate columns (Name, Grade & Section, Role, Incident Date, Status).
+9. PDF REPORT GENERATION: If you generate a formal report (like a weekly/monthly summary or a list of students), YOU MUST append the following JSON block at the very end of your message to enable PDF download. This metadata will be used for the PDF letterhead:
 \`\`\`json report_metadata
 {
   "title": "Title of the Report",
@@ -83,17 +95,74 @@ const extractPdfMetadata = (text: string): { metadata: AiReportMetadata | null; 
   }
 };
 
-const SUGGESTIONS = [
-  "Generate Weekly Report",
-  "Generate Monthly Report",
-  "Generate Semester Report",
-  "Analyze Grade Level Trends",
-  "Compare to Last Semester",
-  "Most Common Behavioral Issues",
-  "Most Common Academic Issues",
-  "Students With Multiple Cases",
-  "Generate Intervention Recommendations",
-  "Predict High-Risk Students",
+interface SuggestionItem {
+  ref: string;
+  title: string;
+  sub: string;
+  prompt: string;
+}
+
+const SUGGESTIONS: SuggestionItem[] = [
+  {
+    ref: "RPT-WK",
+    title: "Weekly Report",
+    sub: "Current week · all levels",
+    prompt: "Generate a Weekly Disciplinary Case Report for the current week covering all year levels.",
+  },
+  {
+    ref: "RPT-MO",
+    title: "Monthly Summary",
+    sub: "Current month · all levels",
+    prompt: "Generate a Monthly Case Summary Report for the current month covering all grade levels.",
+  },
+  {
+    ref: "RPT-AY",
+    title: "Academic Year Report",
+    sub: "AY 2026–2027",
+    prompt: "Generate an Academic Year Case Summary Report for AY 2026-2027 covering all year levels.",
+  },
+  {
+    ref: "RPT-GL",
+    title: "Grade Level Trends",
+    sub: "AY 2026–2027 · Grades 7–12",
+    prompt: "Analyze grade level case trends and offense distributions for AY 2026-2027 across Grades 7 to 12.",
+  },
+  {
+    ref: "CMP-AY",
+    title: "Year-over-Year Comparison",
+    sub: "AY 2026–2027 vs AY 2025–2026",
+    prompt: "Compare case counts, status breakdown, and incident trends between AY 2026-2027 and AY 2025-2026.",
+  },
+  {
+    ref: "RPT-BH",
+    title: "Top Behavioral Offenses",
+    sub: "AY 2026–2027 · all levels",
+    prompt: "Identify and summarize the most common behavioral offenses for AY 2026-2027 covering all year levels.",
+  },
+  {
+    ref: "RPT-AC",
+    title: "Top Academic Concerns",
+    sub: "AY 2026–2027 · Senior High",
+    prompt: "Report on the most common academic issues and attendance concerns for AY 2026-2027 for Senior High School (Grades 11-12).",
+  },
+  {
+    ref: "RPT-MU",
+    title: "Repeat Offender Audit",
+    sub: "AY 2026–2027 · multiple cases",
+    prompt: "Identify and list all students with multiple recorded case records during AY 2026-2027.",
+  },
+  {
+    ref: "PLN-INT",
+    title: "Intervention Guidance Plan",
+    sub: "AY 2026–2027 · all levels",
+    prompt: "Generate counselor intervention recommendations based on case trends for AY 2026-2027 across all year levels.",
+  },
+  {
+    ref: "PRD-HR",
+    title: "High-Risk Student Identification",
+    sub: "AY 2026–2027 · early warning",
+    prompt: "Analyze case history to identify high-risk students needing immediate guidance counseling for AY 2026-2027.",
+  },
 ];
 
 const MessageBubble = ({ isUser, cleanText, metadata }: { isUser: boolean, cleanText: string, metadata: AiReportMetadata | null }) => {
@@ -443,60 +512,72 @@ export default function GuidanceAI() {
 
   return (
     <div className="flex flex-col h-full bg-surface dark:bg-surface-container-lowest relative overflow-hidden animate-fade-in">
-      {/* Sub Header */}
-      <header className="flex-none px-6 py-3 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40 flex items-center justify-between z-10">
-        <div className="flex items-center gap-2 text-xs text-secondary font-medium">
-          <span className="material-symbols-outlined text-[18px] text-primary dark:text-[#7f9cf8]">auto_awesome</span>
-          <span>Intelligent Case Analytics & Reporting</span>
-        </div>
-        {messages.length > 0 && (
+      {messages.length > 0 && (
+        <div className="absolute top-4 right-6 z-20">
           <button
             onClick={handleClear}
-            className="btn-secondary text-xs h-8 px-3"
+            className="btn-secondary text-xs h-8 px-3 shadow-xs bg-surface dark:bg-surface-container"
             title="Clear Conversation"
           >
             <span className="material-symbols-outlined text-sm">delete</span>
             Clear
           </button>
-        )}
-      </header>
+        </div>
+      )}
 
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto text-center space-y-6">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-2">
-              <span className="material-symbols-outlined text-[36px]">smart_toy</span>
-            </div>
+          <div className="h-full flex flex-col justify-center max-w-3xl mx-auto space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-on-surface mb-2">AI Analytics Assistant</h2>
-              <p className="text-sm text-secondary leading-relaxed max-w-md mx-auto">
-                Query the case database, identify trends, generate reports, compare historical data, and answer questions based on current case records.
+              <h1 className="page-header-h1 m-0 mb-2">Guidance AI</h1>
+              <p className="text-sm text-gray-600 dark:text-secondary leading-relaxed max-w-md">
+                Query case records, generate reports, and compare trends across the archive.
               </p>
             </div>
             
-            <div className="w-full max-w-lg mx-auto">
-              <div className="flex flex-wrap gap-2 justify-center transition-all duration-300">
-                {(showAllSuggestions ? SUGGESTIONS : SUGGESTIONS.slice(0, 3)).map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    onClick={() => handleSelectSuggestion(suggestion)}
-                    className="px-4 py-2 bg-surface-container-low hover:bg-surface-container border border-outline-variant rounded-full text-sm font-medium text-secondary hover:text-primary transition-colors duration-300"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setShowAllSuggestions((prev) => !prev)}
-                  className="px-4 py-2 bg-surface-container-lowest border border-dashed border-outline-variant hover:border-primary rounded-full text-sm font-medium text-secondary hover:text-primary flex items-center gap-1 cursor-pointer transition-colors duration-300"
-                >
-                  <span>{showAllSuggestions ? "Show less" : "More..."}</span>
-                  <span className="material-symbols-outlined text-[16px]">
-                    {showAllSuggestions ? "expand_less" : "expand_more"}
-                  </span>
-                </button>
+            <div className="w-full max-w-3xl mx-auto flex flex-col">
+              <div className="w-full border border-gray-200 dark:border-outline-variant/60 rounded-xl overflow-hidden bg-white dark:bg-surface-container shadow-xs">
+                {/* Table Header */}
+                <div className="flex items-center px-6 py-3 border-b border-gray-200 dark:border-outline-variant/40 bg-gray-50/40 dark:bg-surface-container-high/40 micro-label text-left">
+                  <span className="flex-1">SUGGESTED REQUESTS</span>
+                </div>
+
+                {/* Rows */}
+                <div className="grid grid-cols-1 md:grid-cols-2 bg-gray-100 dark:bg-outline-variant/30 gap-[1px]">
+                  {(showAllSuggestions ? SUGGESTIONS : SUGGESTIONS.slice(0, 4)).map((suggestion) => (
+                    <button
+                      key={suggestion.ref}
+                      type="button"
+                      onClick={() => handleSelectSuggestion(suggestion.prompt)}
+                      className="w-full h-full flex items-center px-6 py-4 bg-white dark:bg-surface-container hover:bg-gray-50/80 dark:hover:bg-surface-container-high/60 transition-colors text-left group cursor-pointer"
+                    >
+                      <div className="flex-1 min-w-0 pr-4">
+                        <div className="font-serif text-sm font-bold text-gray-900 dark:text-on-surface group-hover:text-primary transition-colors">
+                          {suggestion.title}
+                        </div>
+                        <div className="font-data-mono text-xs text-gray-500 dark:text-secondary mt-0.5">
+                          {suggestion.sub}
+                        </div>
+                      </div>
+                      <span className="material-symbols-outlined text-gray-400 dark:text-secondary opacity-80 group-hover:opacity-100 group-hover:translate-x-1 group-hover:text-primary transition-all text-[18px]">
+                        arrow_forward
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAllSuggestions((prev) => !prev)}
+                className="mt-4 text-xs font-serif font-medium text-gray-600 dark:text-secondary hover:text-primary dark:hover:text-primary flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <span>{showAllSuggestions ? "Show fewer templates" : "View all report templates"}</span>
+                <span className="material-symbols-outlined text-[16px]">
+                  {showAllSuggestions ? "expand_less" : "expand_more"}
+                </span>
+              </button>
             </div>
           </div>
         ) : (
@@ -552,14 +633,21 @@ export default function GuidanceAI() {
       </div>
 
       {/* Input Area */}
-      <div className="flex-none p-4 md:p-6 bg-surface dark:bg-surface-container-lowest border-t border-outline-variant relative z-20">
+      <div className="flex-none p-4 md:p-6 bg-surface dark:bg-surface-container-lowest relative z-20">
+        <div className="max-w-4xl mx-auto mb-2 flex items-center justify-between text-xs text-secondary px-1">
+          <div className="flex items-center gap-1.5 font-medium text-[11px] text-primary/80 dark:text-[#7f9cf8]">
+            <span className="material-symbols-outlined text-[14px]">tune</span>
+            <span><strong>Tip:</strong> Include <strong>Date Range / AY</strong> &amp; <strong>Scope</strong> (e.g. <em>AY 2026-2027, Grade 10</em>) in your prompt for precise records context.</span>
+          </div>
+        </div>
+
         <div className="max-w-4xl mx-auto relative flex items-center">
           <textarea
             ref={textareaRef}
             value={inputValue}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about case trends, generate reports, analyze grade levels..."
+            placeholder="Ask about case trends or generate reports (e.g., 'Generate monthly summary for AY 2026-2027 covering Grade 10')..."
             className="w-full bg-surface border border-outline-variant rounded-2xl pl-5 pr-14 py-3.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none overflow-y-auto shadow-sm"
             style={{ minHeight: "52px", maxHeight: "200px" }}
             rows={1}

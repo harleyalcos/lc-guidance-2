@@ -227,7 +227,7 @@ export default function Backup() {
       {/* Backup History Card */}
       <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm flex flex-col overflow-hidden">
         <div className="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-container-low dark:bg-surface-container-high/40">
-          <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base">
+          <h3 className="section-header-h2 mb-0">
             Backup History
           </h3>
         </div>
@@ -325,7 +325,7 @@ export default function Backup() {
       <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm flex flex-col overflow-hidden">
         <div className="p-5 border-b border-outline-variant flex items-center gap-2 bg-surface-container-low dark:bg-surface-container-high/40">
           <span className="material-symbols-outlined text-[#002F87] dark:text-[#7f9cf8]" style={{ fontSize: '20px' }}>settings</span>
-          <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+          <h3 className="section-header-h2 mb-0">
             Backup Settings
           </h3>
         </div>

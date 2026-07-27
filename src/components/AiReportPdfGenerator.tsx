@@ -24,6 +24,205 @@ export interface AiReportPdfGeneratorRef {
   generatePdf: () => Promise<void>;
 }
 
+const reportMarkdownComponents = {
+  h1: ({ children }: any) => (
+    <h1 className="text-base font-bold text-gray-900 mt-6 mb-3 pb-1 border-b-2 border-[#3C3489]/20 uppercase tracking-wider">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }: any) => (
+    <h2 className="text-sm font-bold text-gray-900 mt-5 mb-2.5 pb-1 border-b border-gray-200 uppercase tracking-wide">
+      {children}
+    </h2>
+  ),
+  h3: ({ children }: any) => (
+    <h3 className="text-xs font-bold text-gray-900 mt-4 mb-2 uppercase tracking-wider">
+      {children}
+    </h3>
+  ),
+  h4: ({ children }: any) => (
+    <h4 className="text-xs font-bold text-gray-800 mt-3 mb-1.5">
+      {children}
+    </h4>
+  ),
+  p: ({ children }: any) => (
+    <p className="text-xs leading-relaxed text-gray-700 mb-3.5 font-normal">
+      {children}
+    </p>
+  ),
+  ul: ({ children }: any) => (
+    <ul className="list-disc list-outside ml-5 mb-4 space-y-1.5 text-xs text-gray-700">
+      {children}
+    </ul>
+  ),
+  ol: ({ children }: any) => (
+    <ol className="list-decimal list-outside ml-5 mb-4 space-y-1.5 text-xs text-gray-700">
+      {children}
+    </ol>
+  ),
+  li: ({ children }: any) => (
+    <li className="leading-relaxed pl-0.5 mb-1">
+      {children}
+    </li>
+  ),
+  strong: ({ children }: any) => (
+    <strong className="font-bold text-gray-900">
+      {children}
+    </strong>
+  ),
+  em: ({ children }: any) => (
+    <em className="italic text-gray-800">
+      {children}
+    </em>
+  ),
+  blockquote: ({ children }: any) => (
+    <blockquote className="border-l-3 border-[#3C3489] bg-gray-50/80 pl-3.5 py-2 my-3 text-xs italic text-gray-600 rounded-r">
+      {children}
+    </blockquote>
+  ),
+  hr: () => (
+    <hr className="my-5 border-0 border-t border-gray-200" />
+  ),
+  table: ({ children }: any) => (
+    <div className="my-4 overflow-hidden rounded-md border border-gray-200 w-full shadow-xs">
+      <table className="w-full text-left border-collapse text-xs">
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children }: any) => (
+    <thead className="bg-gray-100/90 border-b border-gray-300">
+      {children}
+    </thead>
+  ),
+  tbody: ({ children }: any) => (
+    <tbody className="divide-y divide-gray-200 bg-white">
+      {children}
+    </tbody>
+  ),
+  tr: ({ children }: any) => (
+    <tr className="even:bg-[#F9FAFB]">
+      {children}
+    </tr>
+  ),
+  th: ({ children }: any) => (
+    <th className="py-2.5 px-3 font-bold text-gray-900 uppercase tracking-wider text-[10px] bg-gray-100/80 border-b border-gray-300 [&:nth-child(2)]:border-r-2 [&:nth-child(2)]:border-r-gray-300">
+      {children}
+    </th>
+  ),
+  td: ({ children }: any) => (
+    <td className="py-2.5 px-3 text-gray-700 text-xs align-top border-b border-gray-200 [&:nth-child(2)]:border-r-2 [&:nth-child(2)]:border-r-gray-300 [&:nth-child(2)]:font-semibold">
+      {children}
+    </td>
+  ),
+  code: ({ inline, children }: any) =>
+    inline ? (
+      <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded font-mono text-[11px] border border-gray-200">
+        {children}
+      </code>
+    ) : (
+      <pre className="bg-gray-900 text-gray-100 p-3 rounded font-mono text-xs overflow-x-auto my-3">
+        <code>{children}</code>
+      </pre>
+    ),
+};
+
+function parseMarkdownTable(tableBlock: string): { headers: string[]; rows: string[][] } | null {
+  const lines = tableBlock.trim().split("\n").map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return null;
+
+  const splitRow = (rowStr: string) => {
+    let s = rowStr;
+    if (s.startsWith("|")) s = s.slice(1);
+    if (s.endsWith("|")) s = s.slice(0, -1);
+    return s.split("|").map(cell => cell.trim());
+  };
+
+  const headers = splitRow(lines[0]);
+  const dataStartIdx = lines[1].includes("---") || lines[1].includes("-|-") ? 2 : 1;
+  const rows: string[][] = [];
+
+  for (let i = dataStartIdx; i < lines.length; i++) {
+    const row = splitRow(lines[i]);
+    if (row.some(c => c.length > 0)) {
+      rows.push(row);
+    }
+  }
+
+  return { headers, rows };
+}
+
+function combineAdjacentTables(markdown: string): string {
+  // Regex to match section headers and markdown tables
+  const tableBlockRegex = /(?:(###?\s+[^\n]+)\n+)?((?:\|[^\n]+\|\n?)+)/g;
+  
+  const matches: { fullMatch: string; heading: string; tableStr: string; index: number; length: number }[] = [];
+  let match;
+  
+  while ((match = tableBlockRegex.exec(markdown)) !== null) {
+    matches.push({
+      fullMatch: match[0],
+      heading: (match[1] || "").replace(/^#+\s*/, "").trim(),
+      tableStr: match[2] || "",
+      index: match.index,
+      length: match[0].length,
+    });
+  }
+
+  if (matches.length < 2) return markdown;
+
+  let result = markdown;
+  // Iterate backwards to combine adjacent small tables
+  for (let i = matches.length - 2; i >= 0; i--) {
+    const t1 = matches[i];
+    const t2 = matches[i + 1];
+
+    const betweenText = markdown.substring(t1.index + t1.length, t2.index).trim();
+    if (betweenText.length > 0) continue;
+
+    const parsed1 = parseMarkdownTable(t1.tableStr);
+    const parsed2 = parseMarkdownTable(t2.tableStr);
+
+    if (!parsed1 || !parsed2) continue;
+    if (parsed1.headers.length > 3 || parsed2.headers.length > 3) continue;
+
+    const h1_col1 = t1.heading ? `${t1.heading}` : (parsed1.headers[0] || 'Metric');
+    const h1_col2 = parsed1.headers[1] || 'Count';
+    
+    const h2_col1 = t2.heading ? `${t2.heading}` : (parsed2.headers[0] || 'Category');
+    const h2_col2 = parsed2.headers[1] || 'Count';
+
+    const combinedHeaders = [h1_col1, h1_col2, h2_col1, h2_col2];
+
+    const maxRows = Math.max(parsed1.rows.length, parsed2.rows.length);
+    const combinedRows: string[][] = [];
+
+    for (let r = 0; r < maxRows; r++) {
+      const r1 = parsed1.rows[r] || ["", ""];
+      const r2 = parsed2.rows[r] || ["", ""];
+      combinedRows.push([
+        r1[0] || "",
+        r1[1] || "",
+        r2[0] || "",
+        r2[1] || "",
+      ]);
+    }
+
+    let combinedMd = `\n\n| ${combinedHeaders.join(" | ")} |\n`;
+    combinedMd += `| :--- | :---: | :--- | :---: |\n`;
+    for (const row of combinedRows) {
+      combinedMd += `| ${row.join(" | ")} |\n`;
+    }
+    combinedMd += `\n`;
+
+    const replaceStart = t1.index;
+    const replaceEnd = t2.index + t2.length;
+    result = result.substring(0, replaceStart) + combinedMd + result.substring(replaceEnd);
+  }
+
+  return result;
+}
+
 const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGeneratorProps>(
   ({ metadata, bodyMarkdown, isPreview = false }, ref) => {
     const reportRef = useRef<HTMLDivElement>(null);
@@ -179,9 +378,13 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
 
           <div className="border-t border-gray-300 pt-6 mb-4"></div>
 
+
+
           {/* Body */}
-          <div className="prose prose-sm max-w-none text-gray-800 font-sans prose-p:leading-relaxed prose-headings:text-gray-900 prose-strong:text-gray-900">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{bodyMarkdown}</ReactMarkdown>
+          <div className="ai-report-body font-sans text-gray-800 text-xs">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={reportMarkdownComponents}>
+              {combineAdjacentTables(bodyMarkdown)}
+            </ReactMarkdown>
           </div>
 
           {/* Closing */}
