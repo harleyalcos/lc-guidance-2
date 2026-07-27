@@ -3,7 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import html2pdf from "html2pdf.js";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
-import MonthYearRangePicker from "../components/MonthYearRangePicker";
+import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
+import SchoolYearSelector from "../components/SchoolYearSelector";
+import { useSchoolYears } from "../hooks/useSchoolYears";
 
 import { CaseRecord } from "../types";
 
@@ -170,10 +172,26 @@ export default function SummaryReports() {
 
   const reportRef = useRef<HTMLDivElement>(null);
 
+  const { allYears, currentYear, isLoading: isYearsLoading } = useSchoolYears();
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState<string | null>(null);
+
   useEffect(() => {
+    if (!isYearsLoading && selectedSchoolYear === null) {
+      const latestYear = allYears[0] || currentYear;
+      if (latestYear) {
+        setSelectedSchoolYear(latestYear);
+      }
+    }
+  }, [currentYear, allYears, isYearsLoading, selectedSchoolYear]);
+
+  useEffect(() => {
+    if (isYearsLoading || selectedSchoolYear === null) return;
+    
     const loadCases = async () => {
       try {
-        const loadedCases = await invoke<CaseRecord[]>("get_cases");
+        const loadedCases = await invoke<CaseRecord[]>("get_cases", { 
+          schoolYear: selectedSchoolYear === 'all' ? null : selectedSchoolYear 
+        });
         setCases(loadedCases);
       } catch (err) {
         console.error("Failed to load cases", err);
@@ -184,7 +202,7 @@ export default function SummaryReports() {
     const handleCasesChanged = () => loadCases();
     window.addEventListener("cases:changed", handleCasesChanged);
     return () => window.removeEventListener("cases:changed", handleCasesChanged);
-  }, []);
+  }, [selectedSchoolYear, isYearsLoading]);
 
 
 
@@ -198,7 +216,21 @@ export default function SummaryReports() {
 
       // 3. Filter by status
       if (selectedStatus !== "all") {
-        if ((c.progress || "").toLowerCase() !== selectedStatus.toLowerCase()) return false;
+        const p = (c.progress || "").toLowerCase();
+        const s = (c.sanction || "").toLowerCase();
+        const isRep = p.includes("reprimand") || s.includes("reprimand");
+        const statusLower = selectedStatus.toLowerCase();
+        
+        if (statusLower === "resolved") {
+          if (p !== "resolved" || isRep) return false;
+        } else if (statusLower === "closed") {
+          if (p !== "closed" || isRep) return false;
+        } else if (statusLower === "reprimand") {
+          if (!isRep) return false;
+        } else if (statusLower === "pending") {
+          const isPending = p !== "resolved" && p !== "closed" && !isRep;
+          if (!isPending) return false;
+        }
       }
 
       return true;
@@ -226,10 +258,25 @@ export default function SummaryReports() {
 
   const stats = useMemo(() => {
     const total = activeCases.length;
-    const pending = activeCases.filter(c => c.progress.toLowerCase() === "pending").length;
-    const resolved = activeCases.filter(c => c.progress.toLowerCase() === "resolved").length;
-    const closed = activeCases.filter(c => c.progress.toLowerCase() === "closed").length;
-    const reprimand = activeCases.filter(c => c.progress.toLowerCase() === "reprimand").length;
+    const resolved = activeCases.filter(
+      c => c.progress.toLowerCase() === "resolved" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+    
+    const closed = activeCases.filter(
+      c => c.progress.toLowerCase() === "closed" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+    
+    const reprimand = activeCases.filter(
+      c => c.progress.toLowerCase().includes("reprimand") ||
+      c.sanction.toLowerCase().includes("reprimand")
+    ).length;
+    
+    // Pending includes everything else (fallback for 'In Progress', 'Pending', etc.)
+    const pending = total - resolved - closed - reprimand;
 
     return { total, pending, resolved, reprimand, closed };
   }, [activeCases]);
@@ -638,7 +685,13 @@ export default function SummaryReports() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-          <div className="h-10 px-4 rounded-lg border border-outline-variant bg-surface text-primary text-xs font-data-mono flex items-center justify-center whitespace-nowrap">
+          <SchoolYearSelector
+            allYears={allYears}
+            selectedYear={selectedSchoolYear}
+            onSelectYear={setSelectedSchoolYear}
+            isLoading={isYearsLoading}
+          />
+          <div className="h-10 px-4 rounded-lg border border-outline-variant bg-surface text-primary text-xs font-data-mono hidden sm:flex items-center justify-center whitespace-nowrap">
             REPORT_GEN_DATE: {reportGeneratedDate}
           </div>
           <button 
@@ -782,7 +835,8 @@ export default function SummaryReports() {
 
               <div>
                 <label className="text-xs font-bold text-gray-400 dark:text-secondary uppercase tracking-wider mb-2 block">Period</label>
-                <MonthYearRangePicker
+                <AcademicMonthRangePicker
+                  schoolYear={selectedSchoolYear}
                   startDate={startDate}
                   endDate={endDate}
                   className="w-full max-w-[220px]"

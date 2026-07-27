@@ -299,25 +299,81 @@ pub fn update_recovery_email(
 }
 
 #[tauri::command]
-pub fn get_cases(state: State<'_, DbState>) -> Result<Vec<CaseRecord>, String> {
+pub fn get_cases(state: State<'_, DbState>, school_year: Option<String>) -> Result<Vec<CaseRecord>, String> {
     let connection = state.connection.lock().map_err(db_error)?;
-    let mut statement = connection
-        .prepare(
-            r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id, update_history
+    
+    let mut query = r#"
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id, update_history, school_year
 FROM cases
-ORDER BY id DESC
-"#,
-        )
-        .map_err(db_error)?;
+"#.to_string();
 
+    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    
+    if let Some(ref year) = school_year {
+        if !year.is_empty() {
+            query.push_str(" WHERE school_year = ?1 ");
+            params_vec.push(Box::new(year.clone()));
+        }
+    }
+    
+    query.push_str(" ORDER BY id DESC");
+
+    let mut statement = connection.prepare(&query).map_err(db_error)?;
+
+    let param_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+    
     let cases = statement
-        .query_map([], map_case)
+        .query_map(rusqlite::params_from_iter(param_refs), map_case)
         .map_err(db_error)?
         .collect::<Result<Vec<_>, _>>()
         .map_err(db_error)?;
 
     Ok(cases)
+}
+
+#[tauri::command]
+pub fn get_current_school_year(state: State<'_, DbState>) -> Result<Option<String>, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    get_config(&connection, "current_school_year")
+}
+
+#[tauri::command]
+pub fn set_current_school_year(state: State<'_, DbState>, start_year: String) -> Result<String, String> {
+    let start = start_year.trim().parse::<i32>().map_err(|_| "Start year must be a valid number")?;
+    let formatted = format!("{}-{}", start, start + 1);
+    
+    let connection = state.connection.lock().map_err(db_error)?;
+    set_config(&connection, "current_school_year", &formatted)?;
+    
+    Ok(formatted)
+}
+
+#[tauri::command]
+pub fn get_all_school_years(state: State<'_, DbState>) -> Result<Vec<String>, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    
+    let current = get_config(&connection, "current_school_year")?;
+    
+    let mut statement = connection
+        .prepare("SELECT DISTINCT school_year FROM cases WHERE school_year != '' ORDER BY school_year DESC")
+        .map_err(db_error)?;
+        
+    let mut years: Vec<String> = statement
+        .query_map([], |row| row.get(0))
+        .map_err(db_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(db_error)?;
+        
+    if let Some(curr) = current {
+        if !years.contains(&curr) {
+            years.insert(0, curr);
+        }
+    }
+    
+    // Sort descending again in case we just inserted at 0 but it shouldn't be first alphabetically
+    years.sort_by(|a, b| b.cmp(a));
+    
+    Ok(years)
 }
 
 use crate::models::CasePayload;
@@ -363,7 +419,7 @@ pub fn get_case(state: State<'_, DbState>, id: i64) -> Result<CaseRecord, String
     let case = connection
         .query_row(
             r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id, update_history
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id, update_history, school_year
 FROM cases
 WHERE id = ?1
 "#,
@@ -624,5 +680,11 @@ pub fn import_db_file(
     *connection_guard = new_conn;
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_active_months(state: State<'_, DbState>, school_year: String) -> Result<Vec<String>, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    CaseRepository::get_active_months(&connection, &school_year)
 }
 

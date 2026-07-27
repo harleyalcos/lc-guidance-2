@@ -2,9 +2,11 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import html2pdf from "html2pdf.js";
-import MonthYearRangePicker from "../components/MonthYearRangePicker";
+import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
+import SchoolYearSelector from "../components/SchoolYearSelector";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
+import { useSchoolYears } from "../hooks/useSchoolYears";
 
 import { CaseRecord, StudentInfo } from "../types";
 
@@ -120,6 +122,11 @@ const getCaseGradeLevel = (caseRecord: CaseRecord) => {
   return students[0]?.level || caseRecord.level || "Unspecified";
 };
 
+const isComplainantSubjectCaseRecord = (caseRecord: CaseRecord) => {
+  const firstStudent = parseStudents(caseRecord.students)[0];
+  return normalizeRole(firstStudent?.role) === "Complainant / Subject";
+};
+
 
 
 export default function Dashboard() {
@@ -129,11 +136,27 @@ export default function Dashboard() {
   const [isExporting, setIsExporting] = useState(false);
   const dashboardRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
+  
+  const { allYears, currentYear, isLoading: isYearsLoading } = useSchoolYears();
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isYearsLoading && selectedSchoolYear === null) {
+      const latestYear = allYears[0] || currentYear;
+      if (latestYear) {
+        setSelectedSchoolYear(latestYear);
+      }
+    }
+  }, [currentYear, allYears, isYearsLoading, selectedSchoolYear]);
+
+  useEffect(() => {
+    if (isYearsLoading || selectedSchoolYear === null) return;
+    
     const loadCases = async () => {
       try {
-        const loadedCases = await invoke<CaseRecord[]>("get_cases");
+        const loadedCases = await invoke<CaseRecord[]>("get_cases", { 
+          schoolYear: selectedSchoolYear === 'all' ? null : selectedSchoolYear 
+        });
         setCases(loadedCases);
       } catch (err) {
         console.error("Failed to load cases", err);
@@ -144,12 +167,15 @@ export default function Dashboard() {
     const handleCasesChanged = () => loadCases();
     window.addEventListener("cases:changed", handleCasesChanged);
     return () => window.removeEventListener("cases:changed", handleCasesChanged);
-  }, []);
+  }, [selectedSchoolYear, isYearsLoading]);
 
   // Filter cases by the selected date range
   const filteredCases = useMemo(() => {
-    if (!dashStartDate && !dashEndDate) return cases;
-    return cases.filter((c) => {
+    // Filter out Complainant / Subject records to match the Case Catalog and avoid double counting
+    const displayCases = cases.filter((c) => !isComplainantSubjectCaseRecord(c));
+
+    if (!dashStartDate && !dashEndDate) return displayCases;
+    return displayCases.filter((c) => {
       const d = getCaseDate(c);
       if (!d) return false;
       if (dashStartDate) {
@@ -170,10 +196,27 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     const total = filteredCases.length;
-    const pending = filteredCases.filter(c => c.progress.toLowerCase() === "pending").length;
-    const resolved = filteredCases.filter(c => c.progress.toLowerCase() === "resolved").length;
-    const closed = filteredCases.filter(c => c.progress.toLowerCase() === "closed").length;
-    const reprimand = filteredCases.filter(c => c.progress.toLowerCase() === "reprimand").length;
+    
+    const resolved = filteredCases.filter(
+      c => c.progress.toLowerCase() === "resolved" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+    
+    const closed = filteredCases.filter(
+      c => c.progress.toLowerCase() === "closed" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+    
+    const reprimand = filteredCases.filter(
+      c => c.progress.toLowerCase().includes("reprimand") ||
+      c.sanction.toLowerCase().includes("reprimand")
+    ).length;
+    
+    // Pending includes everything else (fallback for 'In Progress', 'Pending', etc.)
+    const pending = total - resolved - closed - reprimand;
+
     return { total, pending, resolved, closed, reprimand };
   }, [filteredCases]);
 
@@ -264,13 +307,38 @@ export default function Dashboard() {
   }, [dashStartDate, dashEndDate, filteredCases]);
 
   const statusDistribution = useMemo(() => {
-    return STATUS_CHART_SEGMENTS.map((segment) => ({
-      ...segment,
-      value: filteredCases.filter((c) => {
-        const progress = (c.progress || "").toLowerCase();
-        return progress === segment.label.toLowerCase();
-      }).length,
-    }));
+    const resolved = filteredCases.filter(
+      c => c.progress.toLowerCase() === "resolved" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+
+    const closed = filteredCases.filter(
+      c => c.progress.toLowerCase() === "closed" &&
+      !c.sanction.toLowerCase().includes("reprimand") &&
+      !c.progress.toLowerCase().includes("reprimand")
+    ).length;
+
+    const reprimand = filteredCases.filter(
+      c => c.progress.toLowerCase().includes("reprimand") ||
+      c.sanction.toLowerCase().includes("reprimand")
+    ).length;
+
+    const pending = filteredCases.length - resolved - closed - reprimand;
+
+    return STATUS_CHART_SEGMENTS.map((segment) => {
+      const label = segment.label.toLowerCase();
+      let value = 0;
+      if (label === "resolved") value = resolved;
+      else if (label === "closed") value = closed;
+      else if (label === "reprimand") value = reprimand;
+      else if (label === "pending") value = pending;
+
+      return {
+        ...segment,
+        value,
+      };
+    });
   }, [filteredCases]);
 
   const typeDistribution = useMemo(() => {
@@ -687,7 +755,14 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-          <MonthYearRangePicker
+          <SchoolYearSelector
+            allYears={allYears}
+            selectedYear={selectedSchoolYear}
+            onSelectYear={setSelectedSchoolYear}
+            isLoading={isYearsLoading}
+          />
+          <AcademicMonthRangePicker
+            schoolYear={selectedSchoolYear}
             startDate={dashStartDate}
             endDate={dashEndDate}
             className="max-w-[200px]"

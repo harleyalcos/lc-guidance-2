@@ -2,11 +2,13 @@ import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } fr
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
-import MonthYearRangePicker from "../components/MonthYearRangePicker";
+import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
 import ExcelJS from "exceljs";
 import ImportExcelModal from "../components/ImportExcelModal";
+import SchoolYearSelector from "../components/SchoolYearSelector";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
+import { useSchoolYears } from "../hooks/useSchoolYears";
 
 import { CaseRecord, StudentInfo } from "../types";
 
@@ -171,11 +173,15 @@ const formatRelativeFiled = (dateStr: string) => {
 };
 
 const isResolved = (progress: string) => progress.toLowerCase() === "resolved";
-const isPending = (progress: string) => progress.toLowerCase() === "pending";
 const isClosed = (progress: string) => progress.toLowerCase() === "closed";
 const isReprimand = (caseRecord: CaseRecord) =>
   caseRecord.sanction.toLowerCase().includes("reprimand") ||
   caseRecord.progress.toLowerCase().includes("reprimand");
+const isPending = (progress: string, sanction: string = "") => {
+  const normProgress = progress.toLowerCase();
+  const isRep = normProgress.includes("reprimand") || sanction.toLowerCase().includes("reprimand");
+  return normProgress !== "resolved" && normProgress !== "closed" && !isRep;
+};
 
 const getBadgeClass = (progress: string) => {
   const normalizedProgress = progress.toLowerCase();
@@ -439,10 +445,25 @@ export default function CaseCatalog() {
     }
   }, [isLoading]);
 
+  const { allYears, currentYear, isLoading: isYearsLoading } = useSchoolYears();
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isYearsLoading && selectedSchoolYear === null) {
+      const latestYear = allYears[0] || currentYear;
+      if (latestYear) {
+        setSelectedSchoolYear(latestYear);
+      }
+    }
+  }, [currentYear, allYears, isYearsLoading, selectedSchoolYear]);
+
   const loadCases = useCallback(async () => {
+    if (isYearsLoading || selectedSchoolYear === null) return;
     try {
       setIsLoading(true);
-      const loadedCases = await invoke<CaseRecord[]>("get_cases");
+      const loadedCases = await invoke<CaseRecord[]>("get_cases", { 
+        schoolYear: selectedSchoolYear === 'all' ? null : selectedSchoolYear 
+      });
       setCases(loadedCases);
       setError(null);
     } catch (err) {
@@ -451,7 +472,7 @@ export default function CaseCatalog() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedSchoolYear, isYearsLoading]);
 
   useEffect(() => {
     loadCases();
@@ -509,7 +530,7 @@ export default function CaseCatalog() {
           next.delete(groupId);
           return next;
         });
-      }, 260);
+      }, 300);
     } else {
       setCollapsingGroups((prev) => {
         const next = new Set(prev);
@@ -528,7 +549,7 @@ export default function CaseCatalog() {
   const stats = useMemo(() => {
     return {
       totalCases: displayCases.length,
-      pendingReview: displayCases.filter((caseRecord) => isPending(caseRecord.progress)).length,
+      pendingReview: displayCases.filter((caseRecord) => isPending(caseRecord.progress, caseRecord.sanction)).length,
       resolvedAllTime: displayCases.filter((caseRecord) => isResolved(caseRecord.progress)).length,
       reprimandedCases: displayCases.filter(isReprimand).length,
     };
@@ -629,7 +650,7 @@ export default function CaseCatalog() {
     }));
 
     const matchesStatusFilter = (caseRecord: CaseRecord) => {
-      if (statusFilter === "Pending") return isPending(caseRecord.progress);
+      if (statusFilter === "Pending") return isPending(caseRecord.progress, caseRecord.sanction);
       if (statusFilter === "Resolved") return isResolved(caseRecord.progress);
       if (statusFilter === "Closed") return isClosed(caseRecord.progress);
       if (statusFilter === "Reprimand") return isReprimand(caseRecord);
@@ -1127,7 +1148,15 @@ export default function CaseCatalog() {
               )}
             </div>
 
-            <MonthYearRangePicker
+            <SchoolYearSelector
+              allYears={allYears}
+              selectedYear={selectedSchoolYear}
+              onSelectYear={setSelectedSchoolYear}
+              isLoading={isYearsLoading}
+            />
+
+            <AcademicMonthRangePicker
+              schoolYear={selectedSchoolYear}
               startDate={startDate}
               endDate={endDate}
               placeholder="Pick range"
@@ -1305,65 +1334,79 @@ export default function CaseCatalog() {
                       const subBorderClass = isLastSubRow ? "border-b border-b-surface-variant" : "border-b border-b-surface-variant/40";
                       const animClass = isCollapsing ? "group-row-collapse" : "group-row-expand";
                       const delay = isCollapsing
-                        ? (group.cases.length - 1 - subIndex) * 25
-                        : subIndex * 35;
+                        ? (group.cases.length - 1 - subIndex) * 20
+                        : subIndex * 25;
                       return (
                         <tr
                           key={caseRecord.id}
-                          className={`${animClass} transition-all duration-300 cursor-pointer group/row`}
+                          className={`${animClass} cursor-pointer group/row`}
                           style={{ animationDelay: `${delay}ms` }}
                           onClick={() => handleRowClick(caseRecord.id)}
                         >
                           <td className={`p-table-cell-padding transition-colors duration-300 border-l-[3px] border-l-outline-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
-                            <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
+                            <div className="td-inner">
+                              <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
+                            </div>
                           </td>
-                          <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}></td>
                           <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
-                            {(() => {
-                              const students = parseStudents(caseRecord.students);
-                              if (students.length === 0) return "—";
-                              const firstStudent = students[0];
-                              const name = `${firstStudent.lastName}, ${firstStudent.firstName}${firstStudent.middleInitial ? ` ${firstStudent.middleInitial}.` : ""}`;
-                              const role = firstStudent.role;
-                              return (
-                                <div className="flex flex-col gap-0.5 py-1">
-                                  <span className="font-bold text-on-surface leading-tight text-[13px]">{name}</span>
-                                  {role && (
-                                    <div className="flex items-center gap-1 mt-0.5">
-                                      <span className={`h-1.5 w-1.5 rounded-full ${role.toLowerCase() === 'complainant / subject' ? 'bg-green-500' : role.toLowerCase() === 'respondent' ? 'bg-red-500' : 'bg-purple-500'}`} />
-                                      <span className={`text-[11px] font-medium ${getRoleBadgeStyles(role)}`}>
-                                        {role}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
+                            <div className="td-inner" />
                           </td>
-                          <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}></td>
+                          <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
+                            <div className="td-inner">
+                              {(() => {
+                                const students = parseStudents(caseRecord.students);
+                                if (students.length === 0) return "—";
+                                const firstStudent = students[0];
+                                const name = `${firstStudent.lastName}, ${firstStudent.firstName}${firstStudent.middleInitial ? ` ${firstStudent.middleInitial}.` : ""}`;
+                                const role = firstStudent.role;
+                                return (
+                                  <div className="flex flex-col gap-0.5 py-1">
+                                    <span className="font-bold text-on-surface leading-tight text-[13px]">{name}</span>
+                                    {role && role.toLowerCase() !== 'respondent' && (
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <span className={`h-1.5 w-1.5 rounded-full ${role.toLowerCase() === 'complainant / subject' ? 'bg-green-500' : 'bg-purple-500'}`} />
+                                        <span className={`text-[11px] font-medium ${getRoleBadgeStyles(role)}`}>
+                                          {role}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </td>
+                          <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
+                            <div className="td-inner" />
+                          </td>
                           <td className={`p-table-cell-padding transition-colors duration-300 text-center bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
-                            <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>
+                            <div className="td-inner flex justify-center items-center">
+                              <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>
+                            </div>
                           </td>
                           <td className={`p-table-cell-padding transition-colors duration-300 text-on-surface-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
-                            {(() => {
-                              const students = parseStudents(caseRecord.students);
-                              if (students.length === 0) return "—";
-                              return students[0].adviser;
-                            })()}
+                            <div className="td-inner">
+                              {(() => {
+                                const students = parseStudents(caseRecord.students);
+                                if (students.length === 0) return "—";
+                                return students[0].adviser;
+                              })()}
+                            </div>
                           </td>
                           <td className={`py-1 px-4 transition-colors duration-300 text-right bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setIsDeleteConfirmClosing(false);
-                                setDeleteConfirmText("");
-                                setDeleteConfirmId(caseRecord.id);
-                              }}
-                              className="text-secondary hover:text-error transition-all duration-500 p-1.5 rounded-full hover:bg-error-container/60 inline-flex items-center justify-center align-middle"
-                              title="Delete Record"
-                            >
-                              <span className="material-symbols-outlined text-[18px] transition-colors duration-500">delete</span>
-                            </button>
+                            <div className="td-inner td-inner-action flex justify-end items-center">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsDeleteConfirmClosing(false);
+                                  setDeleteConfirmText("");
+                                  setDeleteConfirmId(caseRecord.id);
+                                }}
+                                className="text-secondary hover:text-error transition-all duration-500 p-1.5 rounded-full hover:bg-error-container/60 inline-flex items-center justify-center align-middle"
+                                title="Delete Record"
+                              >
+                                <span className="material-symbols-outlined text-[18px] transition-colors duration-500">delete</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1410,9 +1453,9 @@ export default function CaseCatalog() {
                           return (
                             <div className="flex flex-col gap-0.5 py-1">
                               <span className="font-bold text-on-surface leading-tight text-[13px]">{name}</span>
-                              {role && (
+                              {role && role.toLowerCase() !== 'respondent' && (
                                 <div className="flex items-center gap-1 mt-0.5">
-                                  <span className={`h-1.5 w-1.5 rounded-full ${role.toLowerCase() === 'complainant / subject' ? 'bg-green-500' : role.toLowerCase() === 'respondent' ? 'bg-red-500' : 'bg-purple-500'}`} />
+                                  <span className={`h-1.5 w-1.5 rounded-full ${role.toLowerCase() === 'complainant / subject' ? 'bg-green-500' : 'bg-purple-500'}`} />
                                   <span className={`text-[11px] font-medium ${getRoleBadgeStyles(role)}`}>
                                     {role}
                                   </span>

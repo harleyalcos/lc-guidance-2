@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS cases (
   title      TEXT NOT NULL DEFAULT '',
   reporting_student TEXT NOT NULL DEFAULT '',
   group_id   TEXT,
-  update_history TEXT NOT NULL DEFAULT '[]'
+  update_history TEXT NOT NULL DEFAULT '[]',
+  school_year TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS app_config (
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
     let mut has_reporting_student = false;
     let mut has_group_id = false;
     let mut has_update_history = false;
+    let mut has_school_year = false;
     while let Some(row) = rows.next()? {
         let name: String = row.get(1)?;
         if name == "date_filed" {
@@ -86,6 +88,9 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
         }
         if name == "update_history" {
             has_update_history = true;
+        }
+        if name == "school_year" {
+            has_school_year = true;
         }
     }
 
@@ -289,6 +294,21 @@ ALTER TABLE cases ADD COLUMN group_id TEXT;
             r#"
 ALTER TABLE cases ADD COLUMN update_history TEXT NOT NULL DEFAULT '[]';
 UPDATE cases SET update_history = json_insert('[]', '$[0]', json_object('timestamp', date_filed || 'T00:00:00.000Z', 'action', 'Case created')) WHERE date_filed != '';
+"#,
+        )?;
+    }
+
+    if !has_school_year {
+        connection.execute_batch(
+            r#"
+ALTER TABLE cases ADD COLUMN school_year TEXT NOT NULL DEFAULT '';
+UPDATE cases 
+SET school_year = 
+    CASE 
+        WHEN CAST(strftime('%m', date) AS INTEGER) >= 7 THEN strftime('%Y', date) || '-' || (CAST(strftime('%Y', date) AS INTEGER) + 1)
+        ELSE (CAST(strftime('%Y', date) AS INTEGER) - 1) || '-' || strftime('%Y', date)
+    END
+WHERE date != '';
 "#,
         )?;
     }

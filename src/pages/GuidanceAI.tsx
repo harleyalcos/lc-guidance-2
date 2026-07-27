@@ -96,7 +96,7 @@ const SUGGESTIONS = [
   "Predict High-Risk Students",
 ];
 
-const MessageBubble = ({ msg, isUser, cleanText, metadata }: { msg: Message, isUser: boolean, cleanText: string, metadata: AiReportMetadata | null }) => {
+const MessageBubble = ({ isUser, cleanText, metadata }: { isUser: boolean, cleanText: string, metadata: AiReportMetadata | null }) => {
   const pdfGeneratorRef = useRef<AiReportPdfGeneratorRef>(null);
 
   const handleDownload = () => {
@@ -527,7 +527,6 @@ export default function GuidanceAI() {
               return (
                 <MessageBubble 
                   key={msg.id} 
-                  msg={msg} 
                   isUser={isUser} 
                   cleanText={cleanText} 
                   metadata={metadata} 

@@ -25,6 +25,7 @@ impl CaseRepository {
             reporting_student: row.get("reporting_student")?,
             group_id: row.get("group_id").unwrap_or(None),
             update_history: row.get("update_history")?,
+            school_year: row.get("school_year").unwrap_or_default(),
         })
     }
 
@@ -161,5 +162,41 @@ WHERE id = ?20
         }
 
         Ok(())
+    }
+
+    pub fn delete_case(connection: &rusqlite::Connection, id: i64) -> Result<(), String> {
+        let rows_affected = connection
+            .execute("DELETE FROM cases WHERE id = ?1", params![id])
+            .map_err(|e| e.to_string())?;
+        
+        if rows_affected > 0 {
+            Ok(())
+        } else {
+            Err(format!("Case with id {} not found.", id))
+        }
+    }
+
+    pub fn get_active_months(
+        connection: &rusqlite::Connection,
+        school_year: &str,
+    ) -> Result<Vec<String>, String> {
+        let mut stmt = connection
+            .prepare("SELECT DISTINCT strftime('%Y-%m', date) FROM cases WHERE school_year = ?1 ORDER BY date ASC")
+            .map_err(|e| format!("Failed to prepare query: {}", e))?;
+
+        let rows = stmt
+            .query_map(params![school_year], |row| row.get::<_, String>(0))
+            .map_err(|e| format!("Query execution failed: {}", e))?;
+
+        let mut months = Vec::new();
+        for row in rows {
+            if let Ok(month) = row {
+                if !month.is_empty() && month != "null" {
+                    months.push(month);
+                }
+            }
+        }
+
+        Ok(months)
     }
 }
