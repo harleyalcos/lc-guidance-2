@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { useDarkMode } from "../hooks/useDarkMode";
+import Backup from "./Backup";
 import { useSchoolYears } from "../hooks/useSchoolYears";
 import SchoolYearSetupModal from "../components/SchoolYearSetupModal";
 
@@ -17,6 +19,28 @@ const maskEmail = (value: string) => {
 
 export default function AccountSettings() {
   const { isDark, toggleDarkMode } = useDarkMode();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentTabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<"profile" | "backup">(
+    currentTabParam === "backup" ? "backup" : "profile"
+  );
+
+  useEffect(() => {
+    if (currentTabParam === "backup") {
+      setActiveTab("backup");
+    } else {
+      setActiveTab("profile");
+    }
+  }, [currentTabParam]);
+
+  const handleTabChange = (tab: "profile" | "backup") => {
+    setActiveTab(tab);
+    if (tab === "backup") {
+      setSearchParams({ tab: "backup" });
+    } else {
+      setSearchParams({});
+    }
+  };
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -467,6 +491,38 @@ export default function AccountSettings() {
         document.body
       )}
 
+      {/* Sub-tabs inside Settings & Security */}
+      <div className="flex items-center gap-2 border-b border-outline-variant pb-3 mb-1">
+        <button
+          type="button"
+          onClick={() => handleTabChange("profile")}
+          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer ${
+            activeTab === "profile"
+              ? "bg-primary text-on-primary shadow-sm"
+              : "text-secondary hover:text-on-surface hover:bg-surface-container-high"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[20px]">tune</span>
+          <span>General Settings</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange("backup")}
+          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 cursor-pointer ${
+            activeTab === "backup"
+              ? "bg-primary text-on-primary shadow-sm"
+              : "text-secondary hover:text-on-surface hover:bg-surface-container-high"
+          }`}
+        >
+          <span className="material-symbols-outlined text-[20px]">backup</span>
+          <span>Backup & Recovery</span>
+        </button>
+      </div>
+
+      {activeTab === "backup" ? (
+        <Backup />
+      ) : (
+        <>
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
           <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">Account</h2>
@@ -852,33 +908,60 @@ export default function AccountSettings() {
           <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">Data Management</h2>
           <div className="h-px flex-1 bg-outline-variant" />
         </div>
-      <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-          <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
-            Database Migration
-          </h3>
-          <p className="text-xs text-secondary mt-1">Export or import the full database for migration.</p>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
+          <div className="flex flex-col h-full bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
+              <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+                System Backup & Recovery
+              </h3>
+              <p className="text-xs text-secondary mt-1">Access automatic backup configurations, manual backups, and restore points.</p>
+            </div>
+            <div className="p-6 flex-1 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-on-surface">Database Backups</p>
+                <p className="text-xs text-secondary mt-0.5">Manage automated schedules, create manual backups, or restore data.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleTabChange("backup")}
+                className="btn-primary shrink-0"
+              >
+                <span className="material-symbols-outlined text-[18px]">backup</span>
+                <span>Access Backup Tab</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col h-full bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
+              <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+                Database Migration
+              </h3>
+              <p className="text-xs text-secondary mt-1">Export or import the full database for migration.</p>
+            </div>
+            <div className="p-6 flex-1 flex items-center justify-end sm:flex-row gap-4">
+              <button
+                type="button"
+                onClick={() => handleOpenVerification("export")}
+                className="btn-primary flex-1"
+              >
+                <span className="material-symbols-outlined text-[18px]">upload</span>
+                <span>Export Database</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenVerification("import")}
+                className="btn-secondary flex-1"
+              >
+                <span className="material-symbols-outlined text-[18px]">download</span>
+                <span>Import Database</span>
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="p-6 flex flex-col sm:flex-row gap-4">
-          <button
-            type="button"
-            onClick={() => handleOpenVerification("export")}
-            className="btn-primary flex-1"
-          >
-            <span className="material-symbols-outlined text-[18px]">upload</span>
-            <span>Export Database for Migration</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleOpenVerification("import")}
-            className="btn-secondary flex-1"
-          >
-            <span className="material-symbols-outlined text-[18px]">download</span>
-            <span>Import Database</span>
-          </button>
-        </div>
-      </div>
       </section>
+        </>
+      )}
 
       {pinVerificationAction !== null && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

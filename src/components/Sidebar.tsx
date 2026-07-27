@@ -15,7 +15,6 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
     { path: "/catalog", label: "Case Catalog", icon: "folder_open", activePaths: ["/catalog", "/case"] },
     { path: "/reports", label: "Reports", icon: "assessment", activePaths: ["/reports"] },
     { path: "/ai", label: "Guidance AI", icon: "smart_toy", activePaths: ["/ai"] },
-    { path: "/backup", label: "Backup", icon: "backup", activePaths: ["/backup"] },
   ];
 
   const activeIndex = navItems.findIndex((item) =>
@@ -23,7 +22,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
       path === "/" ? location.pathname === "/" : location.pathname.startsWith(path)
     )
   );
-  const isProfileActive = location.pathname.startsWith("/account");
+  const isProfileActive = location.pathname.startsWith("/account") || location.pathname.startsWith("/backup");
 
   const getLinkClasses = (index: number) => {
     const isActive = index === activeIndex;
@@ -104,7 +103,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
         )}
         <Link
           to="/account"
-          title={isCollapsed ? "Profile" : undefined}
+          title={isCollapsed ? "Settings" : undefined}
           className={`relative z-10 flex items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 w-full text-left group ${isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
             } ${isProfileActive ? "text-primary dark:text-on-primary-container font-semibold" : "text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim"}`}
         >
@@ -112,10 +111,10 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
             className="material-symbols-outlined shrink-0 transition-[font-variation-settings] duration-300 group-hover:[font-variation-settings:'FILL'_1]"
             style={{ fontVariationSettings: `'FILL' ${isProfileActive ? 1 : 0}` }}
           >
-            account_circle
+            settings
           </span>
           <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
-            }`}>Profile</span>
+            }`}>Settings</span>
         </Link>
       </div>
     </nav>
