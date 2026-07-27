@@ -2,11 +2,13 @@ import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } fr
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
-import MonthYearRangePicker from "../components/MonthYearRangePicker";
+import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
 import ExcelJS from "exceljs";
 import ImportExcelModal from "../components/ImportExcelModal";
+import SchoolYearSelector from "../components/SchoolYearSelector";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
+import { useSchoolYears } from "../hooks/useSchoolYears";
 
 import { CaseRecord, StudentInfo } from "../types";
 
@@ -443,10 +445,25 @@ export default function CaseCatalog() {
     }
   }, [isLoading]);
 
+  const { allYears, currentYear, isLoading: isYearsLoading } = useSchoolYears();
+  const [selectedSchoolYear, setSelectedSchoolYear] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isYearsLoading && selectedSchoolYear === null) {
+      const latestYear = allYears[0] || currentYear;
+      if (latestYear) {
+        setSelectedSchoolYear(latestYear);
+      }
+    }
+  }, [currentYear, allYears, isYearsLoading, selectedSchoolYear]);
+
   const loadCases = useCallback(async () => {
+    if (isYearsLoading || selectedSchoolYear === null) return;
     try {
       setIsLoading(true);
-      const loadedCases = await invoke<CaseRecord[]>("get_cases");
+      const loadedCases = await invoke<CaseRecord[]>("get_cases", { 
+        schoolYear: selectedSchoolYear === 'all' ? null : selectedSchoolYear 
+      });
       setCases(loadedCases);
       setError(null);
     } catch (err) {
@@ -455,7 +472,7 @@ export default function CaseCatalog() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedSchoolYear, isYearsLoading]);
 
   useEffect(() => {
     loadCases();
@@ -1131,7 +1148,15 @@ export default function CaseCatalog() {
               )}
             </div>
 
-            <MonthYearRangePicker
+            <SchoolYearSelector
+              allYears={allYears}
+              selectedYear={selectedSchoolYear}
+              onSelectYear={setSelectedSchoolYear}
+              isLoading={isYearsLoading}
+            />
+
+            <AcademicMonthRangePicker
+              schoolYear={selectedSchoolYear}
               startDate={startDate}
               endDate={endDate}
               placeholder="Pick range"

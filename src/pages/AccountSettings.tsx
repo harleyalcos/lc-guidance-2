@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { useDarkMode } from "../hooks/useDarkMode";
+import { useSchoolYears } from "../hooks/useSchoolYears";
+import SchoolYearSetupModal from "../components/SchoolYearSetupModal";
 
 const cleanPin = (value: string) => value.replace(/\D/g, "").slice(0, 6);
 type ToastType = "success" | "error";
@@ -42,6 +44,9 @@ export default function AccountSettings() {
   const [toast, setToast] = useState<{ type: ToastType; message: string } | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
+
+  const { currentYear, setYear, refreshYears } = useSchoolYears();
+  const [showSchoolYearModal, setShowSchoolYearModal] = useState(false);
 
   const [pinVerificationAction, setPinVerificationAction] = useState<"export" | "import" | null>(null);
   const [verificationPin, setVerificationPin] = useState("");
@@ -628,6 +633,37 @@ export default function AccountSettings() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
+          <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">Academic Year Management</h2>
+          <div className="h-px flex-1 bg-outline-variant" />
+        </div>
+        <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
+            <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+              Current Academic Year
+            </h3>
+            <p className="text-xs text-secondary mt-1">Manage the active academic school year for your reports and cases.</p>
+          </div>
+          <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-bold text-on-surface">Active Year: <span className="text-primary text-base ml-2">{currentYear || "Not Set"}</span></p>
+              <p className="mt-1 text-xs text-secondary">
+                Starting a new academic year will change the default filter for the dashboard and reports.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSchoolYearModal(true)}
+              className="btn-primary shrink-0"
+            >
+              <span className="material-symbols-outlined text-[20px]">add_circle</span>
+              <span>Start New School Year</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
           <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">Preference</h2>
           <div className="h-px flex-1 bg-outline-variant" />
         </div>
@@ -780,6 +816,34 @@ export default function AccountSettings() {
               </div>
             </div>
           </form>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <h2 className="font-section-header text-sm font-bold uppercase tracking-[0.14em] text-secondary">Academic Year Management</h2>
+          <div className="h-px flex-1 bg-outline-variant" />
+        </div>
+        <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
+            <h3 className="font-section-header text-[#002F87] dark:text-[#7f9cf8] font-bold text-base uppercase tracking-wider">
+              Academic Year
+            </h3>
+            <p className="text-xs text-secondary mt-1">Start a new academic year to keep cases organized.</p>
+          </div>
+          <div className="p-6 flex flex-col sm:flex-row gap-4 items-center">
+            <div className="flex-1">
+              <p className="text-sm text-on-surface font-medium">Current Active Year: {currentYear}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSchoolYearModal(true)}
+              className="btn-primary"
+            >
+              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              <span>Start New School Year</span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -981,6 +1045,19 @@ export default function AccountSettings() {
           </form>
         </div>,
         document.body
+      )}
+
+      {showSchoolYearModal && (
+        <SchoolYearSetupModal
+          onComplete={async (y) => {
+            await setYear(y);
+            await refreshYears();
+            setShowSchoolYearModal(false);
+          }}
+          onCancel={() => setShowSchoolYearModal(false)}
+          title="Start New Academic Year"
+          description="Enter the starting year for the new academic year. Your previous cases will remain accessible under their respective years."
+        />
       )}
     </div>
   );

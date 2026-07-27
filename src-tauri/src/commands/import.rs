@@ -121,6 +121,7 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
             existing_case: None,
             has_errors: false,
             errors: Vec::new(),
+            school_year: None,
         };
 
         // Construct students JSON array dynamically
@@ -185,6 +186,7 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
                         reporting_student: String::new(),
                         group_id: None,
                         update_history: String::from("[]"),
+                        school_year: prev.school_year.clone().unwrap_or_default(),
                     });
                 }
             }
@@ -240,6 +242,7 @@ pub fn batch_import_cases(state: State<'_, DbState>, mut rows: Vec<ImportRow>) -
             title: row.title.clone(),
             reporting_student: None, // Import rows do not specify reporting student explicitly yet
             group_id: None,
+            school_year: None,
         };
 
         match crate::db::repository::CaseRepository::insert(&tx, &payload) {
