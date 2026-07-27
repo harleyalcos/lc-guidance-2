@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HashRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { HashRouter as Router, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import Layout from "./components/Layout";
 import SummaryReports from "./pages/SummaryReports";
@@ -7,7 +7,6 @@ import Dashboard from "./pages/Dashboard";
 import CaseCatalog from "./pages/CaseCatalog";
 import CaseDetails from "./pages/CaseDetails";
 import PendingCases from "./pages/PendingCases";
-import Backup from "./pages/Backup";
 import AccountSettings from "./pages/AccountSettings";
 import ImportReview from "./pages/ImportReview";
 import SignIn from "./pages/SignIn";
@@ -21,8 +20,8 @@ function AppRoutes() {
     if (location.pathname.startsWith("/case/")) return "Case Details";
     if (location.pathname === "/catalog") return "Guidance Office";
     if (location.pathname === "/pending") return "Pending Cases";
-    if (location.pathname === "/backup") return "Backup";
-    if (location.pathname === "/account") return "Profile";
+    if (location.pathname === "/backup") return "Settings & Security";
+    if (location.pathname === "/account") return "Settings & Security";
     if (location.pathname === "/import-review") return "Import Review";
     if (location.pathname === "/reports") return "Reports";
     if (location.pathname === "/ai") return "Guidance AI";
@@ -37,7 +36,7 @@ function AppRoutes() {
         <Route path="/catalog" element={<CaseCatalog />} />
         <Route path="/pending" element={<PendingCases />} />
         <Route path="/case/:id" element={<CaseDetails />} />
-        <Route path="/backup" element={<Backup />} />
+        <Route path="/backup" element={<Navigate to="/account?tab=backup" replace />} />
         <Route path="/account" element={<AccountSettings />} />
         <Route path="/import-review" element={<ImportReview />} />
         <Route path="/ai" element={<GuidanceAI />} />
