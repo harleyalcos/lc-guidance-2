@@ -12,6 +12,8 @@ import AccountSettings from "./pages/AccountSettings";
 import ImportReview from "./pages/ImportReview";
 import SignIn from "./pages/SignIn";
 import GuidanceAI from "./pages/GuidanceAI";
+import SchoolYearSetupModal from "./components/SchoolYearSetupModal";
+import { useSchoolYears } from "./hooks/useSchoolYears";
 import "./App.css";
 
 function AppRoutes() {
@@ -49,6 +51,8 @@ function AppRoutes() {
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
+  
+  const { currentYear, isLoading: isYearLoading, setYear } = useSchoolYears();
 
   useEffect(() => {
     invoke<boolean>("check_setup_complete")
@@ -56,7 +60,7 @@ function App() {
       .catch(() => setIsSetupComplete(false));
   }, []);
 
-  if (isSetupComplete === null) {
+  if (isSetupComplete === null || isYearLoading) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background text-on-surface">
         <div className="flex items-center gap-3 text-sm font-bold text-secondary">
@@ -74,6 +78,12 @@ function App() {
         onSetupComplete={() => setIsSetupComplete(true)}
         onSignIn={() => setIsAuthenticated(true)}
       />
+    );
+  }
+
+  if (isAuthenticated && !currentYear) {
+    return (
+      <SchoolYearSetupModal onComplete={async (y) => { await setYear(y); }} />
     );
   }
 

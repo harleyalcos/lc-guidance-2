@@ -18,6 +18,7 @@ export interface CaseRecord {
   reporting_student?: string;
   group_id?: string | null;
   update_history: string;
+  school_year?: string;
 }
 
 export interface StudentInfo {

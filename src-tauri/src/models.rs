@@ -27,6 +27,7 @@ pub struct CasePayload {
     pub title: String,
     pub reporting_student: Option<String>,
     pub group_id: Option<String>,
+    pub school_year: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +52,7 @@ pub struct CaseRecord {
     pub reporting_student: String,
     pub group_id: Option<String>,
     pub update_history: String,
+    pub school_year: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +77,7 @@ pub struct ImportRow {
     pub existing_case: Option<CaseRecord>,
     pub has_errors: bool,
     pub errors: Vec<String>,
+    pub school_year: Option<String>,
 }
 
 impl ImportRow {

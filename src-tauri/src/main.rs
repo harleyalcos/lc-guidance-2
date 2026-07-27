@@ -61,7 +61,11 @@ fn main() {
             commands::import_db_file,
             commands::get_gemini_api_key,
             commands::set_gemini_api_key,
-            commands::query_database_for_ai
+            commands::query_database_for_ai,
+            commands::get_current_school_year,
+            commands::set_current_school_year,
+            commands::get_all_school_years,
+            commands::get_active_months
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
