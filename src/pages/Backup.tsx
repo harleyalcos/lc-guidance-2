@@ -180,11 +180,11 @@ export default function Backup() {
       {notification && createPortal(
         <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl text-xs font-bold ${
           notification.type === "success"
-            ? "border border-green-500/30 bg-green-50 text-green-900"
+            ? "border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] text-[#002F87] dark:text-[#b4c5ff]"
             : "border border-error/30 bg-error-container text-on-error-container"
         } ${isNotificationVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
-          <span className={`material-symbols-outlined ${notification.type === "success" ? "text-green-600" : "text-error"}`} style={{ fontSize: 18 }}>
-            {notification.type === "success" ? "check_circle" : "error"}
+          <span className={`material-symbols-outlined ${notification.type === "success" ? "text-primary dark:text-[#b4c5ff]" : "text-error"}`} style={{ fontSize: 18 }}>
+            {notification.type === "success" ? "info" : "error"}
           </span>
           <p className="text-xs font-bold">{notification.message}</p>
         </div>,

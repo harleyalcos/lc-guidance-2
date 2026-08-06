@@ -37,16 +37,33 @@ impl CaseRepository {
         ).optional().map_err(|e| e.to_string())
     }
 
-    pub fn find_duplicate_by_fields(
+    pub fn find_exact_duplicate(
         connection: &rusqlite::Connection,
         first_name: &str,
         last_name: &str,
+        middle_initial: &str,
+        level: &str,
+        section: &str,
         date: &str,
+        adviser: &str,
         case_type: &str,
+        sanction: &str,
+        progress: &str,
     ) -> Result<Option<CaseRecord>, String> {
         connection.query_row(
-            r#"SELECT * FROM cases WHERE LOWER(TRIM(first_name)) = LOWER(TRIM(?1)) AND LOWER(TRIM(last_name)) = LOWER(TRIM(?2)) AND LOWER(TRIM(date)) = LOWER(TRIM(?3)) AND LOWER(TRIM("case")) = LOWER(TRIM(?4)) LIMIT 1"#,
-            params![first_name, last_name, date, case_type],
+            r#"SELECT * FROM cases 
+            WHERE LOWER(TRIM(first_name)) = LOWER(TRIM(?1)) 
+            AND LOWER(TRIM(last_name)) = LOWER(TRIM(?2)) 
+            AND LOWER(TRIM(middle_initial)) = LOWER(TRIM(?3))
+            AND LOWER(TRIM(level)) = LOWER(TRIM(?4))
+            AND LOWER(TRIM(section)) = LOWER(TRIM(?5))
+            AND LOWER(TRIM(date)) = LOWER(TRIM(?6)) 
+            AND LOWER(TRIM(adviser)) = LOWER(TRIM(?7))
+            AND LOWER(TRIM("case")) = LOWER(TRIM(?8)) 
+            AND LOWER(TRIM(sanction)) = LOWER(TRIM(?9))
+            AND LOWER(TRIM(progress)) = LOWER(TRIM(?10))
+            LIMIT 1"#,
+            params![first_name, last_name, middle_initial, level, section, date, adviser, case_type, sanction, progress],
             Self::map_case
         ).optional().map_err(|e| e.to_string())
     }
@@ -62,7 +79,7 @@ impl CaseRepository {
             .ok_or_else(|| "At least one student is required".to_string())?;
 
         let initial_history = format!(
-            r#"[{{\"timestamp\":\"{}T00:00:00.000Z\",\"action\":\"Case created\"}}]"#,
+            "[{{\"timestamp\":\"{}T00:00:00.000Z\",\"action\":\"Case created\"}}]",
             payload.date_filed
         );
 
@@ -73,8 +90,8 @@ impl CaseRepository {
             .execute(
                 r#"
 INSERT INTO cases (
-  students, date, date_filed, "case", description, sanction, progress, proofs, title, reporting_student, group_id, first_name, last_name, middle_initial, level, section, adviser, update_history
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+  students, date, date_filed, "case", description, sanction, progress, proofs, title, reporting_student, group_id, first_name, last_name, middle_initial, level, section, adviser, update_history, school_year
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, COALESCE((SELECT value FROM app_config WHERE key = 'current_school_year'), ''))
 "#,
                 params![
                     students_json,

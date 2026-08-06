@@ -4,6 +4,49 @@ import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { ImportRow, ParseFileResult } from "../types";
 
+const collapseSpaces = (value: string) => value.replace(/\s+/g, " ").trim();
+
+const capitalizeWords = (value: string) =>
+  collapseSpaces(value)
+    .split(" ")
+    .map((word) => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : "")
+    .join(" ");
+
+const formatDateToMMDDYY = (dateStr: string) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-');
+    return `${m}/${d}/${y.slice(2)}`;
+  }
+  return dateStr;
+};
+
+const autoCapitalize = (val: string) => {
+  return val.replace(/(^|\s)\p{L}/gu, (match) => match.toUpperCase());
+};
+
+const normalizeMiddleInitial = (value: string) => value.replace(/\s+/g, "").toUpperCase();
+
+const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
+const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
+const PROGRESS_OPTIONS = ["Pending", "Resolved", "Closed", "Reprimand"];
+
+const normalizeGradeLevel = (value: string) => {
+  const cleaned = collapseSpaces(value);
+  const match = cleaned.match(/^(?:grade\s*)?(\d{1,2})$/i);
+  if (match) {
+    const grade = Number(match[1]);
+    if (grade >= 7 && grade <= 12) return `Grade ${grade}`;
+  }
+  return capitalizeWords(cleaned).slice(0, 8);
+};
+
+const normalizeSection = (value: string) => {
+  const cleaned = collapseSpaces(value);
+  const upper = cleaned.toUpperCase();
+  if (SECTION_OPTIONS.includes(upper)) return upper.slice(0, 10);
+  return capitalizeWords(cleaned).slice(0, 10);
+};
+
 export default function ImportReview() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -39,7 +82,7 @@ export default function ImportReview() {
     return "";
   });
   const [isImporting, setIsImporting] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
 
@@ -68,6 +111,20 @@ export default function ImportReview() {
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
   const [editData, setEditData] = useState<ImportRow | null>(null);
   const [isSavingRow, setIsSavingRow] = useState(false);
+  const [isProgressDropdownOpen, setIsProgressDropdownOpen] = useState(false);
+  const progressDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (progressDropdownRef.current && !progressDropdownRef.current.contains(event.target as Node)) {
+        setIsProgressDropdownOpen(false);
+      }
+    };
+    if (isProgressDropdownOpen) {
+      document.addEventListener("click", handleClickOutside);
+    }
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [isProgressDropdownOpen]);
 
   // Duplicate Comparison state (stores index of expanded duplicate row)
   const [expandedDuplicateIndex, setExpandedDuplicateIndex] = useState<number | null>(null);
@@ -89,7 +146,7 @@ export default function ImportReview() {
       setRows(newRows);
       setExpandedDuplicateIndex(null);
       setEditingRowIndex(null);
-      showToast("Row removed from import list.");
+      showToast("success", "Row removed from import list.");
     }
   };
 
@@ -107,22 +164,26 @@ export default function ImportReview() {
     };
   }, []);
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
     setIsToastVisible(false);
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     window.requestAnimationFrame(() => setIsToastVisible(true));
     toastTimerRef.current = window.setTimeout(() => {
       setIsToastVisible(false);
-      window.setTimeout(() => setToastMessage(""), 1000);
+      window.setTimeout(() => setToast(null), 1000);
     }, 2800);
   };
 
   const handleEditStart = (index: number, row: ImportRow) => {
     setEditingRowIndex(index);
-    setEditData({ ...row });
+    setEditData({
+      ...row,
+      date: formatDateToMMDDYY(row.date)
+    });
+    setExpandedDuplicateIndex(null);
   };
-
+  
   const handleEditChange = (field: keyof ImportRow, value: string) => {
     if (editData) {
       setEditData({ ...editData, [field]: value });
@@ -133,16 +194,57 @@ export default function ImportReview() {
     if (!editData) return;
     try {
       setIsSavingRow(true);
-      const updatedRow = await invoke<ImportRow>("validate_import_row", { row: editData });
+      let updatedRow = await invoke<ImportRow>("validate_import_row", { row: editData });
       
       const newRows = [...rows];
+      
+      if (!updatedRow.is_duplicate && !updatedRow.has_errors) {
+        const duplicateIndex = newRows.findIndex((r, idx) => {
+          if (idx === index) return false;
+          return r.first_name.trim().toLowerCase() === updatedRow.first_name.trim().toLowerCase()
+            && r.last_name.trim().toLowerCase() === updatedRow.last_name.trim().toLowerCase()
+            && r.middle_initial.trim().toLowerCase() === updatedRow.middle_initial.trim().toLowerCase()
+            && r.level.trim().toLowerCase() === updatedRow.level.trim().toLowerCase()
+            && r.section.trim().toLowerCase() === updatedRow.section.trim().toLowerCase()
+            && r.date.trim().toLowerCase() === updatedRow.date.trim().toLowerCase()
+            && r.adviser.trim().toLowerCase() === updatedRow.adviser.trim().toLowerCase()
+            && r.case.trim().toLowerCase() === updatedRow.case.trim().toLowerCase()
+            && r.sanction.trim().toLowerCase() === updatedRow.sanction.trim().toLowerCase()
+            && r.progress.trim().toLowerCase() === updatedRow.progress.trim().toLowerCase();
+        });
+
+        if (duplicateIndex !== -1) {
+          const prev = newRows[duplicateIndex];
+          updatedRow.is_duplicate = true;
+          updatedRow.existing_case = {
+            id: 0,
+            first_name: prev.first_name,
+            last_name: prev.last_name,
+            middle_initial: prev.middle_initial,
+            level: prev.level,
+            section: prev.section,
+            date: prev.date,
+            date_filed: prev.date_filed,
+            adviser: prev.adviser,
+            case: prev.case,
+            description: prev.description,
+            sanction: prev.sanction,
+            progress: prev.progress,
+            proofs: prev.proofs,
+            students: prev.students,
+            title: prev.title,
+            update_history: "",
+          };
+        }
+      }
+
       newRows[index] = updatedRow;
       setRows(newRows);
       
       setEditingRowIndex(null);
       setEditData(null);
     } catch (e) {
-      showToast(`Validation failed: ${e}`);
+      showToast("error", `Validation failed: ${e}`);
     } finally {
       setIsSavingRow(false);
     }
@@ -164,7 +266,6 @@ export default function ImportReview() {
       });
 
       if (result.success || result.inserted_count > 0) {
-        alert(`Successfully imported ${result.inserted_count} records.`);
         const readyIndices = new Set(readyRows.map(item => item.index));
         const remainingRows = rows.filter((_, idx) => !readyIndices.has(idx));
         setRows(remainingRows);
@@ -172,12 +273,12 @@ export default function ImportReview() {
           localStorage.removeItem("lc_pending_import_rows");
           localStorage.removeItem("lc_pending_import_filename");
         }
-        navigate("/catalog");
+        navigate("/catalog", { state: { toastMessage: `Successfully imported ${result.inserted_count} records.` } });
       } else {
-        showToast(`Import failed. ${result.failed_count} errors. ${result.errors.join(" ")}`);
+        showToast("error", `Import failed. ${result.failed_count} errors. ${result.errors.join(" ")}`);
       }
     } catch (e) {
-      showToast(`Batch import failed: ${e}`);
+      showToast("error", `Batch import failed: ${e}`);
     } finally {
       setIsImporting(false);
     }
@@ -191,10 +292,16 @@ export default function ImportReview() {
 
   return (
     <div className="flex flex-col h-full bg-surface-container-lowest relative overflow-hidden animate-fade-in">
-      {toastMessage && createPortal(
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl border border-error/30 bg-error-container px-4 py-3 text-on-error-container shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
-          <span className="material-symbols-outlined text-error" style={{ fontSize: 18 }}>error</span>
-          <p className="text-xs font-bold">{toastMessage}</p>
+      {toast && createPortal(
+        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+          toast.type === "success"
+            ? "border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] text-[#002F87] dark:text-[#b4c5ff]"
+            : "border border-error/30 bg-error-container text-on-error-container"
+        } ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+          <span className={`material-symbols-outlined ${toast.type === "success" ? "text-primary dark:text-[#b4c5ff]" : "text-error"}`} style={{ fontSize: 18 }}>
+            {toast.type === "success" ? "info" : "error"}
+          </span>
+          <p className="text-xs font-bold">{toast.message}</p>
         </div>,
         document.body
       )}
@@ -329,7 +436,7 @@ export default function ImportReview() {
 
                         {/* Incident Date */}
                         <td className="py-2.5 px-4 font-data-mono text-sm">
-                          {row.date}
+                          {formatDateToMMDDYY(row.date)}
                         </td>
 
                         {/* Case Type */}
@@ -426,7 +533,7 @@ export default function ImportReview() {
                                     <div className="text-on-surface-variant font-medium">Grade/Section:</div>
                                     <div className="col-span-2 font-semibold">{row.level} - {row.section}</div>
                                     <div className="text-on-surface-variant font-medium">Date:</div>
-                                    <div className="col-span-2 font-semibold font-data-mono">{row.date}</div>
+                                    <div className="col-span-2 font-semibold font-data-mono">{formatDateToMMDDYY(row.date)}</div>
                                     <div className="text-on-surface-variant font-medium">Adviser:</div>
                                     <div className="col-span-2 font-semibold">{row.adviser}</div>
                                     <div className="text-on-surface-variant font-medium">Case Type:</div>
@@ -458,7 +565,7 @@ export default function ImportReview() {
                                             {firstStudent.level || ""} {firstStudent.section ? `- ${firstStudent.section}` : ""}
                                           </div>
                                           <div className="text-on-surface-variant font-medium">Date:</div>
-                                          <div className="col-span-2 font-semibold font-data-mono">{row.existing_case.date}</div>
+                                          <div className="col-span-2 font-semibold font-data-mono">{formatDateToMMDDYY(row.existing_case.date)}</div>
                                           <div className="text-on-surface-variant font-medium">Adviser:</div>
                                           <div className="col-span-2 font-semibold">{firstStudent.adviser || "None"}</div>
                                           <div className="text-on-surface-variant font-medium">Case Type:</div>
@@ -527,70 +634,36 @@ export default function ImportReview() {
               {/* Form grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">id</label>
-                  <input
-                    type="text"
-                    value={editData.id}
-                    onChange={e => handleEditChange("id", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">date_filed</label>
-                  <input
-                    type="text"
-                    value={editData.date_filed}
-                    onChange={e => handleEditChange("date_filed", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">first_name</label>
-                  <input
-                    type="text"
-                    value={editData.first_name}
-                    onChange={e => handleEditChange("first_name", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">last_name</label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">last name</label>
                   <input
                     type="text"
                     value={editData.last_name}
-                    onChange={e => handleEditChange("last_name", e.target.value)}
+                    onChange={e => handleEditChange("last_name", autoCapitalize(e.target.value))}
+                    onBlur={() => handleEditChange("last_name", capitalizeWords(editData.last_name))}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">middle_initial</label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">first name</label>
+                  <input
+                    type="text"
+                    value={editData.first_name}
+                    onChange={e => handleEditChange("first_name", autoCapitalize(e.target.value))}
+                    onBlur={() => handleEditChange("first_name", capitalizeWords(editData.first_name))}
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">middle initial</label>
                   <input
                     type="text"
                     value={editData.middle_initial}
-                    onChange={e => handleEditChange("middle_initial", e.target.value)}
+                    onChange={e => handleEditChange("middle_initial", normalizeMiddleInitial(e.target.value))}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">level</label>
-                  <input
-                    type="text"
-                    value={editData.level}
-                    onChange={e => handleEditChange("level", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">section</label>
-                  <input
-                    type="text"
-                    value={editData.section}
-                    onChange={e => handleEditChange("section", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">date</label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">date of incident (mm/dd/yy)</label>
                   <input
                     type="text"
                     value={editData.date}
@@ -599,65 +672,119 @@ export default function ImportReview() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">adviser</label>
-                  <input
-                    type="text"
-                    value={editData.adviser}
-                    onChange={e => handleEditChange("adviser", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">case</label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">case type</label>
                   <input
                     type="text"
                     value={editData.case}
-                    onChange={e => handleEditChange("case", e.target.value)}
+                    onChange={e => handleEditChange("case", autoCapitalize(e.target.value))}
+                    onBlur={() => handleEditChange("case", capitalizeWords(editData.case))}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">progress</label>
-                  <input
-                    type="text"
-                    value={editData.progress}
-                    onChange={e => handleEditChange("progress", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">description</label>
-                  <textarea
-                    rows={3}
-                    value={editData.description}
-                    onChange={e => handleEditChange("description", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary resize-y"
-                  />
-                </div>
-                <div className="md:col-span-2">
                   <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">sanction</label>
                   <input
                     type="text"
                     value={editData.sanction}
-                    onChange={e => handleEditChange("sanction", e.target.value)}
+                    maxLength={250}
+                    onChange={e => handleEditChange("sanction", e.target.value.slice(0, 250))}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
                   />
+                  <p className="mt-0.5 text-right text-[9px] font-medium text-secondary">
+                    {(editData.sanction || "").length}/250
+                  </p>
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">proofs</label>
-                  <textarea
-                    rows={3}
-                    value={editData.proofs}
-                    onChange={e => handleEditChange("proofs", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono resize-y"
-                  />
+                <div ref={progressDropdownRef} className="relative">
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">progress</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsProgressDropdownOpen((open) => !open)}
+                    className={`group flex h-[38px] w-full items-center gap-2 rounded-lg border bg-surface dark:bg-surface-container px-3 text-left text-sm transition-all duration-300 ease-out ${isProgressDropdownOpen
+                        ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
+                        : "border-gray-300 dark:border-outline-variant hover:border-primary/60 hover:bg-surface-container"
+                      }`}
+                  >
+                    <span className="material-symbols-outlined text-secondary dark:text-on-surface-variant transition-colors duration-300 group-hover:text-primary" style={{ fontSize: 16 }}>filter_list</span>
+                    <span className="min-w-0 flex-1 truncate font-medium text-gray-700 dark:text-on-surface">
+                      {editData.progress || "Select progress"}
+                    </span>
+                    <span
+                      className={`material-symbols-outlined text-secondary dark:text-on-surface-variant transition-transform duration-300 ${isProgressDropdownOpen ? "rotate-180" : "rotate-0"
+                        }`}
+                      style={{ fontSize: 18 }}
+                    >
+                      expand_more
+                    </span>
+                  </button>
+
+                  {isProgressDropdownOpen && (
+                    <div className="absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-xl border border-gray-300 dark:border-outline-variant bg-white dark:bg-surface-container p-1.5 shadow-lg filter-dropdown-enter">
+                      {PROGRESS_OPTIONS.map((status) => {
+                        const isSelected = editData.progress === status;
+                        return (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => {
+                              handleEditChange("progress", status);
+                              setIsProgressDropdownOpen(false);
+                            }}
+                            className={`group/status flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-300 ${isSelected
+                                ? "bg-[#EEEDFE] dark:bg-primary/20 text-[#3C3489] dark:text-primary"
+                                : "text-gray-700 dark:text-on-surface hover:bg-gray-100 dark:hover:bg-surface-container-high"
+                              }`}
+                          >
+                            <span className={`h-2 w-2 rounded-full transition-colors duration-300 ${status === "Pending" ? "bg-[#f59e0b]" :
+                                status === "Resolved" ? "bg-[#22c55e]" :
+                                  status === "Closed" ? "bg-[#9ca3af]" :
+                                    status === "Reprimand" ? "bg-[#ef4444]" :
+                                      "bg-[#7B6FE8]"
+                              }`} />
+                            <span className="flex-1 font-medium">{status}</span>
+                            {isSelected && (
+                              <span className="material-symbols-outlined text-[#7B6FE8] dark:text-primary" style={{ fontSize: 16 }}>check</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">case title</label>
+                <div>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">grade</label>
                   <input
                     type="text"
-                    value={editData.title}
-                    onChange={e => handleEditChange("title", e.target.value)}
+                    list="grade-level-options"
+                    value={editData.level}
+                    onChange={e => handleEditChange("level", e.target.value)}
+                    onBlur={() => handleEditChange("level", normalizeGradeLevel(editData.level))}
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                  />
+                  <datalist id="grade-level-options">
+                    {GRADE_LEVEL_OPTIONS.map(opt => <option key={opt} value={opt} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">section</label>
+                  <input
+                    type="text"
+                    list="section-options"
+                    value={editData.section}
+                    onChange={e => handleEditChange("section", e.target.value)}
+                    onBlur={() => handleEditChange("section", normalizeSection(editData.section))}
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                  />
+                  <datalist id="section-options">
+                    {SECTION_OPTIONS.map(opt => <option key={opt} value={opt} />)}
+                  </datalist>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">adviser</label>
+                  <input
+                    type="text"
+                    value={editData.adviser}
+                    onChange={e => handleEditChange("adviser", autoCapitalize(e.target.value))}
+                    onBlur={() => handleEditChange("adviser", capitalizeWords(editData.adviser))}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
                   />
                 </div>

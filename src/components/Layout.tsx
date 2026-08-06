@@ -67,8 +67,8 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
         onCaseFiled={() => showSuccessToast("Case filed successfully.")}
       />
       {successToastMessage && createPortal(
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl border border-green-500/30 bg-green-50 px-4 py-3 text-green-900 shadow-xl ${isSuccessToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
-          <span className="material-symbols-outlined text-green-600" style={{ fontSize: 18 }}>check_circle</span>
+        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] px-4 py-3 text-[#002F87] dark:text-[#b4c5ff] shadow-xl ${isSuccessToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+          <span className="material-symbols-outlined text-primary dark:text-[#b4c5ff]" style={{ fontSize: 18 }}>info</span>
           <p className="text-xs font-bold">{successToastMessage}</p>
         </div>,
         document.body

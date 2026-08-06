@@ -116,6 +116,22 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
           <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
             }`}>Settings</span>
         </Link>
+        
+        <button
+          onClick={() => window.location.reload()}
+          title={isCollapsed ? "Sign Out" : undefined}
+          className={`relative z-10 flex items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 w-full text-left group ${isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
+            } text-secondary dark:text-secondary-fixed-dim hover:text-error dark:hover:text-[#ffb4ab]`}
+        >
+          <span
+            className="material-symbols-outlined shrink-0 transition-[font-variation-settings] duration-300 group-hover:[font-variation-settings:'FILL'_1]"
+            style={{ fontVariationSettings: `'FILL' 0` }}
+          >
+            logout
+          </span>
+          <span className={`font-body-md text-body-md font-medium whitespace-nowrap overflow-hidden transition-[opacity,width,transform] duration-300 ${isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
+            }`}>Sign Out</span>
+        </button>
       </div>
     </nav>
   );
