@@ -636,7 +636,9 @@ export default function CaseDetails() {
   // Handle Save Edits
   const handleSaveEdits = async () => {
     if (!caseRecord) return;
-    const date = editForm.date > getTodayDateString() ? getTodayDateString() : editForm.date;
+    const parsedDate = new Date(editForm.date);
+    const isFuture = !Number.isNaN(parsedDate.getTime()) && parsedDate > new Date();
+    const date = isFuture ? getTodayDateString() : editForm.date;
     const normalizedStudents = editForm.students.map(normalizeStudent);
     const normalizedTitle = caseRecord.group_id ? capitalizeWords(editForm.title).slice(0, CASE_TITLE_LIMIT) : "";
     const diffs: Array<{ label: string; oldVal: string; newVal: string }> = [];
@@ -891,7 +893,7 @@ export default function CaseDetails() {
 
             {isEditing ? (
               editRespondents.map(({ student, index: idx }) => (
-                <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
+                <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
                     <div className="flex gap-2">
@@ -921,19 +923,6 @@ export default function CaseDetails() {
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-16"
                       />
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
-                    <select
-                      value={student.role}
-                      onChange={(e) => handleEditStudentChange(idx, "role", e.target.value)}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
-                    >
-                      <option value="" disabled>Select a role</option>
-                      {ROLE_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Level</label>

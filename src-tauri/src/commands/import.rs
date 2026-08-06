@@ -8,21 +8,17 @@ use crate::db::DbState;
 use crate::models::{CaseRecord, ImportRow, CasePayload};
 use super::db_error;
 
-const DB_IMPORT_HEADERS: [&str; 14] = [
-    "First Name",
+const DB_IMPORT_HEADERS: [&str; 10] = [
     "Last Name",
-    "Middle Name",
-    "Grade Level",
-    "Section",
-    "Incident Date",
-    "Date Filed",
-    "Adviser",
+    "First Name",
+    "Middle Initial",
+    "Date of Incident (mm/dd/yyyy)",
     "Case Type",
-    "Description",
     "Sanction",
     "Progress",
-    "Proofs",
-    "Title",
+    "Grade",
+    "Section",
+    "Adviser",
 ];
 
 
@@ -51,7 +47,7 @@ fn cell_to_date_string(cell: Option<&calamine::Data>) -> String {
     match cell {
         Some(cell) => {
             if let Some(dt) = cell.as_date() {
-                dt.format("%Y-%m-%d").to_string()
+                dt.format("%m/%d/%y").to_string()
             } else {
                 cell.to_string().trim().to_string()
             }
@@ -102,20 +98,20 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
 
         let mut import_row = ImportRow {
             id: String::new(),
-            first_name: cell_to_db_string(row.first()),
-            last_name: cell_to_db_string(row.get(1)),
+            last_name: cell_to_db_string(row.first()),
+            first_name: cell_to_db_string(row.get(1)),
             middle_initial: cell_to_db_string(row.get(2)),
-            level: cell_to_db_string(row.get(3)),
-            section: cell_to_db_string(row.get(4)),
-            date: cell_to_date_string(row.get(5)),
-            date_filed: cell_to_date_string(row.get(6)),
-            adviser: cell_to_db_string(row.get(7)),
-            case: cell_to_db_string(row.get(8)),
-            description: cell_to_db_string(row.get(9)),
-            sanction: cell_to_db_string(row.get(10)),
-            progress: cell_to_db_string(row.get(11)),
-            proofs: cell_to_db_string(row.get(12)),
-            title: cell_to_db_string(row.get(13)),
+            date: cell_to_date_string(row.get(3)),
+            r#case: cell_to_db_string(row.get(4)),
+            sanction: cell_to_db_string(row.get(5)),
+            progress: cell_to_db_string(row.get(6)),
+            level: cell_to_db_string(row.get(7)),
+            section: cell_to_db_string(row.get(8)),
+            adviser: cell_to_db_string(row.get(9)),
+            date_filed: String::new(),
+            description: String::new(),
+            proofs: String::from("[]"),
+            title: String::new(),
             students: String::new(),
             is_duplicate: false,
             existing_case: None,
@@ -124,45 +120,23 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
             school_year: None,
         };
 
-        // Construct students JSON array dynamically
-        let fnames: Vec<&str> = import_row.first_name.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
-        let lnames: Vec<&str> = import_row.last_name.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
-        let mnames: Vec<&str> = import_row.middle_initial.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
-
-        let mut student_list = Vec::new();
-        let max_len = fnames.len().max(lnames.len()).max(mnames.len());
-        for index in 0..max_len {
-            let fn_val = fnames.get(index).copied().unwrap_or("").to_string();
-            let ln_val = lnames.get(index).copied().unwrap_or("").to_string();
-            let mn_val = mnames.get(index).copied().unwrap_or("").to_string();
-            
-            student_list.push(serde_json::json!({
-                "firstName": fn_val,
-                "lastName": ln_val,
-                "middleInitial": mn_val,
-                "level": import_row.level,
-                "section": import_row.section,
-                "adviser": import_row.adviser,
-                "role": "Respondent"
-            }));
-        }
-        import_row.students = serde_json::to_string(&student_list).unwrap_or_else(|_| "[]".to_string());
+        // Students JSON is dynamically constructed during `import_row.validate()`
 
         import_row.validate(&connection);
 
         if !import_row.is_duplicate && !import_row.has_errors {
-            let key_fn = import_row.first_name.trim().to_lowercase();
-            let key_ln = import_row.last_name.trim().to_lowercase();
-            let key_date = import_row.date.trim().to_lowercase();
-            let key_case = import_row.case.trim().to_lowercase();
-
-            if !key_fn.is_empty() && !key_ln.is_empty() && !key_date.is_empty() && !key_case.is_empty() {
-                let found_prev = result_rows.iter().find(|prev: &&ImportRow| {
-                    prev.first_name.trim().to_lowercase() == key_fn
-                        && prev.last_name.trim().to_lowercase() == key_ln
-                        && prev.date.trim().to_lowercase() == key_date
-                        && prev.case.trim().to_lowercase() == key_case
-                });
+            let found_prev = result_rows.iter().find(|prev: &&ImportRow| {
+                prev.first_name.trim().to_lowercase() == import_row.first_name.trim().to_lowercase()
+                    && prev.last_name.trim().to_lowercase() == import_row.last_name.trim().to_lowercase()
+                    && prev.middle_initial.trim().to_lowercase() == import_row.middle_initial.trim().to_lowercase()
+                    && prev.level.trim().to_lowercase() == import_row.level.trim().to_lowercase()
+                    && prev.section.trim().to_lowercase() == import_row.section.trim().to_lowercase()
+                    && prev.date.trim().to_lowercase() == import_row.date.trim().to_lowercase()
+                    && prev.adviser.trim().to_lowercase() == import_row.adviser.trim().to_lowercase()
+                    && prev.case.trim().to_lowercase() == import_row.case.trim().to_lowercase()
+                    && prev.sanction.trim().to_lowercase() == import_row.sanction.trim().to_lowercase()
+                    && prev.progress.trim().to_lowercase() == import_row.progress.trim().to_lowercase()
+            });
 
                 if let Some(prev) = found_prev {
                     import_row.is_duplicate = true;
@@ -189,7 +163,6 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
                         school_year: prev.school_year.clone().unwrap_or_default(),
                     });
                 }
-            }
         }
 
         if import_row.has_errors {
@@ -288,7 +261,7 @@ pub fn generate_import_template(app: tauri::AppHandle) -> Result<String, String>
         .set_font_color("#FFFFFF")
         .set_background_color("#002F87");
 
-    let column_widths = [18.0, 18.0, 18.0, 16.0, 16.0, 16.0, 22.0, 22.0, 28.0, 42.0, 28.0, 18.0, 48.0, 28.0];
+    let column_widths = [18.0, 18.0, 18.0, 26.0, 16.0, 28.0, 16.0, 16.0, 16.0, 22.0];
 
     for (col, header) in DB_IMPORT_HEADERS.iter().enumerate() {
         worksheet.write_string_with_format(0, col as u16, *header, &header_format).map_err(|e| e.to_string())?;

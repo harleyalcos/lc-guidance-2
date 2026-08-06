@@ -1,11 +1,10 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
 import ExcelJS from "exceljs";
 import ImportExcelModal from "../components/ImportExcelModal";
-import SchoolYearSelector from "../components/SchoolYearSelector";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
 import { useSchoolYears } from "../hooks/useSchoolYears";
@@ -274,6 +273,7 @@ interface CaseGroup {
 
 export default function CaseCatalog() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -493,6 +493,13 @@ export default function CaseCatalog() {
   }, []);
 
   useEffect(() => {
+    if (location.state && (location.state as any).toastMessage) {
+      showToast((location.state as any).toastMessage);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
         setIsStatusDropdownOpen(false);
@@ -561,27 +568,32 @@ export default function CaseCatalog() {
   const filteredAndSortedGroups = useMemo(() => {
     let result = displayCases;
 
-    // Search query filter (search Case ID or Name or case type)
+    // Search query filter (search Name or Case Type only)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter((c) => {
-        const idStr = `#${c.id.toString().padStart(4, "0")}`;
         const students = parseStudents(c.students);
-        const matchesStudent = students.some(s => {
-          const nameStr = `${s.firstName} ${s.middleInitial} ${s.lastName}`.toLowerCase();
-          return s.firstName.toLowerCase().includes(q) ||
-            s.lastName.toLowerCase().includes(q) ||
-            s.middleInitial.toLowerCase().includes(q) ||
-            nameStr.includes(q) ||
-            (s.adviser && s.adviser.toLowerCase().includes(q));
-        });
+        let matchesName = false;
+        
+        if (students.length > 0) {
+          matchesName = students.some(s => {
+            const fullName = `${s.firstName} ${s.middleInitial} ${s.lastName}`.toLowerCase();
+            return s.firstName.toLowerCase().includes(q) ||
+              s.lastName.toLowerCase().includes(q) ||
+              s.middleInitial.toLowerCase().includes(q) ||
+              fullName.includes(q);
+          });
+        } else {
+          const fullName = `${c.first_name} ${c.middle_initial} ${c.last_name}`.toLowerCase();
+          matchesName = c.first_name.toLowerCase().includes(q) ||
+            c.last_name.toLowerCase().includes(q) ||
+            c.middle_initial.toLowerCase().includes(q) ||
+            fullName.includes(q);
+        }
 
-        return (
-          idStr.toLowerCase().includes(q) ||
-          c.case.toLowerCase().includes(q) ||
-          (c.title && c.title.toLowerCase().includes(q)) ||
-          matchesStudent
-        );
+        const matchesCaseType = c.case.toLowerCase().includes(q);
+
+        return matchesName || matchesCaseType;
       });
     }
 
@@ -1021,8 +1033,8 @@ export default function CaseCatalog() {
   return (
     <>
       {toastMessage && createPortal(
-        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-error/30 bg-error-container px-4 py-3 text-on-error-container shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
-          <span className="material-symbols-outlined text-error" style={{ fontSize: 18 }}>error</span>
+        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] px-4 py-3 text-[#002F87] dark:text-[#b4c5ff] shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+          <span className="material-symbols-outlined text-primary dark:text-[#b4c5ff]" style={{ fontSize: 18 }}>info</span>
           <p className="text-xs font-bold">{toastMessage}</p>
         </div>,
         document.body
@@ -1060,11 +1072,11 @@ export default function CaseCatalog() {
       <div className="bg-surface px-4 py-4 border border-outline-variant rounded-xl shadow-sm w-full flex flex-col gap-3">
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           {/* Search Input */}
-          <div className="relative flex-grow">
+          <div className="relative flex-grow md:max-w-md">
             <span className="material-symbols-outlined text-secondary absolute left-3 top-1/2 -translate-y-1/2" style={{ fontSize: '18px' }}>search</span>
             <input
               type="text"
-              placeholder="Search by Case ID, Name, or Case Type"
+              placeholder="Search by Name or Case Type"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-8 h-10 bg-surface border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-on-surface placeholder:text-on-surface-variant/70"
@@ -1137,15 +1149,11 @@ export default function CaseCatalog() {
               )}
             </div>
 
-            <SchoolYearSelector
-              allYears={allYears}
-              selectedYear={selectedSchoolYear}
-              onSelectYear={setSelectedSchoolYear}
-              isLoading={isYearsLoading}
-            />
-
             <AcademicMonthRangePicker
+              allYears={allYears}
               schoolYear={selectedSchoolYear}
+              onSelectSchoolYear={setSelectedSchoolYear}
+              isLoadingYears={isYearsLoading}
               startDate={startDate}
               endDate={endDate}
               placeholder="Pick range"

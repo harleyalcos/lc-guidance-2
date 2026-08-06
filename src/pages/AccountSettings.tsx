@@ -480,11 +480,11 @@ export default function AccountSettings() {
       {toast && createPortal(
         <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
           toast.type === "success"
-            ? "border border-green-500/30 bg-green-50 text-green-900"
+            ? "border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] text-[#002F87] dark:text-[#b4c5ff]"
             : "border border-error/30 bg-error-container text-on-error-container"
         } ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
-          <span className={`material-symbols-outlined ${toast.type === "success" ? "text-green-600" : "text-error"}`} style={{ fontSize: 18 }}>
-            {toast.type === "success" ? "check_circle" : "error"}
+          <span className={`material-symbols-outlined ${toast.type === "success" ? "text-primary dark:text-[#b4c5ff]" : "text-error"}`} style={{ fontSize: 18 }}>
+            {toast.type === "success" ? "info" : "error"}
           </span>
           <p className="text-xs font-bold">{toast.message}</p>
         </div>,
@@ -877,33 +877,6 @@ export default function AccountSettings() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <h2 className="micro-label">Academic Year Management</h2>
-          <div className="h-px flex-1 bg-outline-variant" />
-        </div>
-        <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-            <h3 className="section-header-h2 mb-0">
-              Academic Year
-            </h3>
-            <p className="text-xs text-secondary mt-1">Start a new academic year to keep cases organized.</p>
-          </div>
-          <div className="p-6 flex flex-col sm:flex-row gap-4 items-center">
-            <div className="flex-1">
-              <p className="text-sm text-on-surface font-medium">Current Active Year: {currentYear}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowSchoolYearModal(true)}
-              className="btn-primary"
-            >
-              <span className="material-symbols-outlined text-[18px]">add_circle</span>
-              <span>Start New School Year</span>
-            </button>
-          </div>
-        </div>
-      </section>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">

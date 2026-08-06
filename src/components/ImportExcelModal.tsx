@@ -16,7 +16,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
   const [isVisible, setIsVisible] = useState(isOpen);
   const [isClosing, setIsClosing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [toastMessage, setToastMessage] = useState("");
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
   const navigate = useNavigate();
@@ -43,14 +43,14 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
     };
   }, []);
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
     setIsToastVisible(false);
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     window.requestAnimationFrame(() => setIsToastVisible(true));
     toastTimerRef.current = window.setTimeout(() => {
       setIsToastVisible(false);
-      window.setTimeout(() => setToastMessage(""), 1000);
+      window.setTimeout(() => setToast(null), 1000);
     }, 2800);
   };
 
@@ -71,9 +71,9 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
     try {
       setIsLoading(true);
       await invoke<string>("generate_import_template");
-      showToast("Template saved to your Downloads folder!");
+      showToast("success", "Template saved to your Downloads folder!");
     } catch (e) {
-      showToast(`Failed to generate template: ${e}`);
+      showToast("error", `Failed to generate template: ${e}`);
     } finally {
       setIsLoading(false);
     }
@@ -101,7 +101,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
       });
 
     } catch (e) {
-      showToast(`Failed to parse file: ${e}`);
+      showToast("error", `Failed to parse file: ${e}`);
     } finally {
       setIsLoading(false);
     }
@@ -109,10 +109,16 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
 
   return createPortal(
     <>
-      {toastMessage && (
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl border border-error/30 bg-error-container px-4 py-3 text-on-error-container shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
-          <span className="material-symbols-outlined text-error" style={{ fontSize: 18 }}>error</span>
-          <p className="text-xs font-bold">{toastMessage}</p>
+      {toast && (
+        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+          toast.type === "success"
+            ? "border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] text-[#002F87] dark:text-[#b4c5ff]"
+            : "border border-error/30 bg-error-container text-on-error-container"
+        } ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+          <span className={`material-symbols-outlined ${toast.type === "success" ? "text-primary dark:text-[#b4c5ff]" : "text-error"}`} style={{ fontSize: 18 }}>
+            {toast.type === "success" ? "info" : "error"}
+          </span>
+          <p className="text-xs font-bold">{toast.message}</p>
         </div>
       )}
 
@@ -152,7 +158,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
                   <table className="min-w-full divide-y divide-outline-variant text-[11px] font-mono border-collapse">
                     <thead className="bg-surface-container">
                       <tr className="divide-x divide-outline-variant/60">
-                        {["First Name", "Last Name", "Middle Name", "Grade Level", "Section", "Incident Date", "Date Filed", "Adviser", "Case Type", "Description", "Sanction", "Progress", "Proofs"].map((col) => (
+                        {["Last Name", "First Name", "Middle Initial", "Date of Incident (mm/dd/yyyy)", "Case Type", "Sanction", "Progress", "Grade", "Section", "Adviser"].map((col) => (
                           <th key={col} className="px-3 py-2 text-left font-bold text-secondary whitespace-nowrap">
                             {col}
                           </th>
@@ -161,19 +167,16 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
                     </thead>
                     <tbody>
                       <tr className="bg-surface divide-x divide-outline-variant/60 border-t border-outline-variant">
-                        <td className="px-3 py-2 text-on-surface-variant">Jane</td>
                         <td className="px-3 py-2 text-on-surface-variant">Smith</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Jane</td>
                         <td className="px-3 py-2 text-on-surface-variant">A</td>
+                        <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">06/21/2026</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Truancy</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Suspension</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Resolved</td>
                         <td className="px-3 py-2 text-on-surface-variant">Grade 11</td>
                         <td className="px-3 py-2 text-on-surface-variant">STEM</td>
-                        <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">2026-06-21</td>
-                        <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">2026-06-21</td>
-                        <td className="px-3 py-2 text-on-surface-variant">Mrs. Cruz</td>
-                        <td className="px-3 py-2 text-on-surface-variant">Truancy</td>
-                        <td className="px-3 py-2 text-on-surface-variant">Skipped...</td>
-                        <td className="px-3 py-2 text-on-surface-variant">Detention</td>
-                        <td className="px-3 py-2 text-on-surface-variant">Resolved</td>
-                        <td className="px-3 py-2 text-on-surface-variant last:border-r-0">[]</td>
+                        <td className="px-3 py-2 text-on-surface-variant last:border-r-0">Mrs. Cruz</td>
                       </tr>
                     </tbody>
                   </table>

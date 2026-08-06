@@ -147,6 +147,9 @@ export default function SummaryReports() {
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const statusDropdownRef = useRef<HTMLDivElement | null>(null);
 
+  const [isGradeDropdownOpen, setIsGradeDropdownOpen] = useState(false);
+  const gradeDropdownRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
@@ -160,6 +163,20 @@ export default function SummaryReports() {
 
     return () => document.removeEventListener("click", handleClickOutside);
   }, [isStatusDropdownOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (gradeDropdownRef.current && !gradeDropdownRef.current.contains(event.target as Node)) {
+        setIsGradeDropdownOpen(false);
+      }
+    };
+
+    if (isGradeDropdownOpen) {
+      document.addEventListener("click", handleClickOutside);
+    }
+
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [isGradeDropdownOpen]);
 
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -674,20 +691,6 @@ export default function SummaryReports() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-          <AcademicMonthRangePicker
-            allYears={allYears}
-            schoolYear={selectedSchoolYear}
-            onSelectSchoolYear={setSelectedSchoolYear}
-            isLoadingYears={isYearsLoading}
-            startDate={startDate}
-            endDate={endDate}
-            className="w-[240px]"
-            placeholder="All Records"
-            onRangeChange={(start, end) => {
-              setStartDate(start);
-              setEndDate(end);
-            }}
-          />
           <button 
             onClick={handleExportPDF}
             disabled={isExporting}
@@ -735,7 +738,7 @@ export default function SummaryReports() {
                     onChange={() => setScope("all")}
                     className="w-4 h-4 text-primary focus:ring-primary accent-primary" 
                   />
-                  <span className={`text-sm ${scope === 'all' ? 'font-medium text-primary' : 'text-gray-600 dark:text-on-surface-variant'}`}>All cases</span>
+                  <span className={`text-sm ${scope === 'all' ? 'font-medium text-primary' : 'text-gray-600 dark:text-on-surface-variant'}`}>All year levels</span>
                 </label>
                 <label className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${scope === 'specific' ? 'bg-primary/5' : 'hover:bg-gray-50 dark:hover:bg-surface-container-high'}`}>
                   <input 
@@ -750,18 +753,55 @@ export default function SummaryReports() {
                 </label>
 
                 {scope === "specific" && (
-                  <div className="pl-9 pr-2 mt-1 pb-1 animate-in fade-in slide-in-from-top-1">
+                  <div className="pl-9 pr-2 mt-2 pb-1 animate-in fade-in slide-in-from-top-1" ref={gradeDropdownRef}>
                     <div className="relative">
-                      <select
-                        value={selectedGrade}
-                        onChange={e => setSelectedGrade(e.target.value)}
-                        className="w-full appearance-none bg-white dark:bg-surface-container border border-gray-300 dark:border-outline-variant rounded-lg pl-3 pr-10 py-1.5 text-sm text-gray-700 dark:text-on-surface focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                      <button
+                        type="button"
+                        onClick={() => setIsGradeDropdownOpen((open) => !open)}
+                        className={`group flex h-[38px] w-full max-w-[220px] items-center gap-2 rounded-lg border bg-surface dark:bg-surface-container px-3 text-left text-sm transition-all duration-300 ease-out ${isGradeDropdownOpen
+                            ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
+                            : "border-gray-300 dark:border-outline-variant hover:border-primary/60 hover:bg-surface-container"
+                          }`}
                       >
-                        {["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"].map(grade => (
-                          <option key={grade} value={grade}>{grade}</option>
-                        ))}
-                      </select>
-                      <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-on-surface-variant pointer-events-none" style={{ fontSize: '18px' }}>expand_more</span>
+                        <span className="material-symbols-outlined text-secondary dark:text-on-surface-variant transition-colors duration-300 group-hover:text-primary" style={{ fontSize: 18 }}>school</span>
+                        <span className="min-w-0 flex-1 truncate font-medium text-gray-700 dark:text-on-surface">
+                          {selectedGrade}
+                        </span>
+                        <span
+                          className={`material-symbols-outlined text-secondary dark:text-on-surface-variant transition-transform duration-300 ${isGradeDropdownOpen ? "rotate-180" : "rotate-0"
+                            }`}
+                          style={{ fontSize: 18 }}
+                        >
+                          expand_more
+                        </span>
+                      </button>
+
+                      {isGradeDropdownOpen && (
+                        <div className="absolute left-0 top-full z-30 mt-2 w-full max-w-[220px] overflow-hidden rounded-xl border border-outline-variant bg-surface p-1.5 shadow-lg filter-dropdown-enter">
+                          {["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"].map((grade) => {
+                            const isSelected = selectedGrade === grade;
+                            return (
+                              <button
+                                key={grade}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedGrade(grade);
+                                  setIsGradeDropdownOpen(false);
+                                }}
+                                className={`group/grade flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-300 ${isSelected
+                                    ? "bg-[#EEEDFE] text-[#3C3489]"
+                                    : "text-on-surface hover:bg-surface-container"
+                                  }`}
+                              >
+                                <span className="flex-1 font-medium">{grade}</span>
+                                {isSelected && (
+                                  <span className="material-symbols-outlined text-[#7B6FE8]" style={{ fontSize: 16 }}>check</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

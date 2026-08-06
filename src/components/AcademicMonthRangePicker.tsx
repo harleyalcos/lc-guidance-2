@@ -262,7 +262,7 @@ export default function AcademicMonthRangePicker({
       )}
 
       {open && (
-        <div className="absolute z-30 mt-2 p-4 bg-surface border border-outline-variant rounded-xl shadow-lg w-[300px] sm:w-[320px] top-full left-0 filter-dropdown-enter">
+        <div className="absolute z-30 mt-2 p-4 bg-surface border border-outline-variant rounded-xl shadow-lg w-[300px] sm:w-[320px] top-full right-0 filter-dropdown-enter">
           {step === "year" ? (
             <div>
               <div className="text-xs font-bold text-secondary uppercase tracking-wider mb-3 px-1">
