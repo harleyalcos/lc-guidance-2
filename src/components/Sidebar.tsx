@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import lcLogo from "../assets/lc-logo.png";
 
@@ -8,6 +10,16 @@ interface SidebarProps {
 
 export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps) {
   const location = useLocation();
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [isSignOutConfirmClosing, setIsSignOutConfirmClosing] = useState(false);
+
+  const closeSignOutConfirm = () => {
+    setIsSignOutConfirmClosing(true);
+    setTimeout(() => {
+      setShowSignOutConfirm(false);
+      setIsSignOutConfirmClosing(false);
+    }, 200);
+  };
 
   const navItems = [
     { path: "/", label: "Dashboard", icon: "dashboard", activePaths: ["/"] },
@@ -118,7 +130,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
         </Link>
         
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => setShowSignOutConfirm(true)}
           title={isCollapsed ? "Sign Out" : undefined}
           className={`relative z-10 flex items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 w-full text-left group ${isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
             } text-secondary dark:text-secondary-fixed-dim hover:text-error dark:hover:text-[#ffb4ab]`}
@@ -133,6 +145,46 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
             }`}>Sign Out</span>
         </button>
       </div>
+
+      {showSignOutConfirm && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className={`absolute inset-0 bg-black/45 ${isSignOutConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+              }`}
+            style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+            onClick={closeSignOutConfirm}
+          />
+          <div className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant ${isSignOutConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}>
+            <div className="flex items-center gap-3 text-error mb-3">
+              <span className="material-symbols-outlined text-[28px]">logout</span>
+              <h3 className="text-xl font-bold">Confirm Sign Out</h3>
+            </div>
+            <p className="text-secondary text-sm mb-6 leading-relaxed">
+              Are you sure you want to sign out? You will need to enter your PIN again to access the guidance system.
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={closeSignOutConfirm}
+                className="btn-secondary flex-1 px-2 whitespace-nowrap"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+                <span>Cancel</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="btn-primary flex-1 px-2 whitespace-nowrap bg-error hover:bg-red-700 disabled:bg-error/50"
+              >
+                <span className="material-symbols-outlined text-[18px]">logout</span>
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </nav>
   );
 }
