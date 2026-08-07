@@ -7,7 +7,7 @@ import ExcelJS from "exceljs";
 import ImportExcelModal from "../components/ImportExcelModal";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
-import { useSchoolYears } from "../hooks/useSchoolYears";
+import { useAcademicYearFilter } from "../context/AcademicYearFilterContext";
 import StatCard from "../components/StatCard";
 
 import { CaseRecord, StudentInfo } from "../types";
@@ -87,7 +87,7 @@ const formatIncidentDateWithRelative = (dateStr: string) => {
   return (
     <div className="flex flex-col leading-tight py-0.5">
       <span className="font-bold text-on-surface text-[13px]">{dateFormatted}</span>
-      <span className="text-[11px] text-secondary mt-0.5">{relative.primary}</span>
+      <span className="text-[11px] text-muted mt-0.5">{relative.primary}</span>
     </div>
   );
 };
@@ -281,8 +281,7 @@ export default function CaseCatalog() {
   const [sortBy, setSortBy] = useState<"date_filed" | "date">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [statusFilter, setStatusFilter] = useState(() => sessionStorage.getItem("case_catalog_status") || "All Statuses");
-  const [startDate, setStartDate] = useState(() => sessionStorage.getItem("case_catalog_start_date") || "");
-  const [endDate, setEndDate] = useState(() => sessionStorage.getItem("case_catalog_end_date") || "");
+
   const [currentPage, setCurrentPage] = useState<number>(() => {
     const stored = sessionStorage.getItem("case_catalog_current_page");
     return stored ? Number(stored) || 1 : 1;
@@ -325,9 +324,7 @@ export default function CaseCatalog() {
   useEffect(() => {
     sessionStorage.setItem("case_catalog_search", searchQuery);
     sessionStorage.setItem("case_catalog_status", statusFilter);
-    sessionStorage.setItem("case_catalog_start_date", startDate);
-    sessionStorage.setItem("case_catalog_end_date", endDate);
-  }, [searchQuery, statusFilter, startDate, endDate]);
+  }, [searchQuery, statusFilter]);
 
   useEffect(() => {
     sessionStorage.setItem("case_catalog_current_page", String(currentPage));
@@ -446,17 +443,15 @@ export default function CaseCatalog() {
     }
   }, [isLoading]);
 
-  const { allYears, currentYear, isLoading: isYearsLoading } = useSchoolYears();
-  const [selectedSchoolYear, setSelectedSchoolYear] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isYearsLoading && selectedSchoolYear === null) {
-      const latestYear = allYears[0] || currentYear;
-      if (latestYear) {
-        setSelectedSchoolYear(latestYear);
-      }
-    }
-  }, [currentYear, allYears, isYearsLoading, selectedSchoolYear]);
+  const {
+    allYears,
+    selectedSchoolYear,
+    setSelectedSchoolYear,
+    startDate,
+    endDate,
+    setDateRange,
+    isYearsLoading,
+  } = useAcademicYearFilter();
 
   const loadCases = useCallback(async () => {
     if (isYearsLoading || selectedSchoolYear === null) return;
@@ -764,8 +759,7 @@ export default function CaseCatalog() {
   const resetFilters = () => {
     setSearchQuery("");
     setStatusFilter("All Statuses");
-    setStartDate("");
-    setEndDate("");
+    setDateRange("", "");
   };
 
   const handleDeleteCase = async () => {
@@ -1062,10 +1056,10 @@ export default function CaseCatalog() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <StatCard label="Total Cases" value={isLoading ? "..." : stats.totalCases} icon="analytics" colorClass="text-primary bg-primary/5 border-primary/10" />
-        <StatCard label="Pending Cases" value={isLoading ? "..." : stats.pendingReview} icon="pending_actions" colorClass="text-[#D9A23B] bg-[#D9A23B]/5 border-[#D9A23B]/10" />
-        <StatCard label="Resolved Cases" value={isLoading ? "..." : stats.resolvedAllTime} icon="task_alt" colorClass="text-[#15803D] bg-[#15803D]/5 border-[#15803D]/10" />
-        <StatCard label="Reprimanded Cases" value={isLoading ? "..." : stats.reprimandedCases} icon="gavel" colorClass="text-[#6B7280] bg-[#6B7280]/5 border-[#6B7280]/10" />
+        <StatCard label="Total Cases" value={isLoading ? "..." : stats.totalCases} icon="analytics" colorClass="text-primary bg-primary/5" />
+        <StatCard label="Pending Cases" value={isLoading ? "..." : stats.pendingReview} icon="pending_actions" colorClass="text-[#D9A23B] bg-[#D9A23B]/5" />
+        <StatCard label="Resolved Cases" value={isLoading ? "..." : stats.resolvedAllTime} icon="task_alt" colorClass="text-[#15803D] bg-[#15803D]/5" />
+        <StatCard label="Reprimanded Cases" value={isLoading ? "..." : stats.reprimandedCases} icon="gavel" colorClass="text-[#6B7280] bg-[#6B7280]/5" />
       </div>
 
       {/* Search & Filters System */}
@@ -1157,17 +1151,14 @@ export default function CaseCatalog() {
               startDate={startDate}
               endDate={endDate}
               placeholder="Pick range"
-              onRangeChange={(start, end) => {
-                setStartDate(start);
-                setEndDate(end);
-              }}
+              onRangeChange={(start, end) => setDateRange(start, end)}
             />
           </div>
         </div>
 
         {/* Active Filters Row */}
         {isFilterModified && (
-          <div className="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-outline-variant/40">
+          <div className="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-outline-variant">
             {searchQuery && (
               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container border border-outline-variant text-xs text-on-surface">
                 <span className="font-medium">"{searchQuery}"</span>
@@ -1195,7 +1186,7 @@ export default function CaseCatalog() {
                 <span className="font-medium">
                   {startDate ? formatIncidentDate(startDate) : "Any"} - {endDate ? formatIncidentDate(endDate) : "Any"}
                 </span>
-                <button onClick={() => { setStartDate(""); setEndDate(""); }} className="text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors duration-500">
+                <button onClick={() => setDateRange("", "")} className="text-on-surface-variant hover:text-on-surface flex items-center justify-center transition-colors duration-500">
                   <span className="material-symbols-outlined transition-colors duration-500" style={{ fontSize: '14px' }}>close</span>
                 </button>
               </div>
@@ -1208,14 +1199,14 @@ export default function CaseCatalog() {
         )}
       </div>
 
-      <div className="bg-surface border border-surface-variant rounded-lg overflow-hidden shadow-sm flex flex-col">
+      <div className="bg-surface border border-outline-variant rounded-lg overflow-hidden shadow-sm flex flex-col">
         <div ref={tableContainerRef} className="overflow-x-auto overflow-y-scroll h-[calc(100vh-310px)] min-h-[250px] [scrollbar-gutter:stable]">
           <table className="w-full text-left border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
               <tr className="bg-surface-container font-section-header text-sm text-on-surface">
-                <th className="p-table-cell-padding micro-label border-b border-surface-variant">ID</th>
+                <th className="p-table-cell-padding micro-label border-b border-outline-variant">ID</th>
                 <th
-                  className="p-table-cell-padding micro-label cursor-pointer select-none group border-b border-surface-variant hover:bg-surface-variant transition-colors"
+                  className="p-table-cell-padding micro-label cursor-pointer select-none group border-b border-outline-variant hover:bg-surface-variant transition-colors"
                   onClick={() => handleSort("date")}
                 >
                   <div className="flex items-center gap-1">
@@ -1226,23 +1217,11 @@ export default function CaseCatalog() {
                     </span>
                   </div>
                 </th>
-                <th
-                  className="p-table-cell-padding micro-label cursor-pointer select-none group border-b border-surface-variant hover:bg-surface-variant transition-colors"
-                  onClick={() => handleSort("date_filed")}
-                >
-                  <div className="flex items-center gap-1">
-                    Date Recorded
-                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${sortBy === "date_filed" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
-                      } ${sortBy === "date_filed" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
-                      arrow_upward
-                    </span>
-                  </div>
-                </th>
-                <th className="p-table-cell-padding micro-label border-b border-surface-variant">Student(s) Involved</th>
-                <th className="p-table-cell-padding micro-label border-b border-surface-variant">Case Type</th>
-                <th className="p-table-cell-padding micro-label text-center border-b border-surface-variant">Status</th>
-                <th className="p-table-cell-padding micro-label border-b border-surface-variant">Adviser</th>
-                <th className="py-1 px-4 border-b border-surface-variant"></th>
+                <th className="p-table-cell-padding micro-label border-b border-outline-variant">Student(s) Involved</th>
+                <th className="p-table-cell-padding micro-label border-b border-outline-variant">Case Type</th>
+                <th className="p-table-cell-padding micro-label text-center border-b border-outline-variant">Status</th>
+                <th className="p-table-cell-padding micro-label border-b border-outline-variant">Adviser</th>
+                <th className="py-1 px-4 border-b border-outline-variant"></th>
               </tr>
             </thead>
             {isLoading && (
@@ -1281,7 +1260,7 @@ export default function CaseCatalog() {
               if (isCollapsible) {
                 const rep = group.cases[0];
                 const aggregateStatus = getAggregateStatusInfo(group.cases);
-                const headerBorderB = isExpanded ? "border-b border-b-surface-variant/40" : "border-b border-b-surface-variant";
+                const headerBorderB = "border-b border-outline-variant";
 
                 return (
                   <tbody key={group.groupId!} className="font-body-md text-sm text-on-surface">
@@ -1340,7 +1319,7 @@ export default function CaseCatalog() {
                     </tr>
                     {showSubRows && group.cases.map((caseRecord, subIndex) => {
                       const isLastSubRow = subIndex === group.cases.length - 1;
-                      const subBorderClass = isLastSubRow ? "border-b border-b-surface-variant" : "border-b border-b-surface-variant/40";
+                      const subBorderClass = "border-b border-outline-variant";
                       const animClass = isCollapsing ? "group-row-collapse" : "group-row-expand";
                       const delay = isCollapsing
                         ? (group.cases.length - 1 - subIndex) * 20
@@ -1389,7 +1368,7 @@ export default function CaseCatalog() {
                           </td>
                           <td className={`p-table-cell-padding transition-colors duration-300 text-center bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
                             <div className="td-inner flex justify-center items-center">
-                              <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>
+                              <span className={`${getBadgeClass(caseRecord.progress)} px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>
                             </div>
                           </td>
                           <td className={`p-table-cell-padding transition-colors duration-300 text-on-surface-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
@@ -1433,10 +1412,8 @@ export default function CaseCatalog() {
                   const isFirstInGroup = index === 0;
                   const groupLength = group.cases.length;
                   const isGrouped = groupLength > 1;
-                  const borderClass = isGrouped
-                    ? (index === groupLength - 1 ? "border-b border-b-surface-variant" : "border-b border-b-surface-variant/40")
-                    : "border-b border-b-surface-variant/50";
-                  const groupBorderClass = isGrouped ? "border-b border-b-surface-variant" : "border-b border-b-surface-variant/50";
+                  const borderClass = "border-b border-outline-variant";
+                  const groupBorderClass = "border-b border-outline-variant";
 
                   return (
                     <tr
@@ -1482,7 +1459,7 @@ export default function CaseCatalog() {
                               <span className="text-[11px] text-secondary mt-0.5 leading-tight">{caseRecord.title}</span>
                             )}
                             {isGrouped && (
-                              <div className="mt-1.5 inline-flex items-center gap-1 bg-surface border border-outline-variant/60 rounded px-1.5 py-0.5 w-fit">
+                              <div className="mt-1.5 inline-flex items-center gap-1 bg-surface border border-outline-variant rounded px-1.5 py-0.5 w-fit">
                                 <span className="material-symbols-outlined text-[12px] text-secondary">link</span>
                                 <span className="text-[10px] font-medium text-secondary">{groupLength} linked records</span>
                               </div>
@@ -1491,7 +1468,7 @@ export default function CaseCatalog() {
                         </td>
                       )}
                       <td className={`p-table-cell-padding transition-colors duration-300 text-center ${isGrouped ? "bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
-                        <span className={`${getBadgeClass(caseRecord.progress)} border px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>
+                        <span className={`${getBadgeClass(caseRecord.progress)} px-2 py-1 rounded font-label-caps text-[10px] tracking-wider uppercase inline-block min-w-[76px] text-center`}>{caseRecord.progress}</span>
                       </td>
                       <td className={`p-table-cell-padding transition-colors duration-300 text-on-surface-variant ${isGrouped ? "bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
                         {(() => {
@@ -1524,7 +1501,7 @@ export default function CaseCatalog() {
           </table>
         </div>
 
-        <div className="bg-surface border-t border-surface-variant px-4 py-3 flex items-center justify-between">
+        <div className="bg-surface border-t border-outline-variant px-4 py-3 flex items-center justify-between">
           <span className="text-sm text-on-surface-variant">
             {(() => {
               if (isLoading) return "Loading entries";

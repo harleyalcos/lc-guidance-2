@@ -143,13 +143,13 @@ export default function AcademicMonthRangePicker({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  // Clear date range when schoolYear changes
-  const prevSchoolYearRef = useRef(schoolYear);
+  // Clear date range when schoolYear changes from one non-null year to another
+  const prevSchoolYearRef = useRef<string | null>(schoolYear);
   useEffect(() => {
-    if (prevSchoolYearRef.current !== schoolYear) {
-      prevSchoolYearRef.current = schoolYear;
+    if (prevSchoolYearRef.current !== null && prevSchoolYearRef.current !== schoolYear) {
       onRangeChange("", "");
     }
+    prevSchoolYearRef.current = schoolYear;
   }, [schoolYear, onRangeChange]);
 
   const handleCellDown = useCallback((unit: DateUnit) => {
@@ -205,7 +205,7 @@ export default function AcademicMonthRangePicker({
         className={`flex items-center h-[38px] rounded-lg border text-sm transition-all duration-300 ease-in-out text-left select-none relative overflow-hidden pl-3.5 pr-8 ${
           open
             ? "bg-surface-container border-primary ring-2 ring-primary/20 shadow-sm"
-            : "bg-surface border-gray-300 dark:border-outline-variant hover:border-primary/60 hover:bg-surface-container"
+            : "bg-surface border-outline-variant hover:border-primary/60 hover:bg-surface-container"
         } ${className}`}
       >
         <div className="flex items-center gap-1.5 min-w-0 w-full">
@@ -317,7 +317,7 @@ export default function AcademicMonthRangePicker({
             </div>
           ) : (
             <div>
-              <div className="flex items-center justify-between mb-3 border-b border-outline-variant/40 pb-2.5">
+              <div className="flex items-center justify-between mb-3 border-b border-outline-variant pb-2.5">
                 <button
                   type="button"
                   onClick={() => setStep("year")}
@@ -388,7 +388,7 @@ export default function AcademicMonthRangePicker({
                 </div>
               )}
 
-              <div className="mt-3 flex flex-col gap-2 border-t border-outline-variant/40 pt-2.5">
+              <div className="mt-3 flex flex-col gap-2 border-t border-outline-variant pt-2.5">
                 <span className="text-[10px] text-secondary leading-tight">
                   Click or drag to select a range of months.
                 </span>

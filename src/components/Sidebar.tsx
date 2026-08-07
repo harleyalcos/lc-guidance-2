@@ -42,10 +42,10 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
       }`;
 
     if (isActive) {
-      return `${baseClasses} text-primary dark:text-on-primary-container font-semibold`;
+      return `${baseClasses} text-primary font-semibold`;
     }
 
-    return `${baseClasses} text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim`;
+    return `${baseClasses} text-on-surface-variant hover:text-primary`;
   };
 
   const getIconFill = (index: number) => {
@@ -53,7 +53,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
   };
 
   return (
-    <nav className={`app-sidebar-surface h-screen fixed left-0 top-0 border-r border-outline-variant dark:border-on-surface-variant flex flex-col py-stack-md z-20 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isCollapsed ? "w-[84px]" : "w-[280px]"
+    <nav className={`app-sidebar-surface h-screen fixed left-0 top-0 border-r border-outline-variant flex flex-col py-stack-md z-20 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isCollapsed ? "w-[84px]" : "w-[280px]"
       }`}>
       <button
         type="button"
@@ -72,8 +72,8 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
         <img src={lcLogo} alt="Laguna College Logo" className="w-14 h-14 object-contain shrink-0 transition-[width,height] duration-500" />
         <div className={`min-w-0 overflow-hidden transition-[opacity,width,transform] duration-300 ${isCollapsed ? "w-0 -translate-x-2 opacity-0" : "w-[160px] translate-x-0 opacity-100"
           }`}>
-          <h1 className="whitespace-nowrap text-[16px] leading-[18px] text-primary dark:text-primary-fixed-dim font-bold" style={{ fontFamily: "Georgia, serif" }}>Laguna College</h1>
-          <p className="font-label-caps text-[11px] text-secondary dark:text-secondary-fixed-dim mt-1.5 tracking-wider leading-none">GUIDANCE OFFICE</p>
+          <h1 className="whitespace-nowrap text-[16px] leading-[18px] text-primary dark:text-on-surface font-bold" style={{ fontFamily: "Georgia, serif" }}>Laguna College</h1>
+          <p className="font-label-caps text-[11px] text-muted mt-1.5 tracking-wider leading-none">GUIDANCE OFFICE</p>
         </div>
       </div>
 
@@ -105,7 +105,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
         </div>
       </div>
 
-      <div className={`relative mt-auto flex flex-col gap-1 border-t border-surface-variant pt-4 transition-[margin,padding] duration-500 ${isCollapsed ? "mx-3 px-0" : "mx-4 px-0"
+      <div className={`relative mt-auto flex flex-col gap-1 border-t border-outline-variant pt-4 transition-[margin,padding] duration-500 ${isCollapsed ? "mx-3 px-0" : "mx-4 px-0"
         }`}>
         {isProfileActive && (
           <div
@@ -117,7 +117,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
           to="/account"
           title={isCollapsed ? "Settings" : undefined}
           className={`relative z-10 flex items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 w-full text-left group ${isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
-            } ${isProfileActive ? "text-primary dark:text-on-primary-container font-semibold" : "text-secondary dark:text-secondary-fixed-dim hover:text-primary dark:hover:text-primary-fixed-dim"}`}
+            } ${isProfileActive ? "text-primary font-semibold" : "text-on-surface-variant hover:text-primary"}`}
         >
           <span
             className="material-symbols-outlined shrink-0 transition-[font-variation-settings] duration-300 group-hover:[font-variation-settings:'FILL'_1]"
@@ -133,7 +133,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
           onClick={() => setShowSignOutConfirm(true)}
           title={isCollapsed ? "Sign Out" : undefined}
           className={`relative z-10 flex items-center rounded-DEFAULT transition-[color,transform,padding] duration-500 cursor-pointer active:scale-95 w-full text-left group ${isCollapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
-            } text-secondary dark:text-secondary-fixed-dim hover:text-error dark:hover:text-[#ffb4ab]`}
+            } text-on-surface-variant hover:text-error`}
         >
           <span
             className="material-symbols-outlined shrink-0 transition-[font-variation-settings] duration-300 group-hover:[font-variation-settings:'FILL'_1]"

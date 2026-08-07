@@ -140,6 +140,8 @@ export default function ImportReview() {
     }
   }, [rows, filename]);
 
+  const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
+
   const handleDisregard = (index: number) => {
     if (window.confirm("Are you sure you want to disregard and remove this row from the import list?")) {
       const newRows = rows.filter((_, i) => i !== index);
@@ -148,6 +150,23 @@ export default function ImportReview() {
       setEditingRowIndex(null);
       showToast("success", "Row removed from import list.");
     }
+  };
+
+  const executeDeleteAll = () => {
+    const tabLabel =
+      activeTab === "issues"
+        ? "Issues"
+        : activeTab === "duplicates"
+        ? "Duplicates"
+        : "Ready to Import";
+    const indicesToRemove = new Set(currentTabRows.map((r) => r.index));
+
+    const updatedRows = rows.filter((_, idx) => !indicesToRemove.has(idx));
+    setRows(updatedRows);
+    setExpandedDuplicateIndex(null);
+    setEditingRowIndex(null);
+    setIsDeleteAllConfirmOpen(false);
+    showToast("success", `Removed all ${currentTabRows.length} row(s) from '${tabLabel}'.`);
   };
 
   const parseStudents = (studentsStr: string) => {
@@ -179,7 +198,7 @@ export default function ImportReview() {
     setEditingRowIndex(index);
     setEditData({
       ...row,
-      date: formatDateToMMDDYY(row.date)
+      full_name: row.full_name || (row.last_name ? `${row.last_name}, ${row.first_name} ${row.middle_initial}`.trim() : "")
     });
     setExpandedDuplicateIndex(null);
   };
@@ -307,7 +326,7 @@ export default function ImportReview() {
       )}
 
       {/* Header (styled exactly like layout TopAppBar) */}
-      <div className="app-topbar-surface h-16 border-b border-outline-variant dark:border-on-surface-variant flex items-center justify-between px-margin-page sticky top-0 z-20 shrink-0">
+      <div className="app-topbar-surface h-16 border-b border-outline-variant flex items-center justify-between px-margin-page sticky top-0 z-20 shrink-0">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate("/catalog")}
@@ -318,7 +337,7 @@ export default function ImportReview() {
           </button>
           <h2 className="font-serif text-lg font-semibold text-primary dark:text-primary-fixed-dim text-left flex items-center gap-2">
             Import Review
-            <span className="text-xs font-normal text-on-surface-variant bg-surface-variant/70 dark:bg-surface-variant/30 border border-outline-variant/30 px-2 py-0.5 rounded-full font-body-md">
+            <span className="text-xs font-normal text-on-surface-variant bg-surface-variant/70 dark:bg-surface-variant/30 border border-outline-variant px-2 py-0.5 rounded-full font-body-md">
               {filename}
             </span>
           </h2>
@@ -341,43 +360,63 @@ export default function ImportReview() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-outline-variant bg-surface px-6 pt-2 gap-2 shrink-0">
-        <TabButton
-          label="Issues"
-          count={issuesRows.length}
-          isActive={activeTab === "issues"}
-          onClick={() => {
-            setActiveTab("issues");
-            setExpandedDuplicateIndex(null);
-            handleEditCancel();
-          }}
-          badgeColor="text-[#C5221F] bg-[#FCE8E6] dark:text-[#ffdad6] dark:bg-[#93000a]/50"
-          activeColor="border-error text-error"
-        />
-        <TabButton
-          label="Duplicates"
-          count={duplicatesRows.length}
-          isActive={activeTab === "duplicates"}
-          onClick={() => {
-            setActiveTab("duplicates");
-            setExpandedDuplicateIndex(null);
-            handleEditCancel();
-          }}
-          badgeColor="text-[#B06000] bg-[#FEF7E0] dark:text-[#ffe0b2] dark:bg-[#e65100]/40"
-          activeColor="border-[#B06000] text-[#B06000] dark:border-[#ffb74d] dark:text-[#ffb74d]"
-        />
-        <TabButton
-          label="Ready to Import"
-          count={readyRows.length}
-          isActive={activeTab === "ready"}
-          onClick={() => {
-            setActiveTab("ready");
-            setExpandedDuplicateIndex(null);
-            handleEditCancel();
-          }}
-          badgeColor="text-[#137333] bg-[#E6F4EA] dark:text-[#a8fab3] dark:bg-[#137333]/40"
-          activeColor="border-[#137333] text-[#137333] dark:border-[#34A06A] dark:text-[#34A06A]"
-        />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-outline-variant bg-surface px-6 pt-2 gap-2 shrink-0">
+        <div className="flex gap-2">
+          <TabButton
+            label="Issues"
+            count={issuesRows.length}
+            isActive={activeTab === "issues"}
+            onClick={() => {
+              setActiveTab("issues");
+              setExpandedDuplicateIndex(null);
+              handleEditCancel();
+            }}
+            badgeColor="text-[#C5221F] bg-[#FCE8E6] dark:text-[#ffdad6] dark:bg-[#93000a]/50"
+            activeColor="border-error text-error"
+          />
+          <TabButton
+            label="Duplicates"
+            count={duplicatesRows.length}
+            isActive={activeTab === "duplicates"}
+            onClick={() => {
+              setActiveTab("duplicates");
+              setExpandedDuplicateIndex(null);
+              handleEditCancel();
+            }}
+            badgeColor="text-[#B06000] bg-[#FEF7E0] dark:text-[#ffe0b2] dark:bg-[#e65100]/40"
+            activeColor="border-[#B06000] text-[#B06000] dark:border-[#ffb74d] dark:text-[#ffb74d]"
+          />
+          <TabButton
+            label="Ready to Import"
+            count={readyRows.length}
+            isActive={activeTab === "ready"}
+            onClick={() => {
+              setActiveTab("ready");
+              setExpandedDuplicateIndex(null);
+              handleEditCancel();
+            }}
+            badgeColor="text-[#137333] bg-[#E6F4EA] dark:text-[#a8fab3] dark:bg-[#137333]/40"
+            activeColor="border-[#137333] text-[#137333] dark:border-[#34A06A] dark:text-[#34A06A]"
+          />
+        </div>
+
+        {currentTabRows.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setIsDeleteAllConfirmOpen(true)}
+            className="self-end sm:self-center mb-2 px-3 py-1.5 text-xs font-bold text-error bg-error/10 hover:bg-error/20 active:scale-95 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+            title={`Delete all rows under ${activeTab === "issues" ? "Issues" : activeTab === "duplicates" ? "Duplicates" : "Ready to Import"}`}
+          >
+            <span className="material-symbols-outlined text-[16px]">delete_sweep</span>
+            <span>
+              {activeTab === "issues"
+                ? `Delete All Issues (${issuesRows.length})`
+                : activeTab === "duplicates"
+                ? `Delete All Duplicates (${duplicatesRows.length})`
+                : `Delete All Ready (${readyRows.length})`}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Main Table Content */}
@@ -431,17 +470,17 @@ export default function ImportReview() {
 
                         {/* Student Name */}
                         <td className="py-2.5 px-4 font-semibold text-on-surface text-sm">
-                          {row.first_name} {row.last_name}
+                          {row.full_name || `${row.last_name}, ${row.first_name} ${row.middle_initial}`.trim()}
                         </td>
 
                         {/* Incident Date */}
                         <td className="py-2.5 px-4 font-data-mono text-sm">
-                          {formatDateToMMDDYY(row.date)}
+                          {row.date}
                         </td>
 
                         {/* Case Type */}
                         <td className="py-2.5 px-4 text-sm">
-                          <span className="bg-surface-variant/40 px-2 py-0.5 rounded font-medium text-on-surface-variant border border-outline-variant/30">{row.case}</span>
+                          <span className="bg-surface-variant/40 px-2 py-0.5 rounded font-medium text-on-surface-variant border border-outline-variant">{row.case}</span>
                         </td>
 
                         {/* Tab-specific Columns */}
@@ -508,7 +547,7 @@ export default function ImportReview() {
 
                       {/* Duplicate Comparison Panel Row */}
                       {activeTab === "duplicates" && expandedDuplicateIndex === index && row.existing_case && (
-                        <tr className="bg-surface-container-low/30 border-b border-outline-variant/40">
+                        <tr className="bg-surface-container-low/30 border-b border-outline-variant">
                           <td colSpan={6} className="p-4">
                             <div className="bg-surface rounded-xl border border-outline-variant p-4 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200 shadow-inner">
                               <div className="flex justify-between items-center border-b border-outline-variant pb-2 shrink-0">
@@ -545,7 +584,7 @@ export default function ImportReview() {
                                   </div>
                                 </div>
                                 {/* Right Column: Database data */}
-                                <div className="flex flex-col gap-2 p-3 bg-surface-container-low rounded-lg border border-outline-variant/30">
+                                <div className="flex flex-col gap-2 p-3 bg-surface-container-low rounded-lg border border-outline-variant">
                                   <h4 className="font-bold text-primary dark:text-primary-fixed-dim uppercase tracking-wider text-[10px] mb-0.5 font-display-title">
                                     {row.existing_case.id === 0 ? "Duplicate Entry in Excel Sheet" : `Existing Record (ID: #${String(row.existing_case.id).padStart(4, '0')})`}
                                   </h4>
@@ -633,42 +672,23 @@ export default function ImportReview() {
 
               {/* Form grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">last name</label>
+                <div className="md:col-span-2">
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">full name (Lastname, Firstname I.)</label>
                   <input
                     type="text"
-                    value={editData.last_name}
-                    onChange={e => handleEditChange("last_name", autoCapitalize(e.target.value))}
-                    onBlur={() => handleEditChange("last_name", capitalizeWords(editData.last_name))}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                    value={editData.full_name || ""}
+                    onChange={e => handleEditChange("full_name", e.target.value)}
+                    placeholder="e.g. Smith, Jane A."
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">first name</label>
-                  <input
-                    type="text"
-                    value={editData.first_name}
-                    onChange={e => handleEditChange("first_name", autoCapitalize(e.target.value))}
-                    onBlur={() => handleEditChange("first_name", capitalizeWords(editData.first_name))}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">middle initial</label>
-                  <input
-                    type="text"
-                    value={editData.middle_initial}
-                    onChange={e => handleEditChange("middle_initial", normalizeMiddleInitial(e.target.value))}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">date of incident (mm/dd/yy)</label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">date (e.g. Jun 21, 2026 or 06/21/2026)</label>
                   <input
                     type="text"
                     value={editData.date}
                     onChange={e => handleEditChange("date", e.target.value)}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary font-data-mono"
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted font-data-mono"
                   />
                 </div>
                 <div>
@@ -678,7 +698,7 @@ export default function ImportReview() {
                     value={editData.case}
                     onChange={e => handleEditChange("case", autoCapitalize(e.target.value))}
                     onBlur={() => handleEditChange("case", capitalizeWords(editData.case))}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted"
                   />
                 </div>
                 <div>
@@ -688,7 +708,7 @@ export default function ImportReview() {
                     value={editData.sanction}
                     maxLength={250}
                     onChange={e => handleEditChange("sanction", e.target.value.slice(0, 250))}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted"
                   />
                   <p className="mt-0.5 text-right text-[9px] font-medium text-secondary">
                     {(editData.sanction || "").length}/250
@@ -701,7 +721,7 @@ export default function ImportReview() {
                     onClick={() => setIsProgressDropdownOpen((open) => !open)}
                     className={`group flex h-[38px] w-full items-center gap-2 rounded-lg border bg-surface dark:bg-surface-container px-3 text-left text-sm transition-all duration-300 ease-out ${isProgressDropdownOpen
                         ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
-                        : "border-gray-300 dark:border-outline-variant hover:border-primary/60 hover:bg-surface-container"
+                        : "border-outline-variant hover:border-primary/60 hover:bg-surface-container"
                       }`}
                   >
                     <span className="material-symbols-outlined text-secondary dark:text-on-surface-variant transition-colors duration-300 group-hover:text-primary" style={{ fontSize: 16 }}>filter_list</span>
@@ -718,7 +738,7 @@ export default function ImportReview() {
                   </button>
 
                   {isProgressDropdownOpen && (
-                    <div className="absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-xl border border-gray-300 dark:border-outline-variant bg-white dark:bg-surface-container p-1.5 shadow-lg filter-dropdown-enter">
+                    <div className="absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-xl border border-outline-variant bg-surface p-1.5 shadow-lg filter-dropdown-enter">
                       {PROGRESS_OPTIONS.map((status) => {
                         const isSelected = editData.progress === status;
                         return (
@@ -758,7 +778,7 @@ export default function ImportReview() {
                     value={editData.level}
                     onChange={e => handleEditChange("level", e.target.value)}
                     onBlur={() => handleEditChange("level", normalizeGradeLevel(editData.level))}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted"
                   />
                   <datalist id="grade-level-options">
                     {GRADE_LEVEL_OPTIONS.map(opt => <option key={opt} value={opt} />)}
@@ -772,7 +792,7 @@ export default function ImportReview() {
                     value={editData.section}
                     onChange={e => handleEditChange("section", e.target.value)}
                     onBlur={() => handleEditChange("section", normalizeSection(editData.section))}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted"
                   />
                   <datalist id="section-options">
                     {SECTION_OPTIONS.map(opt => <option key={opt} value={opt} />)}
@@ -785,7 +805,7 @@ export default function ImportReview() {
                     value={editData.adviser}
                     onChange={e => handleEditChange("adviser", autoCapitalize(e.target.value))}
                     onBlur={() => handleEditChange("adviser", capitalizeWords(editData.adviser))}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:outline-primary"
+                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted"
                   />
                 </div>
 
@@ -818,6 +838,48 @@ export default function ImportReview() {
                     <span>Save & Validate</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {isDeleteAllConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm modal-backdrop-enter"
+            onClick={() => setIsDeleteAllConfirmOpen(false)}
+          />
+          <div
+            className="relative z-10 bg-surface border border-outline-variant p-6 rounded-2xl shadow-xl max-w-sm w-full modal-panel-enter text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-error/15 text-error flex items-center justify-center mb-3 mx-auto">
+              <span className="material-symbols-outlined text-[26px]">delete_sweep</span>
+            </div>
+            <h3 className="text-base font-bold text-on-surface mb-2">
+              Delete All {activeTab === "issues" ? "Issues" : activeTab === "duplicates" ? "Duplicates" : "Ready Rows"}?
+            </h3>
+            <p className="text-on-surface-variant text-xs mb-6 leading-relaxed">
+              Are you sure you want to remove all <strong className="text-on-surface">{currentTabRows.length}</strong> row(s) in the <strong>'{activeTab === "issues" ? "Issues" : activeTab === "duplicates" ? "Duplicates" : "Ready to Import"}'</strong> tab? This action cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDeleteAllConfirmOpen(false)}
+                className="btn-secondary flex-1 text-xs py-2 justify-center"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeDeleteAll}
+                className="btn-primary bg-error hover:bg-error/90 text-white flex-1 text-xs py-2 justify-center"
+              >
+                <span className="material-symbols-outlined text-[16px]">delete</span>
+                <span>Yes, Delete All</span>
               </button>
             </div>
           </div>

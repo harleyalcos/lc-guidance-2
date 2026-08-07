@@ -255,8 +255,8 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
       <div className="fixed inset-0 z-0 bg-black/40 dark:bg-black/60" />
 
       <div className="relative z-10 w-full max-w-[470px] px-4">
-        <div className="bg-surface border border-surface-variant rounded-lg shadow-2xl overflow-hidden">
-          <div className="p-8 pb-6 text-center border-b border-surface-variant/50 relative flex flex-col items-center">
+        <div className="bg-surface border border-border-subtle rounded-lg shadow-2xl overflow-hidden">
+          <div className="p-8 pb-6 text-center border-b border-border-subtle relative flex flex-col items-center">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-1 bg-primary rounded-b-md opacity-80" />
             <img src={lcLogo} alt="Laguna College Logo" className="w-20 h-20 object-contain mb-3 mt-2" />
             <h1 className="font-display-title text-primary text-3xl mb-2">Laguna College</h1>

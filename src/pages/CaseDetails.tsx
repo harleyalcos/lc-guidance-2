@@ -30,7 +30,6 @@ interface ProofItem {
 
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
-const ROLE_OPTIONS = ["Complainant / Subject", "Respondent"];
 const TEXT_FIELD_LIMIT = 250;
 const CASE_TITLE_LIMIT = 20;
 const ADVISER_LIMIT = 20;
@@ -839,15 +838,15 @@ export default function CaseDetails() {
       {/* Main Guidance Card Document */}
       <div className="case-details-document bg-[#FAF9F5] dark:bg-surface-container-low relative overflow-hidden flex flex-col mb-8 print:mb-0 print:border-0 print:shadow-none print:rounded-none border border-outline-variant rounded shadow-[0px_1px_3px_rgba(0,0,0,0.05)]">
         {/* Official document header */}
-        <div className="px-8 py-5 border-b border-outline-variant bg-white shrink-0">
+        <div className="px-8 py-5 border-b border-outline-variant bg-white dark:bg-surface-container-low shrink-0">
           <div className="grid grid-cols-[92px_1fr_92px] items-center gap-6">
-            <img src={lcOfficialLogo} alt="Laguna College Logo" className="w-[78px] h-[78px] object-contain justify-self-start" />
-            <div className="text-center text-black" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-              <h2 className="m-0 text-[18px] leading-[20px] font-black uppercase tracking-[0.02em] text-black">LAGUNA COLLEGE</h2>
-              <p className="m-0 mt-1 text-[13px] leading-[15px] font-bold text-black">San Pablo City</p>
-              <p className="m-0 mt-1 text-[23px] leading-[25px] font-black text-black">Guidance Office</p>
+            <img src={lcOfficialLogo} alt="Laguna College Logo" className="w-[78px] h-[78px] object-contain justify-self-start rounded-full" />
+            <div className="text-center text-black dark:text-on-surface" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+              <h2 className="m-0 text-[18px] leading-[20px] font-black uppercase tracking-[0.02em] text-black dark:text-on-surface">LAGUNA COLLEGE</h2>
+              <p className="m-0 mt-1 text-[13px] leading-[15px] font-bold text-black dark:text-on-surface">San Pablo City</p>
+              <p className="m-0 mt-1 text-[23px] leading-[25px] font-black text-black dark:text-on-surface">Guidance Office</p>
             </div>
-            <img src={guidanceLogo} alt="Guidance Office Logo" className="w-[78px] h-[78px] object-contain justify-self-end" />
+            <img src={guidanceLogo} alt="Guidance Office Logo" className="w-[78px] h-[78px] object-contain justify-self-end rounded-full" />
           </div>
 
           {isEditing && (
@@ -1006,7 +1005,7 @@ export default function CaseDetails() {
 
 
           {showComplainant && displayedComplainantSubjects.length > 0 && (
-            <div className="space-y-4 border-t border-outline-variant/70 pt-8">
+            <div className="space-y-4 border-t border-outline-variant pt-8">
               {displayedComplainantSubjects.map((student, idx) => (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
                   <div>
@@ -1037,7 +1036,7 @@ export default function CaseDetails() {
           )}
 
           {/* Right Column — Case Information */}
-          <div className="space-y-6 border-t border-outline-variant/70 pt-8">
+          <div className="space-y-6 border-t border-outline-variant pt-8">
             <div className="flex items-center gap-4 mb-4">
               <span className="text-base font-medium text-on-surface uppercase tracking-widest whitespace-nowrap">Case Information</span>
             </div>
@@ -1264,7 +1263,7 @@ export default function CaseDetails() {
             <span className="material-symbols-outlined text-primary text-xl">history</span>
             <span>Update History</span>
           </h3>
-          <span className="text-xs font-semibold text-secondary bg-surface-container px-2.5 py-1 rounded-full border border-outline-variant/60">
+          <span className="text-xs font-semibold text-secondary bg-surface-container px-2.5 py-1 rounded-full border border-outline-variant">
             {updateHistory.length} {updateHistory.length === 1 ? "Record" : "Records"}
           </span>
         </div>

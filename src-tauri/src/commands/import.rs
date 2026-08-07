@@ -8,15 +8,12 @@ use crate::db::DbState;
 use crate::models::{CaseRecord, ImportRow, CasePayload};
 use super::db_error;
 
-const DB_IMPORT_HEADERS: [&str; 10] = [
-    "Last Name",
-    "First Name",
-    "Middle Initial",
-    "Date of Incident (mm/dd/yyyy)",
-    "Case Type",
+const DB_IMPORT_HEADERS: [&str; 7] = [
+    "Full Name",
+    "Date",
+    "Case",
     "Sanction",
     "Progress",
-    "Grade",
     "Section",
     "Adviser",
 ];
@@ -61,26 +58,47 @@ fn cell_to_date_string(cell: Option<&calamine::Data>) -> String {
 pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result<ParseFileResult, String> {
     let connection = state.connection.lock().map_err(db_error)?;
 
-    let mut workbook = open_workbook_auto(&file_path).map_err(|e| format!("Failed to open workbook: {}", e))?;
+    let mut workbook = open_workbook_auto(&file_path)
+        .map_err(|e| format!("Invalid or corrupted file. Please ensure it is a valid Excel spreadsheet (.xlsx). Details: {}", e))?;
     
-    let sheet_name = workbook.sheet_names().first().ok_or("No sheets found in workbook")?.to_string();
-    let range = workbook.worksheet_range(&sheet_name).map_err(|e| format!("Error reading sheet: {:?}", e))?;
+    let sheet_name = workbook.sheet_names().first().ok_or("The uploaded file does not contain any sheets.")?.to_string();
+    let range = workbook.worksheet_range(&sheet_name)
+        .map_err(|e| format!("Could not read data from the sheet. Details: {:?}", e))?;
+
+    let total_rows = range.get_size().0;
+    if total_rows > 5001 {
+        return Err(format!("File is too large ({} rows). The maximum allowed limit is 5,000 rows. Please split your file.", total_rows - 1));
+    }
 
     let mut rows_iter = range.rows();
-    let header_row = rows_iter.next().ok_or("File is empty or missing headers")?;
+    let header_row = match rows_iter.next() {
+        Some(row) => row,
+        None => return Ok(ParseFileResult { rows: vec![], valid_count: 0, duplicate_count: 0, error_count: 0 }),
+    };
 
     let actual_headers: Vec<String> = header_row
         .iter()
         .map(|cell| cell.to_string().trim().to_string())
         .collect();
-    let expected_headers = DB_IMPORT_HEADERS.join(", ");
 
-    if actual_headers.len() != DB_IMPORT_HEADERS.len()
-        || actual_headers.iter().zip(DB_IMPORT_HEADERS.iter()).any(|(actual, expected)| actual != expected)
-    {
-        return Err(format!(
-            "Invalid import format. Expected exact database export headers in this order: {expected_headers}"
-        ));
+    // Collect specific header mismatches
+    let mut header_errors = Vec::new();
+    for (i, expected) in DB_IMPORT_HEADERS.iter().enumerate() {
+        if let Some(actual) = actual_headers.get(i) {
+            if actual != expected {
+                header_errors.push(format!("Column {} should be '{}' but got '{}'", i + 1, expected, actual));
+            }
+        } else {
+            header_errors.push(format!("Missing expected column '{}' at position {}", expected, i + 1));
+        }
+    }
+    
+    if actual_headers.len() > DB_IMPORT_HEADERS.len() {
+        header_errors.push(format!("Found {} extra columns at the end of the file", actual_headers.len() - DB_IMPORT_HEADERS.len()));
+    }
+
+    if !header_errors.is_empty() {
+        return Err(format!("Invalid import format.\n\n{}", header_errors.join("\n")));
     }
 
     let mut result_rows = Vec::new();
@@ -98,16 +116,17 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
 
         let mut import_row = ImportRow {
             id: String::new(),
-            last_name: cell_to_db_string(row.first()),
-            first_name: cell_to_db_string(row.get(1)),
-            middle_initial: cell_to_db_string(row.get(2)),
-            date: cell_to_date_string(row.get(3)),
-            r#case: cell_to_db_string(row.get(4)),
-            sanction: cell_to_db_string(row.get(5)),
-            progress: cell_to_db_string(row.get(6)),
-            level: cell_to_db_string(row.get(7)),
-            section: cell_to_db_string(row.get(8)),
-            adviser: cell_to_db_string(row.get(9)),
+            full_name: cell_to_db_string(row.first()),
+            last_name: String::new(),
+            first_name: String::new(),
+            middle_initial: String::new(),
+            date: cell_to_date_string(row.get(1)),
+            r#case: cell_to_db_string(row.get(2)),
+            sanction: cell_to_db_string(row.get(3)),
+            progress: cell_to_db_string(row.get(4)),
+            level: String::new(),
+            section: cell_to_db_string(row.get(5)),
+            adviser: cell_to_db_string(row.get(6)),
             date_filed: String::new(),
             description: String::new(),
             proofs: String::from("[]"),
@@ -185,9 +204,20 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
 }
 
 #[tauri::command]
-pub fn batch_import_cases(state: State<'_, DbState>, mut rows: Vec<ImportRow>) -> Result<BatchImportResult, String> {
+pub fn batch_import_cases(app: tauri::AppHandle, state: State<'_, DbState>, mut rows: Vec<ImportRow>) -> Result<BatchImportResult, String> {
     let mut connection = state.connection.lock().map_err(db_error)?;
     
+    // Create backup before import if not in debug mode
+    #[cfg(not(debug_assertions))]
+    {
+        use tauri::Manager;
+        if let (Ok(db_path), Ok(app_data_dir)) = (crate::db::get_db_path(&app), app.path().app_data_dir()) {
+            let backup_dir = app_data_dir.join("backups");
+            let _ = std::fs::create_dir_all(&backup_dir);
+            let _ = crate::db::backup::run_backup(&db_path, &backup_dir, &connection);
+        }
+    }
+
     let tx = connection.transaction().map_err(db_error)?;
 
     let mut inserted_count = 0;
@@ -261,7 +291,7 @@ pub fn generate_import_template(app: tauri::AppHandle) -> Result<String, String>
         .set_font_color("#FFFFFF")
         .set_background_color("#002F87");
 
-    let column_widths = [18.0, 18.0, 18.0, 26.0, 16.0, 28.0, 16.0, 16.0, 16.0, 22.0];
+    let column_widths = [26.0, 18.0, 22.0, 24.0, 16.0, 16.0, 22.0];
 
     for (col, header) in DB_IMPORT_HEADERS.iter().enumerate() {
         worksheet.write_string_with_format(0, col as u16, *header, &header_format).map_err(|e| e.to_string())?;

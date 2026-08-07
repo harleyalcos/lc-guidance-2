@@ -4,7 +4,7 @@ import html2pdf from "html2pdf.js";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
 import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
-import { useSchoolYears } from "../hooks/useSchoolYears";
+import { useAcademicYearFilter } from "../context/AcademicYearFilterContext";
 
 import { CaseRecord } from "../types";
 
@@ -124,8 +124,7 @@ export default function SummaryReports() {
   const [selectedGrade, setSelectedGrade] = useState("Grade 7");
 
   const [selectedStatus, setSelectedStatus] = useState<"all" | "Pending" | "Reprimand" | "Resolved" | "Closed">("all");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+
   const [includes, setIncludes] = useState({
     summary: true,
     signature: true,
@@ -180,17 +179,15 @@ export default function SummaryReports() {
 
   const reportRef = useRef<HTMLDivElement>(null);
 
-  const { allYears, currentYear, isLoading: isYearsLoading } = useSchoolYears();
-  const [selectedSchoolYear, setSelectedSchoolYear] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isYearsLoading && selectedSchoolYear === null) {
-      const latestYear = allYears[0] || currentYear;
-      if (latestYear) {
-        setSelectedSchoolYear(latestYear);
-      }
-    }
-  }, [currentYear, allYears, isYearsLoading, selectedSchoolYear]);
+  const {
+    allYears,
+    selectedSchoolYear,
+    setSelectedSchoolYear,
+    startDate,
+    endDate,
+    setDateRange,
+    isYearsLoading,
+  } = useAcademicYearFilter();
 
   useEffect(() => {
     if (isYearsLoading || selectedSchoolYear === null) return;
@@ -328,9 +325,7 @@ export default function SummaryReports() {
   const handleClearFilters = () => {
     setScope("all");
     setSelectedGrade("Grade 7");
-    setSelectedStatus("all");
-    setStartDate("");
-    setEndDate("");
+    setDateRange("", "");
     setIncludes({
       summary: true,
       signature: true,
@@ -356,13 +351,13 @@ export default function SummaryReports() {
   const renderFirstHeader = () => (
     <>
       <div className="grid grid-cols-[84px_1fr_84px] items-center gap-4 mb-4 font-sans">
-        <img src={lcOfficialLogo} alt="Laguna College Logo" className="w-[72px] h-[72px] object-contain justify-self-start" />
-        <div className="text-center text-black" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
-          <h2 className="m-0 text-[15px] leading-[18px] font-black uppercase tracking-[0.02em] text-black">LAGUNA COLLEGE</h2>
-          <p className="m-0 mt-0.5 text-[11px] leading-[13px] font-bold text-black">San Pablo City</p>
-          <p className="m-0 mt-0.5 text-[18px] leading-[21px] font-black text-black">Guidance Office</p>
+        <img src={lcOfficialLogo} alt="Laguna College Logo" className="w-[72px] h-[72px] object-contain justify-self-start rounded-full" />
+        <div className="text-center text-black dark:text-on-surface" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+          <h2 className="m-0 text-[15px] leading-[18px] font-black uppercase tracking-[0.02em] text-black dark:text-on-surface">LAGUNA COLLEGE</h2>
+          <p className="m-0 mt-0.5 text-[11px] leading-[13px] font-bold text-black dark:text-on-surface">San Pablo City</p>
+          <p className="m-0 mt-0.5 text-[18px] leading-[21px] font-black text-black dark:text-on-surface">Guidance Office</p>
         </div>
-        <img src={guidanceLogo} alt="Guidance Office Logo" className="w-[72px] h-[72px] object-contain justify-self-end" />
+        <img src={guidanceLogo} alt="Guidance Office Logo" className="w-[72px] h-[72px] object-contain justify-self-end rounded-full" />
       </div>
       
       <div className="h-0.5 w-full bg-primary mb-5"></div>
@@ -400,25 +395,25 @@ export default function SummaryReports() {
         <div className="mb-6 font-sans">
           <h3 className="text-[10px] font-bold text-primary uppercase tracking-wider mb-2 border-b pb-1">Summary</h3>
           <div className="grid grid-cols-5 gap-4">
-            <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
-              <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Total Cases</span>
-              <span className="text-base leading-5 font-bold text-gray-900">{stats.total}</span>
+            <div className="border border-border-subtle rounded-lg py-2 px-3 flex justify-between">
+              <span className="text-[9px] leading-5 text-secondary font-bold uppercase tracking-wider">Total Cases</span>
+              <span className="text-base leading-5 font-bold text-on-surface">{stats.total}</span>
             </div>
-            <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
-              <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Pending Cases</span>
-              <span className="text-base leading-5 font-bold text-gray-900">{stats.pending}</span>
+            <div className="border border-border-subtle rounded-lg py-2 px-3 flex justify-between">
+              <span className="text-[9px] leading-5 text-secondary font-bold uppercase tracking-wider">Pending Cases</span>
+              <span className="text-base leading-5 font-bold text-on-surface">{stats.pending}</span>
             </div>
-            <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
-              <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Resolved Cases</span>
-              <span className="text-base leading-5 font-bold text-gray-900">{stats.resolved}</span>
+            <div className="border border-border-subtle rounded-lg py-2 px-3 flex justify-between">
+              <span className="text-[9px] leading-5 text-secondary font-bold uppercase tracking-wider">Resolved Cases</span>
+              <span className="text-base leading-5 font-bold text-on-surface">{stats.resolved}</span>
             </div>
-            <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
-              <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Reprimand Cases</span>
-              <span className="text-base leading-5 font-bold text-gray-900">{stats.reprimand}</span>
+            <div className="border border-border-subtle rounded-lg py-2 px-3 flex justify-between">
+              <span className="text-[9px] leading-5 text-secondary font-bold uppercase tracking-wider">Reprimand Cases</span>
+              <span className="text-base leading-5 font-bold text-on-surface">{stats.reprimand}</span>
             </div>
-            <div className="border border-gray-200 rounded-lg py-2 px-3 flex justify-between">
-              <span className="text-[9px] leading-5 text-gray-500 font-bold uppercase tracking-wider">Closed Cases</span>
-              <span className="text-base leading-5 font-bold text-gray-900">{stats.closed}</span>
+            <div className="border border-border-subtle rounded-lg py-2 px-3 flex justify-between">
+              <span className="text-[9px] leading-5 text-secondary font-bold uppercase tracking-wider">Closed Cases</span>
+              <span className="text-base leading-5 font-bold text-on-surface">{stats.closed}</span>
             </div>
           </div>
         </div>
@@ -712,7 +707,7 @@ export default function SummaryReports() {
       <div className="flex flex-col gap-6">
 
         {/* Report settings on top */}
-        <div className="w-full bg-white dark:bg-surface-container border border-gray-200 dark:border-outline-variant rounded-xl p-6 shadow-sm print:hidden">
+        <div className="w-full bg-surface border border-outline-variant rounded-xl p-6 shadow-sm print:hidden">
           <div className="flex justify-between items-center mb-4">
             <h2 className="section-header-h2 mb-0">Report settings</h2>
             <button
@@ -760,7 +755,7 @@ export default function SummaryReports() {
                         onClick={() => setIsGradeDropdownOpen((open) => !open)}
                         className={`group flex h-[38px] w-full max-w-[220px] items-center gap-2 rounded-lg border bg-surface dark:bg-surface-container px-3 text-left text-sm transition-all duration-300 ease-out ${isGradeDropdownOpen
                             ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
-                            : "border-gray-300 dark:border-outline-variant hover:border-primary/60 hover:bg-surface-container"
+                            : "border-outline-variant hover:border-primary/60 hover:bg-surface-container"
                           }`}
                       >
                         <span className="material-symbols-outlined text-secondary dark:text-on-surface-variant transition-colors duration-300 group-hover:text-primary" style={{ fontSize: 18 }}>school</span>
@@ -817,7 +812,7 @@ export default function SummaryReports() {
                   onClick={() => setIsStatusDropdownOpen((open) => !open)}
                   className={`group flex h-[38px] w-full max-w-[220px] items-center gap-2 rounded-lg border bg-surface dark:bg-surface-container px-3 text-left text-sm transition-all duration-300 ease-out ${isStatusDropdownOpen
                       ? "border-primary bg-surface-container ring-2 ring-primary/20 shadow-sm"
-                      : "border-gray-300 dark:border-outline-variant hover:border-primary/60 hover:bg-surface-container"
+                      : "border-outline-variant hover:border-primary/60 hover:bg-surface-container"
                     }`}
                 >
                   <span className="material-symbols-outlined text-secondary dark:text-on-surface-variant transition-colors duration-300 group-hover:text-primary" style={{ fontSize: 16 }}>filter_list</span>
@@ -834,7 +829,7 @@ export default function SummaryReports() {
                 </button>
 
                 {isStatusDropdownOpen && (
-                  <div className="absolute left-0 top-full z-30 mt-2 w-full max-w-[220px] overflow-hidden rounded-xl border border-gray-300 dark:border-outline-variant bg-white dark:bg-surface-container p-1.5 shadow-lg filter-dropdown-enter">
+                  <div className="absolute left-0 top-full z-30 mt-2 w-full max-w-[220px] overflow-hidden rounded-xl border border-outline-variant bg-surface p-1.5 shadow-lg filter-dropdown-enter">
                     {(["all", "Pending", "Resolved", "Closed", "Reprimand"] as const).map((status) => {
                       const isSelected = selectedStatus === status;
                       return (
@@ -878,10 +873,7 @@ export default function SummaryReports() {
                   endDate={endDate}
                   className="w-full max-w-[220px]"
                   placeholder="Pick range"
-                  onRangeChange={(start, end) => {
-                    setStartDate(start);
-                    setEndDate(end);
-                  }}
+                  onRangeChange={(start, end) => setDateRange(start, end)}
                 />
               </div>
             </div>
@@ -900,7 +892,7 @@ export default function SummaryReports() {
                         type="checkbox" 
                         checked={includes[item.id as keyof typeof includes]}
                         onChange={(e) => setIncludes({...includes, [item.id]: e.target.checked})}
-                        className="peer appearance-none w-4 h-4 border border-gray-300 dark:border-outline-variant rounded bg-white dark:bg-surface-container checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer" 
+                        className="peer appearance-none w-4 h-4 border border-outline-variant rounded bg-surface checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer" 
                       />
                       <span className="material-symbols-outlined absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ fontSize: '12px', fontWeight: 'bold' }}>check</span>
                     </div>
@@ -933,7 +925,7 @@ export default function SummaryReports() {
                           ...visibleColumns,
                           [col.id]: e.target.checked
                         })}
-                        className="peer appearance-none w-4 h-4 border border-gray-300 dark:border-outline-variant rounded bg-white dark:bg-surface-container checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer" 
+                        className="peer appearance-none w-4 h-4 border border-outline-variant rounded bg-surface checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer" 
                       />
                       <span className="material-symbols-outlined absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ fontSize: '12px', fontWeight: 'bold' }}>check</span>
                     </div>

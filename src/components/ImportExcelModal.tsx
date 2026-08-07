@@ -130,7 +130,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
           onClick={() => closeWithAnimation()}
         />
         <div 
-          className={`relative z-10 bg-surface rounded-3xl w-full max-w-lg shadow-xl flex flex-col overflow-hidden ${
+          className={`relative z-10 bg-surface border border-outline-variant rounded-3xl w-full max-w-lg shadow-xl flex flex-col overflow-hidden ${
             isClosing ? "modal-panel-exit" : "modal-panel-enter"
           }`}
           onClick={(e) => e.stopPropagation()}
@@ -157,8 +157,8 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
                 <div className="overflow-x-auto border border-outline-variant rounded-xl bg-surface-container-low max-w-full">
                   <table className="min-w-full divide-y divide-outline-variant text-[11px] font-mono border-collapse">
                     <thead className="bg-surface-container">
-                      <tr className="divide-x divide-outline-variant/60">
-                        {["Last Name", "First Name", "Middle Initial", "Date of Incident (mm/dd/yyyy)", "Case Type", "Sanction", "Progress", "Grade", "Section", "Adviser"].map((col) => (
+                      <tr className="divide-x divide-outline-variant">
+                        {["Full Name", "Date", "Case", "Sanction", "Progress", "Section", "Adviser"].map((col) => (
                           <th key={col} className="px-3 py-2 text-left font-bold text-secondary whitespace-nowrap">
                             {col}
                           </th>
@@ -166,15 +166,12 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="bg-surface divide-x divide-outline-variant/60 border-t border-outline-variant">
-                        <td className="px-3 py-2 text-on-surface-variant">Smith</td>
-                        <td className="px-3 py-2 text-on-surface-variant">Jane</td>
-                        <td className="px-3 py-2 text-on-surface-variant">A</td>
-                        <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">06/21/2026</td>
+                      <tr className="bg-surface divide-x divide-outline-variant border-t border-outline-variant">
+                        <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">Smith, Jane A.</td>
+                        <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">Jun 21, 2026</td>
                         <td className="px-3 py-2 text-on-surface-variant">Truancy</td>
                         <td className="px-3 py-2 text-on-surface-variant">Suspension</td>
                         <td className="px-3 py-2 text-on-surface-variant">Resolved</td>
-                        <td className="px-3 py-2 text-on-surface-variant">Grade 11</td>
                         <td className="px-3 py-2 text-on-surface-variant">STEM</td>
                         <td className="px-3 py-2 text-on-surface-variant last:border-r-0">Mrs. Cruz</td>
                       </tr>
@@ -184,9 +181,9 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
               </div>
 
               {/* Tip alert box */}
-              <div className="bg-[#EEEDFE] border border-[#CECBF6]/60 p-3.5 rounded-xl flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-[#534AB7] shrink-0" style={{ fontSize: 18 }}>lightbulb</span>
-                <p className="text-xs text-[#3C3489] font-medium leading-relaxed">
+              <div className="bg-[#EEEDFE] dark:bg-[#1E1B4B]/50 border border-[#CECBF6]/60 dark:border-[#4338CA]/40 p-3.5 rounded-xl flex items-start gap-2.5">
+                <span className="material-symbols-outlined text-[#534AB7] dark:text-[#818CF8] shrink-0" style={{ fontSize: 18 }}>lightbulb</span>
+                <p className="text-xs text-[#3C3489] dark:text-[#C7D2FE] font-medium leading-relaxed">
                   <strong>TIP:</strong> You can easily download an empty, pre-configured file with all these headers set up by clicking the <strong>Download Template</strong> button below!
                 </p>
               </div>
