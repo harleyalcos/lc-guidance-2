@@ -537,20 +537,20 @@ export default function GuidanceAI() {
             </div>
             
             <div className="w-full max-w-3xl mx-auto flex flex-col">
-              <div className="w-full border border-gray-200 dark:border-outline-variant/60 rounded-xl overflow-hidden bg-white dark:bg-surface-container shadow-xs">
+              <div className="w-full border border-outline-variant rounded-xl overflow-hidden bg-surface shadow-xs">
                 {/* Table Header */}
-                <div className="flex items-center px-6 py-3 border-b border-gray-200 dark:border-outline-variant/40 bg-gray-50/40 dark:bg-surface-container-high/40 micro-label text-left">
+                <div className="flex items-center px-6 py-3 border-b border-outline-variant bg-surface-container-low micro-label text-left">
                   <span className="flex-1">SUGGESTED REQUESTS</span>
                 </div>
 
                 {/* Rows */}
-                <div className="grid grid-cols-1 md:grid-cols-2 bg-gray-100 dark:bg-outline-variant/30 gap-[1px]">
+                <div className="grid grid-cols-1 md:grid-cols-2 bg-outline-variant gap-[1px]">
                   {(showAllSuggestions ? SUGGESTIONS : SUGGESTIONS.slice(0, 4)).map((suggestion) => (
                     <button
                       key={suggestion.ref}
                       type="button"
                       onClick={() => handleSelectSuggestion(suggestion.prompt)}
-                      className="w-full h-full flex items-center px-6 py-4 bg-white dark:bg-surface-container hover:bg-gray-50/80 dark:hover:bg-surface-container-high/60 transition-colors text-left group cursor-pointer"
+                      className="w-full h-full flex items-center px-6 py-4 bg-surface hover:bg-surface-container transition-colors text-left group cursor-pointer"
                     >
                       <div className="flex-1 min-w-0 pr-4">
                         <div className="font-serif text-sm font-bold text-gray-900 dark:text-on-surface group-hover:text-primary transition-colors">

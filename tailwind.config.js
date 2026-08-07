@@ -31,6 +31,11 @@ export default {
         "error": "var(--color-error)",
         "error-container": "var(--color-error-container)",
         "on-error-container": "var(--color-on-error-container)",
+        "muted": "var(--color-text-muted)",
+        "disabled": "var(--color-text-disabled)",
+        "border-subtle": "var(--color-border-subtle)",
+        "border-default": "var(--color-outline)",
+        "border-strong": "var(--color-border-strong)",
 
         /* Add some specific hardcoded tokens we haven't mapped yet, to avoid compilation errors if used */
         "primary-fixed-dim": "#b4c5ff",
@@ -44,10 +49,10 @@ export default {
         "full": "9999px"
       },
       borderWidth: {
-        "DEFAULT": "2px",
+        "DEFAULT": "1px",
       },
       divideWidth: {
-        "DEFAULT": "2px",
+        "DEFAULT": "1px",
       },
       spacing: {
         "stack-md": "1rem",

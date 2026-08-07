@@ -74,28 +74,17 @@ function getPendingIndicator(dateStr: string) {
     label = `${diffDays} days pending`;
   }
 
-  let color = "";
-  let bg = "";
-  let border = "";
+  let className = "";
 
   if (diffDays >= 14) {
     // 2 weeks or more: Red
-    color = "#A32D2D";
-    bg = "#FCEBEB";
-    border = "#F7C1C1";
-  } else if (diffDays >= 6) {
-    // 6-14 days: Orange
-    color = "#C25E00";
-    bg = "#FFF3E6";
-    border = "#FFE0B2";
+    className = "badge-reprimand";
   } else {
-    // 1-5 days: Amber/Yellow
-    color = "#854F0B";
-    bg = "#FAEEDA";
-    border = "#FAC775";
+    // Less than 14 days: Amber/Yellow
+    className = "badge-pending";
   }
 
-  return { label, color, bg, border, days: diffDays };
+  return { label, className, days: diffDays };
 }
 
 function formatDate(dateStr: string) {
@@ -377,9 +366,9 @@ export default function PendingCases() {
         <div className="flex flex-1 min-h-0">
 
           {/* ── LEFT: Case list ── */}
-          <div className="w-[340px] shrink-0 border-r border-outline-variant flex flex-col bg-white dark:bg-surface-container h-full overflow-hidden">
+          <div className="w-[340px] shrink-0 border-r border-outline-variant flex flex-col bg-surface h-full overflow-hidden">
             {/* Header / Active Queue */}
-            <div className="px-5 py-4 flex items-center justify-between bg-white dark:bg-surface-container shrink-0">
+            <div className="px-5 py-4 flex items-center justify-between bg-surface shrink-0">
               <span className="text-xs font-bold tracking-widest uppercase text-secondary dark:text-slate-400">Active Queue</span>
               {cases.length > 0 && (
                 <span className="bg-[#fee2e2] text-[#b91c1c] text-[10px] font-extrabold px-2 py-0.5 rounded-full">
@@ -389,15 +378,15 @@ export default function PendingCases() {
             </div>
 
             {/* Search Input */}
-            <div className="px-4 pb-3 border-b border-outline-variant shrink-0 bg-white dark:bg-surface-container">
-              <div className="flex items-center gap-2 bg-[#FAF9F6] dark:bg-surface-container-high/40 border border-outline-variant rounded-xl px-3 py-2">
-                <span className="material-symbols-outlined text-secondary dark:text-slate-400 text-[18px]">search</span>
+            <div className="px-4 pb-3 border-b border-outline-variant shrink-0 bg-surface">
+              <div className="flex items-center gap-2 bg-surface-container border border-outline-variant rounded-xl px-3 py-2">
+                <span className="material-symbols-outlined text-secondary text-[18px]">search</span>
                 <input
                   type="text"
                   placeholder="Search active queue..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent text-xs text-on-surface dark:text-slate-200 placeholder:text-secondary focus:outline-none w-full"
+                  className="bg-transparent text-xs text-on-surface placeholder:text-muted focus:outline-none w-full"
                 />
                 {searchQuery && (
                   <button
@@ -414,7 +403,7 @@ export default function PendingCases() {
             {/* List */}
             <div
               ref={listContainerRef}
-              className="relative overflow-y-auto flex-1 flex flex-col bg-white dark:bg-surface-container"
+              className="relative overflow-y-auto flex-1 flex flex-col bg-surface"
             >
               {/* Sliding Highlight Indicator Bar */}
               <div
@@ -463,8 +452,8 @@ export default function PendingCases() {
                       data-case-id={c.id}
                       onClick={() => { setSelectedId(c.id); setConfirmState("idle"); }}
                       className={`relative z-[1] w-full text-left p-4 border-b border-outline-variant transition-all duration-300 ${isSelected
-                          ? "bg-[#0B1E43]/10"
-                          : "bg-white dark:bg-surface-container hover:bg-[#FAF9F6] dark:hover:bg-surface-container-high/40"
+                          ? "bg-primary/10"
+                          : "bg-surface hover:bg-surface-container"
                         } ${isExiting ? "case-row-exit" : ""}`}
                     >
                       <div className="flex flex-col gap-1.5 min-w-0">
@@ -480,15 +469,15 @@ export default function PendingCases() {
                           </p>
                           {indicator && (
                             <span
-                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-extrabold border shrink-0 mt-0.5 leading-none"
-                              style={{ backgroundColor: indicator.bg, color: indicator.color, borderColor: indicator.border }}
+                              className={`flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded text-[10px] font-bold border ${indicator.className}`}
+                              title={indicator.label}
                             >
                               {indicator.days === 0 ? "Today" : `${indicator.days}d`}
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-secondary dark:text-slate-400 truncate italic leading-none">{c.case}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-secondary dark:text-slate-400 font-medium">
+                        <p className="text-xs text-muted truncate italic leading-none">{c.case}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted font-medium">
                           <span>
                             {(() => {
                               const students = parseStudents(c.students);
@@ -521,20 +510,20 @@ export default function PendingCases() {
           <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-surface-container h-full overflow-hidden">
             {!selectedCase ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 px-8 text-center bg-surface dark:bg-surface-container-lowest">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-surface-container dark:bg-surface-container">
-                  <span className="material-symbols-outlined text-secondary dark:text-slate-500" style={{ fontSize: 28 }}>folder_open</span>
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-surface-container">
+                  <span className="material-symbols-outlined text-muted" style={{ fontSize: 28 }}>folder_open</span>
                 </div>
                 <p className="text-sm font-bold text-on-surface dark:text-slate-200">Select a case</p>
-                <p className="text-xs text-secondary dark:text-slate-400">Pick a case from the list to see its details and resolve it.</p>
+                <p className="text-xs text-muted">Pick a case from the list to see its details and resolve it.</p>
               </div>
             ) : (
-              <div className="flex flex-col h-full bg-white dark:bg-surface-container">
+              <div className="flex flex-col h-full bg-surface">
                 {/* Detail body */}
-                <div className="flex-1 px-8 py-6 flex flex-col gap-6 overflow-y-auto bg-white dark:bg-surface-container">
+                <div className="flex-1 px-8 py-6 flex flex-col gap-6 overflow-y-auto bg-surface">
 
                   {/* Case Title Section */}
                   <div className="flex flex-col gap-1">
-                    <p className="text-xs text-secondary dark:text-slate-400">
+                    <p className="text-xs text-muted dark:text-slate-400">
                       Case no. {selectedCase.group_id || `2026-${selectedCase.id.toString().padStart(4, "0")}`}
                     </p>
                     <h3 className="text-2xl font-bold text-primary dark:text-[#7f9cf8] leading-tight">
@@ -550,7 +539,7 @@ export default function PendingCases() {
                         return name;
                       })()}
                     </h3>
-                    <p className="text-xs text-secondary dark:text-slate-400 mt-0.5">
+                    <p className="text-xs text-muted dark:text-slate-400 mt-0.5">
                       {(() => {
                         const students = parseStudents(selectedCase.students);
                         if (students.length === 0) return "";
@@ -569,11 +558,11 @@ export default function PendingCases() {
                   {/* Case information */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
                     <div>
-                      <p className="text-[11px] text-secondary dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Case type</p>
+                      <p className="text-[11px] text-muted dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Case type</p>
                       <p className="text-sm font-bold text-on-surface dark:text-slate-200">{selectedCase.case || "—"}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-secondary dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Date of Incident</p>
+                      <p className="text-[11px] text-muted dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Date of Incident</p>
                       <p className="text-sm font-medium text-on-surface dark:text-slate-200">
                         {selectedCase.date.includes('T')
                           ? `${formatDate(selectedCase.date)} ${new Date(selectedCase.date).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
@@ -581,19 +570,19 @@ export default function PendingCases() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-secondary dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Date filed</p>
+                      <p className="text-[11px] text-muted dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Date filed</p>
                       <p className="text-sm font-medium text-on-surface dark:text-slate-200">{formatDateTime(selectedCase.date_filed || selectedCase.date)}</p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-[11px] text-secondary dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Description</p>
+                      <p className="text-[11px] text-muted font-bold uppercase tracking-wider mb-1">Description</p>
                       <p className="text-sm text-on-surface dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
-                        {selectedCase.description || <span className="italic text-secondary dark:text-slate-400">No description recorded.</span>}
+                        {selectedCase.description || <span className="italic text-muted">No description recorded.</span>}
                       </p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-[11px] text-secondary dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Sanction / action taken</p>
+                      <p className="text-[11px] text-muted font-bold uppercase tracking-wider mb-1">Sanction / action taken</p>
                       <p className="text-sm text-on-surface dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
-                        {selectedCase.sanction || <span className="italic text-secondary dark:text-slate-400">No sanction recorded.</span>}
+                        {selectedCase.sanction || <span className="italic text-muted">No sanction recorded.</span>}
                       </p>
                     </div>
                   </div>
@@ -605,7 +594,7 @@ export default function PendingCases() {
                     <h4 className="text-sm font-bold text-on-surface dark:text-slate-200">Students Involved</h4>
                     {(() => {
                       const students = parseStudents(selectedCase.students);
-                      if (students.length === 0) return <p className="text-xs text-secondary dark:text-slate-400 italic">No students recorded.</p>;
+                      if (students.length === 0) return <p className="text-xs text-muted italic">No students recorded.</p>;
                       return (
                         <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse text-xs">
@@ -624,16 +613,16 @@ export default function PendingCases() {
                                   <td className="py-3 font-bold text-primary dark:text-[#7f9cf8]">
                                     {`${student.lastName}, ${student.firstName}${student.middleInitial ? ` ${student.middleInitial}.` : ""}`}
                                   </td>
-                                  <td className="py-3 text-secondary dark:text-slate-400">
+                                  <td className="py-3 text-muted dark:text-slate-400">
                                     {student.level || "—"}
                                   </td>
-                                  <td className="py-3 text-secondary dark:text-slate-400">
+                                  <td className="py-3 text-muted dark:text-slate-400">
                                     {student.section || "—"}
                                   </td>
-                                  <td className="py-3 text-secondary dark:text-slate-400">
+                                  <td className="py-3 text-muted dark:text-slate-400">
                                     {student.adviser || "—"}
                                   </td>
-                                  <td className="py-3 text-secondary dark:text-slate-400">
+                                  <td className="py-3 text-muted dark:text-slate-400">
                                     {student.role || "—"}
                                   </td>
                                 </tr>
@@ -697,7 +686,7 @@ export default function PendingCases() {
                 </div>
 
                 {/* ── Resolve / Action bar ── */}
-                <div className="px-8 py-4 border-t border-outline-variant bg-white dark:bg-surface-container shrink-0 flex items-center">
+                <div className="px-8 py-4 border-t border-outline-variant bg-surface shrink-0 flex items-center">
                   {confirmState === "idle" && (
                     <div className="flex items-center gap-4 w-full">
                       <p className="text-xs font-bold text-secondary dark:text-slate-400 flex-1">Update the status of this case:</p>
@@ -705,7 +694,7 @@ export default function PendingCases() {
                         type="button"
                         onClick={() => setConfirmState("reprimanding")}
                         disabled={resolvingId !== null}
-                        className="btn-secondary text-error border-error hover:bg-error/5 font-bold text-xs flex items-center gap-1.5 shadow-sm px-5 py-2.5 bg-white dark:bg-surface-container cursor-pointer"
+                        className="btn-secondary text-error border-error hover:bg-error/5 font-bold text-xs flex items-center gap-1.5 shadow-sm px-5 py-2.5 bg-surface cursor-pointer"
                       >
                         <span className="material-symbols-outlined text-[16px]">gavel</span>
                         <span>Mark reprimand</span>
@@ -714,7 +703,7 @@ export default function PendingCases() {
                         type="button"
                         onClick={() => setConfirmState("closing")}
                         disabled={resolvingId !== null}
-                        className="btn-secondary text-secondary dark:text-slate-400 border-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high/40 dark:bg-surface-container font-bold text-xs flex items-center gap-1.5 shadow-sm px-5 py-2.5 bg-white dark:bg-surface-container cursor-pointer"
+                        className="btn-secondary text-secondary dark:text-slate-400 border-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high/40 bg-surface font-bold text-xs flex items-center gap-1.5 shadow-sm px-5 py-2.5 cursor-pointer"
                       >
                         <span className="material-symbols-outlined text-[16px]">inventory_2</span>
                         <span>Mark closed</span>

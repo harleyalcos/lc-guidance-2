@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface SchoolYearSetupModalProps {
   onComplete: (startYear: string) => Promise<void>;
@@ -50,8 +51,8 @@ const SchoolYearSetupModal: React.FC<SchoolYearSetupModalProps> = ({
 
   const endYear = startYear && /^\d{4}$/.test(startYear) ? parseInt(startYear) + 1 : '';
 
-  return (
-    <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
+  return createPortal(
+    <div className="fixed inset-0 flex items-center justify-center p-4 z-[100]">
       <div 
         className={`absolute inset-0 bg-black/60 backdrop-blur-sm ${
           isClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
@@ -86,7 +87,7 @@ const SchoolYearSetupModal: React.FC<SchoolYearSetupModalProps> = ({
               />
             </div>
             
-            <div className="bg-background rounded-xl p-4 border border-outline-variant/50 flex items-center justify-between">
+            <div className="bg-background rounded-xl p-4 border border-outline-variant flex items-center justify-between">
               <span className="text-sm text-secondary">Academic Year</span>
               <span className="font-mono text-lg text-primary font-medium">
                 {startYear && endYear ? `${startYear}-${endYear}` : '----'}
@@ -128,7 +129,8 @@ const SchoolYearSetupModal: React.FC<SchoolYearSetupModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

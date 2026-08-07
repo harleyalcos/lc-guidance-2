@@ -58,6 +58,7 @@ pub struct CaseRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportRow {
     pub id: String,
+    pub full_name: String,
     pub first_name: String,
     pub last_name: String,
     pub middle_initial: String,
@@ -138,46 +139,124 @@ impl ImportRow {
             }
         };
 
+        let title_case = |s: &str| -> String {
+            s.split_whitespace()
+                .map(|word| {
+                    let mut c = word.chars();
+                    match c.next() {
+                        None => String::new(),
+                        Some(f) => f.to_uppercase().collect::<String>() + c.as_str().to_lowercase().as_str(),
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join(" ")
+        };
+
+        // 1. Full Name parsing (Format: Lastname, Firstname I.)
+        let trimmed_full = self.full_name.trim();
+        if !trimmed_full.is_empty() {
+            if !trimmed_full.contains(',') {
+                self.errors.push("Full Name must match 'Lastname, Firstname I.' format (comma required)".to_string());
+            } else {
+                let parts: Vec<&str> = trimmed_full.splitn(2, ',').collect();
+                let last = parts.get(0).copied().unwrap_or("").trim();
+                let rest = parts.get(1).copied().unwrap_or("").trim();
+                
+                let rest_tokens: Vec<&str> = rest.split_whitespace().collect();
+                if rest_tokens.is_empty() {
+                    self.errors.push("First Name is required after comma in Full Name".to_string());
+                } else if rest_tokens.len() == 1 {
+                    self.first_name = title_case(rest_tokens[0]);
+                    self.middle_initial = String::new();
+                } else {
+                    let last_token = rest_tokens.last().copied().unwrap_or("");
+                    let fn_tokens = &rest_tokens[..rest_tokens.len() - 1];
+                    self.first_name = title_case(&fn_tokens.join(" "));
+                    self.middle_initial = title_case(last_token);
+                }
+                self.last_name = title_case(last);
+            }
+        }
+
         if self.first_name.trim().is_empty() {
             self.errors.push("First Name is required".to_string());
+        } else if self.first_name.trim().chars().all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',') {
+            self.errors.push("First Name cannot be purely numeric or punctuation".to_string());
+        } else {
+            self.first_name = title_case(&self.first_name);
         }
+
         if self.last_name.trim().is_empty() {
             self.errors.push("Last Name is required".to_string());
+        } else if self.last_name.trim().chars().all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',') {
+            self.errors.push("Last Name cannot be purely numeric or punctuation".to_string());
+        } else {
+            self.last_name = title_case(&self.last_name);
         }
-        if self.level.trim().is_empty() {
-            self.errors.push("Grade Level is required".to_string());
+
+        if !self.middle_initial.trim().is_empty() {
+            self.middle_initial = title_case(&self.middle_initial);
         }
+
+        // Reconstruct canonical full_name
+        if !self.last_name.is_empty() && !self.first_name.is_empty() {
+            if !self.middle_initial.is_empty() {
+                self.full_name = format!("{}, {} {}", self.last_name, self.first_name, self.middle_initial);
+            } else {
+                self.full_name = format!("{}, {}", self.last_name, self.first_name);
+            }
+        }
+
+        if !self.level.trim().is_empty() {
+            self.level = title_case(&self.level);
+        }
+        
         if self.section.trim().is_empty() {
             self.errors.push("Section is required".to_string());
+        } else if self.section.chars().count() > 250 {
+            self.errors.push("Section cannot exceed 250 characters".to_string());
+        } else {
+            self.section = self.section.trim().to_uppercase();
         }
         
         let valid_progress = ["pending", "reprimand", "resolved", "closed"];
         if self.progress.trim().is_empty() {
             self.errors.push("Progress is required".to_string());
-        } else if !valid_progress.contains(&self.progress.trim().to_lowercase().as_str()) {
-            self.errors.push("Progress must be Pending, Reprimand, Resolved, or Closed".to_string());
+        } else {
+            let p_lower = self.progress.trim().to_lowercase();
+            if !valid_progress.contains(&p_lower.as_str()) {
+                self.errors.push("Progress must be Pending, Reprimand, Resolved, or Closed".to_string());
+            } else {
+                self.progress = title_case(&p_lower);
+            }
         }
+
         if self.date.trim().is_empty() {
             self.errors.push("Incident Date is required".to_string());
         } else {
-            let trimmed_date = self.date.trim();
-            let parts: Vec<&str> = trimmed_date.split('/').collect();
-            if parts.len() == 3 && (parts[0].len() == 1 || parts[0].len() == 2) && (parts[1].len() == 1 || parts[1].len() == 2) && (parts[2].len() == 4 || parts[2].len() == 2) {
-                let month = format!("{:02}", parts[0].parse::<u32>().unwrap_or(0));
-                let day = format!("{:02}", parts[1].parse::<u32>().unwrap_or(0));
-                let year = if parts[2].len() == 2 {
-                    let y = parts[2].parse::<i32>().unwrap_or(0);
-                    if y < 50 { format!("20{:02}", y) } else { format!("19{:02}", y) }
-                } else {
-                    parts[2].to_string()
-                };
-                self.date = format!("{}-{}-{}", year, month, day);
-            } else if trimmed_date.len() == 10
-                && trimmed_date.chars().nth(4) == Some('-')
-                && trimmed_date.chars().nth(7) == Some('-') {
-                // already in yyyy-mm-dd
+            let trimmed = self.date.trim();
+            let mut parsed_date = None;
+
+            if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%y") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%Y") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%b %d, %Y") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%B %d, %Y") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%y") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%Y") {
+                parsed_date = Some(naive);
+            }
+            
+            if let Some(naive) = parsed_date {
+                self.date = naive.format("%b %d, %Y").to_string();
             } else {
-                self.errors.push("Incident Date must be in mm/dd/yy or mm/dd/yyyy format".to_string());
+                self.errors.push("Incident Date must be a valid date (e.g. Jun 21, 2026 or 06/21/2026)".to_string());
             }
         }
 
@@ -215,12 +294,25 @@ impl ImportRow {
         }
 
         if !self.date_filed.trim().is_empty() {
-            let trimmed_date = self.date_filed.trim();
-            let valid_format = trimmed_date.len() == 10
-                && trimmed_date.chars().nth(4) == Some('-')
-                && trimmed_date.chars().nth(7) == Some('-');
-            if !valid_format {
-                self.errors.push("Date Filed must be in YYYY-MM-DD format".to_string());
+            let trimmed = self.date_filed.trim();
+            let mut parsed_date = None;
+
+            if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%y") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%Y") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%y") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%Y") {
+                parsed_date = Some(naive);
+            }
+            
+            if let Some(naive) = parsed_date {
+                self.date_filed = naive.format("%Y-%m-%d").to_string();
+            } else {
+                self.errors.push("Date Filed must be a valid date in MM/DD/YYYY or YYYY-MM-DD format".to_string());
             }
         } else {
             self.date_filed = self.date.clone();
@@ -228,9 +320,18 @@ impl ImportRow {
 
         if self.adviser.trim().is_empty() {
             self.errors.push("Adviser is required".to_string());
+        } else if self.adviser.chars().count() > 250 {
+            self.errors.push("Adviser cannot exceed 250 characters".to_string());
+        } else {
+            self.adviser = title_case(&self.adviser);
         }
+
         if self.r#case.trim().is_empty() {
             self.errors.push("Case Type is required".to_string());
+        } else if self.r#case.chars().count() > 250 {
+            self.errors.push("Case Type cannot exceed 250 characters".to_string());
+        } else {
+            self.r#case = title_case(&self.r#case);
         }
 
         if self.sanction.chars().count() > 250 {
@@ -246,6 +347,9 @@ impl ImportRow {
         };
 
         validate_json(&self.proofs, "proofs", &mut self.errors);
+        
+        // Re-sync students since we title-cased the names
+        self.sync_students();
         validate_json(&self.students, "students", &mut self.errors);
 
         self.has_errors = !self.errors.is_empty();

@@ -271,7 +271,7 @@ export default function Backup() {
                 </tr>
               ) : (
                 backups.map((backup) => (
-                  <tr key={backup.filename} className="border-b border-outline-variant/40 hover:bg-surface-container-low/50 dark:hover:bg-surface-container-high/20 transition-colors">
+                  <tr key={backup.filename} className="border-b border-outline-variant hover:bg-surface-container-low/50 dark:hover:bg-surface-container-high/20 transition-colors">
                     <td className="px-6 py-4 font-medium">
                       <span className="px-2.5 py-1 bg-surface-container border border-outline-variant rounded font-data-mono text-xs inline-block">
                         {backup.date_time}

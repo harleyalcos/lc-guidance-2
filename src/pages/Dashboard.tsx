@@ -5,7 +5,7 @@ import html2pdf from "html2pdf.js";
 import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
-import { useSchoolYears } from "../hooks/useSchoolYears";
+import { useAcademicYearFilter } from "../context/AcademicYearFilterContext";
 
 import { CaseRecord, StudentInfo } from "../types";
 import StatCard from "../components/StatCard";
@@ -33,17 +33,17 @@ const parseStudents = (studentsStr: string): StudentInfo[] => {
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 
 const CASE_TYPE_GROUPS = [
-  { label: "Academic", color: "#002F87" },
-  { label: "Behavioral", color: "#5A6270" },
-  { label: "Attendance", color: "#D9A23B" },
-  { label: "Personal", color: "#B9C1D4" },
+  { label: "Academic", color: "#7C96E8" },
+  { label: "Behavioral", color: "#F0B94D" },
+  { label: "Attendance", color: "#4FD1C5" },
+  { label: "Personal", color: "#F17272" },
 ];
 
 const STATUS_CHART_SEGMENTS = [
-  { label: "Resolved", color: "#002F87" },
-  { label: "Pending", color: "#D9A23B" },
-  { label: "Reprimand", color: "#6B7280" },
-  { label: "Closed", color: "#B9C1D4" },
+  { label: "Resolved", color: "#7C96E8" },
+  { label: "Pending", color: "#F0B94D" },
+  { label: "Reprimand", color: "#4FD1C5" },
+  { label: "Closed", color: "#F17272" },
 ];
 
 const getCaseDate = (caseRecord: CaseRecord) => {
@@ -58,33 +58,41 @@ const formatDashboardDateRange = (startStr: string, endStr: string, casesList: C
 
   if (!start && !end) {
     if (casesList && casesList.length > 0) {
-      let oldest: Date | null = null;
-      let latest: Date | null = null;
-      for (const c of casesList) {
-        const d = getCaseDate(c);
-        if (d) {
-          if (!oldest || d.getTime() < oldest.getTime()) oldest = d;
-          if (!latest || d.getTime() > latest.getTime()) latest = d;
-        }
+      const dates = casesList
+        .map((c) => getCaseDate(c))
+        .filter((d): d is Date => d !== null)
+        .sort((a, b) => a.getTime() - b.getTime());
+
+      if (dates.length > 0) {
+        start = dates[0].toISOString().split("T")[0];
+        end = dates[dates.length - 1].toISOString().split("T")[0];
       }
-      if (oldest) start = oldest.toISOString().split("T")[0];
-      if (latest) end = latest.toISOString().split("T")[0];
     }
   }
 
-  if (!start && !end) return "No Cases";
+  if (!start && !end) return "all recorded periods";
 
-  const startObj = new Date(start);
-  const endObj = new Date(end);
-  
-  // Format nicely
-  if (startObj.getFullYear() === endObj.getFullYear() && startObj.getMonth() === 0 && endObj.getMonth() === 11) {
-    return `${startObj.getFullYear()}`;
-  }
-  if (startObj.getFullYear() === endObj.getFullYear() && startObj.getMonth() === endObj.getMonth()) {
-    // Check if it's a full calendar month
-    const lastDay = new Date(endObj.getFullYear(), endObj.getMonth() + 1, 0).getDate();
-    if (startObj.getDate() === 1 && endObj.getDate() === lastDay) {
+  const startObj = start ? new Date(start) : null;
+  const endObj = end ? new Date(end) : null;
+
+  if (startObj && endObj) {
+    if (startObj.getTime() === endObj.getTime()) {
+      return startObj.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    }
+    if (
+      startObj.getMonth() === 0 &&
+      startObj.getDate() === 1 &&
+      endObj.getMonth() === 11 &&
+      endObj.getDate() === 31 &&
+      startObj.getFullYear() === endObj.getFullYear()
+    ) {
+      return `Year ${startObj.getFullYear()}`;
+    }
+    if (
+      startObj.getDate() === 1 &&
+      startObj.getFullYear() === endObj.getFullYear() &&
+      startObj.getMonth() === endObj.getMonth()
+    ) {
       return startObj.toLocaleDateString("en-US", { month: "long", year: "numeric" });
     }
   }
@@ -93,12 +101,11 @@ const formatDashboardDateRange = (startStr: string, endStr: string, casesList: C
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
-  return `${formatDate(startObj)} – ${formatDate(endObj)}`;
+  if (startObj && endObj) return `${formatDate(startObj)} – ${formatDate(endObj)}`;
+  if (startObj) return `From ${formatDate(startObj)}`;
+  if (endObj) return `Until ${formatDate(endObj)}`;
+  return "all recorded periods";
 };
-
-const currentYear = new Date().getFullYear();
-const defaultStartDate = `${currentYear}-01-01`;
-const defaultEndDate = `${currentYear}-12-31`;
 
 const isSameMonth = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
@@ -131,23 +138,19 @@ const isComplainantSubjectCaseRecord = (caseRecord: CaseRecord) => {
 
 export default function Dashboard() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
-  const [dashStartDate, setDashStartDate] = useState(defaultStartDate);
-  const [dashEndDate, setDashEndDate] = useState(defaultEndDate);
   const [isExporting, setIsExporting] = useState(false);
   const dashboardRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
   
-  const { allYears, currentYear, isLoading: isYearsLoading } = useSchoolYears();
-  const [selectedSchoolYear, setSelectedSchoolYear] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isYearsLoading && selectedSchoolYear === null) {
-      const latestYear = allYears[0] || currentYear;
-      if (latestYear) {
-        setSelectedSchoolYear(latestYear);
-      }
-    }
-  }, [currentYear, allYears, isYearsLoading, selectedSchoolYear]);
+  const {
+    allYears,
+    selectedSchoolYear,
+    setSelectedSchoolYear,
+    startDate: dashStartDate,
+    endDate: dashEndDate,
+    setDateRange,
+    isYearsLoading,
+  } = useAcademicYearFilter();
 
   useEffect(() => {
     if (isYearsLoading || selectedSchoolYear === null) return;
@@ -504,7 +507,7 @@ export default function Dashboard() {
 
   const renderDashboardPanel = (title: string, children: React.ReactNode, className = "") => (
     <section className={`bg-surface border border-outline-variant rounded-lg shadow-sm overflow-hidden min-w-0 flex flex-col ${className}`}>
-      <div className="px-5 pt-5 pb-3 border-b border-outline-variant/60">
+      <div className="px-5 pt-5 pb-3 border-b border-outline-variant">
         <h3 className="section-header-h2 m-0 mb-0">{title}</h3>
       </div>
       <div className="p-5 flex-1 flex flex-col justify-center">
@@ -513,7 +516,7 @@ export default function Dashboard() {
     </section>
   );
 
-  const renderMonthlyVolumeChart = () => {
+  const renderMonthlyVolumeChart = (isForPdf: boolean = false) => {
     const width = 640;
     const height = 280;
     const padding = { top: 18, right: 18, bottom: 42, left: 42 };
@@ -545,8 +548,8 @@ export default function Dashboard() {
           const y = padding.top + chartHeight - (tick / maxValue) * chartHeight;
           return (
             <g key={tick}>
-              <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="#E5E7EB" strokeWidth="1" />
-              <text x={padding.left - 10} y={y + 4} textAnchor="end" className="fill-secondary text-[11px]">
+              <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke={isForPdf ? "#e5e7eb" : "var(--color-border-subtle)"} strokeWidth="1" />
+              <text x={padding.left - 10} y={y + 4} textAnchor="end" className="fill-secondary text-[11px]" style={isForPdf ? { fill: "#6b7280" } : undefined}>
                 {tick}
               </text>
             </g>
@@ -563,7 +566,7 @@ export default function Dashboard() {
           <path
             d={linePath}
             fill="none"
-            stroke="#002F87"
+            stroke={isForPdf ? "#002F87" : "var(--color-primary)"}
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -576,18 +579,18 @@ export default function Dashboard() {
               cx={point.x}
               cy={point.y}
               r="4.5"
-              fill="#ffffff"
-              stroke="#002F87"
+              fill={isForPdf ? "#ffffff" : "var(--color-surface)"}
+              stroke={isForPdf ? "#002F87" : "var(--color-primary)"}
               strokeWidth="2.5"
               style={{ transition: "cx 0.5s ease-in-out, cy 0.5s ease-in-out" }}
             />
-            <text x={point.x} y={height - 14} textAnchor="middle" className="fill-secondary text-[11px]">
+            <text x={point.x} y={height - 14} textAnchor="middle" className="fill-secondary text-[11px]" style={isForPdf ? { fill: "#6b7280" } : undefined}>
               {point.label}
             </text>
           </g>
         ))}
         {filteredCases.length === 0 && (
-          <text x={width / 2} y={height / 2} textAnchor="middle" className="fill-secondary text-[14px] font-bold">
+          <text x={width / 2} y={height / 2} textAnchor="middle" className="fill-muted text-[14px] font-bold" style={isForPdf ? { fill: "#9ca3af" } : undefined}>
             No cases for this academic year
           </text>
         )}
@@ -595,7 +598,7 @@ export default function Dashboard() {
     );
   };
 
-  const renderResolutionStatusChart = () => {
+  const renderResolutionStatusChart = (isForPdf: boolean = false) => {
     const total = statusDistribution.reduce((sum, item) => sum + item.value, 0);
     const radius = 74;
     const circumference = 2 * Math.PI * radius;
@@ -603,7 +606,7 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center">
         <svg className="w-full max-w-[280px] aspect-square" viewBox="0 0 220 220" role="img" aria-label="Resolution status chart">
-          <circle cx="110" cy="110" r={radius} fill="none" stroke="#E5E7EB" strokeWidth="34" />
+          <circle cx="110" cy="110" r={radius} fill="none" stroke={isForPdf ? "#e5e7eb" : "var(--color-border-subtle)"} strokeWidth="34" />
           {total > 0 && (() => {
             let accumulated = 0;
             return statusDistribution.filter((segment) => segment.value > 0).map((segment) => {
@@ -630,19 +633,19 @@ export default function Dashboard() {
               return rendered;
             });
           })()}
-          <text x="110" y="106" textAnchor="middle" className="fill-on-surface text-[30px] font-bold">
+          <text x="110" y="106" textAnchor="middle" className="fill-on-surface text-[30px] font-bold" style={isForPdf ? { fill: "#0f172a" } : undefined}>
             {total}
           </text>
-          <text x="110" y="128" textAnchor="middle" className="fill-secondary text-[11px] font-bold uppercase tracking-wider">
+          <text x="110" y="128" textAnchor="middle" className="fill-secondary text-[11px] font-bold uppercase tracking-wider" style={isForPdf ? { fill: "#475569" } : undefined}>
             Cases
           </text>
         </svg>
-        <div className="grid grid-cols-2 gap-x-5 gap-y-2 mt-3 text-xs text-secondary">
+        <div className={`grid grid-cols-2 gap-x-5 gap-y-2 mt-3 text-xs ${isForPdf ? "text-slate-600" : "text-secondary"}`}>
           {statusDistribution.map((segment) => (
             <div key={segment.label} className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: segment.color }} />
               <span>{segment.label}</span>
-              <span className="font-bold text-on-surface">{segment.value}</span>
+              <span className={`font-bold ${isForPdf ? "text-slate-900" : "text-on-surface"}`}>{segment.value}</span>
             </div>
           ))}
         </div>
@@ -650,7 +653,7 @@ export default function Dashboard() {
     );
   };
 
-  const renderTypeDistributionChart = () => {
+  const renderTypeDistributionChart = (isForPdf: boolean = false) => {
     const maxValue = Math.max(1, ...typeDistribution.map((item) => item.value));
 
     return (
@@ -659,14 +662,16 @@ export default function Dashboard() {
           const widthPercent = item.value === 0 ? 0 : Math.max(8, (item.value / maxValue) * 100);
           return (
             <div key={item.label} className="grid grid-cols-[92px_minmax(0,1fr)_32px] items-center gap-3">
-              <span className="text-xs font-bold text-secondary">{item.label}</span>
-              <div className="h-9 bg-surface-container-low border border-outline-variant/50 rounded overflow-hidden">
+              <span className={`text-xs font-bold ${isForPdf ? "text-slate-600" : "text-secondary"}`}>{item.label}</span>
+              <div
+                className={`h-9 border rounded overflow-hidden ${isForPdf ? "bg-[#f1f5f9] border-[#e5e7eb]" : "bg-surface-container border-outline-variant"}`}
+              >
                 <div
                   className="h-full rounded-r transition-[width] duration-500"
                   style={{ width: `${widthPercent}%`, backgroundColor: item.color }}
                 />
               </div>
-              <span className="text-right text-xs font-bold text-on-surface">{item.value}</span>
+              <span className={`text-right text-xs font-bold ${isForPdf ? "text-slate-900" : "text-on-surface"}`}>{item.value}</span>
             </div>
           );
         })}
@@ -674,7 +679,7 @@ export default function Dashboard() {
     );
   };
 
-  const renderGradeCaseloadChart = () => {
+  const renderGradeCaseloadChart = (isForPdf: boolean = false) => {
     const width = 640;
     const height = 280;
     const padding = { top: 18, right: 20, bottom: 42, left: 42 };
@@ -692,8 +697,8 @@ export default function Dashboard() {
             const y = padding.top + chartHeight - (tick / maxValue) * chartHeight;
             return (
               <g key={tick}>
-                <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="#E5E7EB" strokeWidth="1" />
-                <text x={padding.left - 10} y={y + 4} textAnchor="end" className="fill-secondary text-[11px]">
+                <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke={isForPdf ? "#e5e7eb" : "var(--color-border-subtle)"} strokeWidth="1" />
+                <text x={padding.left - 10} y={y + 4} textAnchor="end" className="fill-secondary text-[11px]" style={isForPdf ? { fill: "#6b7280" } : undefined}>
                   {tick}
                 </text>
               </g>
@@ -720,19 +725,19 @@ export default function Dashboard() {
                     />
                   );
                 })}
-                <text x={x + barWidth / 2} y={height - 14} textAnchor="middle" className="fill-secondary text-[11px]">
+                <text x={x + barWidth / 2} y={height - 14} textAnchor="middle" className="fill-secondary text-[11px]" style={isForPdf ? { fill: "#6b7280" } : undefined}>
                   {grade.label.replace("Grade ", "G")}
                 </text>
               </g>
             );
           })}
           {filteredCases.length === 0 && (
-            <text x={width / 2} y={height / 2} textAnchor="middle" className="fill-secondary text-[14px] font-bold">
+            <text x={width / 2} y={height / 2} textAnchor="middle" className="fill-secondary dark:fill-muted text-[14px] font-bold" style={isForPdf ? { fill: "#9ca3af" } : undefined}>
               No grade-level caseload yet
             </text>
           )}
         </svg>
-        <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mt-4 text-xs text-secondary">
+        <div className={`flex flex-wrap justify-center gap-x-5 gap-y-2 mt-4 text-xs ${isForPdf ? "text-slate-600" : "text-secondary"}`}>
           {CASE_TYPE_GROUPS.map((group) => (
             <div key={group.label} className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: group.color }} />
@@ -764,10 +769,7 @@ export default function Dashboard() {
             endDate={dashEndDate}
             className="w-[240px]"
             placeholder="All Records"
-            onRangeChange={(start, end) => {
-              setDashStartDate(start);
-              setDashEndDate(end);
-            }}
+            onRangeChange={(start, end) => setDateRange(start, end)}
           />
 
           <button 
@@ -784,11 +786,11 @@ export default function Dashboard() {
       {/* KPI/Summary Metric Cards / Chips */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: "Total Cases", value: stats.total, icon: "analytics", colorClass: "text-primary bg-primary/5 border-primary/10" },
-          { label: "Pending", value: stats.pending, icon: "pending_actions", colorClass: "text-[#D9A23B] bg-[#D9A23B]/5 border-[#D9A23B]/10" },
-          { label: "Resolved", value: stats.resolved, icon: "task_alt", colorClass: "text-[#15803D] bg-[#15803D]/5 border-[#15803D]/10" },
-          { label: "Reprimand", value: stats.reprimand, icon: "gavel", colorClass: "text-[#6B7280] bg-[#6B7280]/5 border-[#6B7280]/10" },
-          { label: "Closed", value: stats.closed, icon: "cancel", colorClass: "text-[#4b5563] bg-[#4b5563]/5 border-[#4b5563]/10" },
+          { label: "Total Cases", value: stats.total, icon: "analytics", colorClass: "text-primary bg-surface-container" },
+          { label: "Pending", value: stats.pending, icon: "pending_actions", colorClass: "text-[var(--badge-pending-text)] bg-[var(--badge-pending-bg)]" },
+          { label: "Resolved", value: stats.resolved, icon: "task_alt", colorClass: "text-[var(--badge-resolved-text)] bg-[var(--badge-resolved-bg)]" },
+          { label: "Reprimand", value: stats.reprimand, icon: "gavel", colorClass: "text-[var(--badge-reprimand-text)] bg-[var(--badge-reprimand-bg)]" },
+          { label: "Closed", value: stats.closed, icon: "cancel", colorClass: "text-[var(--badge-closed-text)] bg-[var(--badge-closed-bg)]" },
         ].map((kpi) => (
           <StatCard
             key={kpi.label}
@@ -867,44 +869,37 @@ export default function Dashboard() {
             {/* Chart 1: Case Volume */}
             <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px" }}>
               <div style={{ fontSize: "11px", fontWeight: 700, color: "#002F87", marginBottom: "12px", fontFamily: "sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>{caseVolumeChartConfig.title}</div>
-              {renderMonthlyVolumeChart()}
+              {renderMonthlyVolumeChart(true)}
             </div>
 
-            {pdfFooter(1, 3)}
+            {pdfFooter(1, 2)}
           </div>
 
-          {/* PAGE 2: Resolution Status & Distribution by Type */}
+          {/* PAGE 2: Resolution Status, Distribution by Type & Grade Level Breakdown */}
           <div style={{ width: "210mm", minHeight: "297mm", boxSizing: "border-box", padding: "32px 48px 80px", background: "#fff", position: "relative" }}>
-            {pdfSmallHeader("Resolution & Distribution Summary")}
+            {pdfSmallHeader("Resolution, Distribution & Grade Level Breakdown")}
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
               {/* Chart 2: Resolution Status */}
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "#002F87", marginBottom: "12px", fontFamily: "sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>Resolution Status</div>
-                {renderResolutionStatusChart()}
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#002F87", marginBottom: "10px", fontFamily: "sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>Resolution Status</div>
+                {renderResolutionStatusChart(true)}
               </div>
 
               {/* Chart 3: Distribution by Type */}
-              <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "#002F87", marginBottom: "12px", fontFamily: "sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>Distribution by Type</div>
-                {renderTypeDistributionChart()}
+              <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "#002F87", marginBottom: "10px", fontFamily: "sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>Distribution by Type</div>
+                {renderTypeDistributionChart(true)}
               </div>
             </div>
 
-            {pdfFooter(2, 3)}
-          </div>
-
-          {/* PAGE 3: Caseload by Grade Level */}
-          <div style={{ width: "210mm", minHeight: "297mm", boxSizing: "border-box", padding: "32px 48px 80px", background: "#fff", position: "relative" }}>
-            {pdfSmallHeader("Grade Level Breakdown")}
-
             {/* Chart 4: Caseload by Grade Level */}
-            <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px", marginTop: "16px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, color: "#002F87", marginBottom: "12px", fontFamily: "sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>Caseload by Grade Level</div>
-              {renderGradeCaseloadChart()}
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: "8px", padding: "14px", marginTop: "16px" }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "#002F87", marginBottom: "10px", fontFamily: "sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>Caseload by Grade Level</div>
+              {renderGradeCaseloadChart(true)}
             </div>
 
-            {pdfFooter(3, 3)}
+            {pdfFooter(2, 2)}
           </div>
         </div>,
         document.body

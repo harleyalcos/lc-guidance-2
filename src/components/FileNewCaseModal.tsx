@@ -101,34 +101,34 @@ const PROGRESS_OPTIONS = [
   {
     value: "Pending",
     label: "Pending",
-    dot: "#854F0B",
-    bg: "#FAEEDA",
-    border: "#FAC775",
-    text: "#633806",
+    dot: "var(--badge-pending-text)",
+    bg: "var(--badge-pending-bg)",
+    border: "var(--badge-pending-border)",
+    text: "var(--badge-pending-text)",
   },
   {
     value: "Reprimand",
     label: "Reprimand",
-    dot: "#A32D2D",
-    bg: "#FCEBEB",
-    border: "#F7C1C1",
-    text: "#791F1F",
+    dot: "var(--badge-reprimand-text)",
+    bg: "var(--badge-reprimand-bg)",
+    border: "var(--badge-reprimand-border)",
+    text: "var(--badge-reprimand-text)",
   },
   {
     value: "Resolved",
     label: "Resolved",
-    dot: "#0F6E56",
-    bg: "#E1F5EE",
-    border: "#9FE1CB",
-    text: "#085041",
+    dot: "var(--badge-resolved-text)",
+    bg: "var(--badge-resolved-bg)",
+    border: "var(--badge-resolved-border)",
+    text: "var(--badge-resolved-text)",
   },
   {
     value: "Closed",
     label: "Closed",
-    dot: "#4D5A66",
-    bg: "#EDF3F8",
-    border: "#C8D7E4",
-    text: "#35414C",
+    dot: "var(--badge-closed-text)",
+    bg: "var(--badge-closed-bg)",
+    border: "var(--badge-closed-border)",
+    text: "var(--badge-closed-text)",
   },
 ];
 
@@ -728,7 +728,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         {/* ── Header ── */}
         <div className="px-7 py-4 bg-surface flex items-center justify-between border-b border-outline-variant shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#0B1E43] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-primary text-on-primary flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-white" style={{ fontSize: 18 }}>folder_open</span>
             </div>
             <div>
@@ -750,9 +750,9 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
               const isDone = currentStep > n;
               return (
                 <Fragment key={idx}>
-                  <div className={`flex items-center gap-2 shrink-0 py-1.5 px-2.5 rounded-xl transition-all ${isActive ? "bg-[#0B1E43]/6" : ""}`}>
+                  <div className={`flex items-center gap-2 shrink-0 py-1.5 px-2.5 rounded-xl transition-all ${isActive ? "bg-primary/10" : ""}`}>
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold transition-all ${
-                      isDone ? "bg-[#0B1E43] text-white" : isActive ? "bg-[#0B1E43] text-white" : "bg-surface-container text-secondary border border-outline-variant"
+                      isDone ? "bg-primary text-on-primary" : isActive ? "bg-primary text-on-primary" : "bg-surface-container text-secondary border border-outline-variant"
                     }`}>
                       {isDone ? (
                         <span className="material-symbols-outlined" style={{ fontSize: 13 }}>check</span>
@@ -807,7 +807,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       caseCategory: matchedCategory?.id ?? (normalizedCase ? "other" : ""),
                     };
                   })}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                 />
                 <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                   {formData.case.length}/{CASE_TYPE_LIMIT}
@@ -853,8 +853,8 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                                   onClick={() => handleSelectCase(cat.id, c)}
                                   className={`center-fill-option text-left text-xs px-3 py-2 rounded-lg border transition-all duration-500 font-medium ${isSelected ? "center-fill-option-selected" : ""}`}
                                   style={isSelected
-                                    ? { background: cat.bg, borderColor: cat.color, color: cat.color }
-                                    : { background: "transparent", borderColor: "var(--outline-variant, #cac4d0)", color: "var(--on-surface, #1c1b1f)", ["--fill-hover-bg" as string]: cat.bg, ["--fill-hover-border" as string]: cat.border }
+                                    ? { background: "var(--color-primary)", borderColor: "var(--color-primary)", color: "var(--color-on-primary)" }
+                                    : { background: "transparent", borderColor: "var(--color-border-subtle)", color: "var(--color-on-surface)", ["--fill-hover-bg" as string]: "var(--color-surface-container)", ["--fill-hover-border" as string]: "var(--color-primary)" }
                                   }
                                 >
                                   <span className="relative z-10 transition-colors duration-500">{c}</span>
@@ -941,7 +941,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                             const datePart = formData.date.split('T')[0] || getTodayDateString();
                             setFormData({ ...formData, date: `${datePart}T${e.target.value}` });
                           }}
-                          className="w-[180px] bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          className="w-[180px] bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                         />
                       )}
                     </div>
@@ -960,7 +960,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           className={`center-fill-option flex-1 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all duration-500 text-center ${formData.progress === opt.value ? "center-fill-option-selected" : ""}`}
                           style={formData.progress === opt.value
                             ? { background: opt.bg, borderColor: opt.dot, color: opt.text }
-                            : { background: "transparent", borderColor: "var(--outline-variant)", color: "var(--on-surface-variant)", ["--fill-hover-bg" as string]: opt.bg, ["--fill-hover-border" as string]: opt.border }
+                            : { background: "transparent", borderColor: "var(--color-border-subtle)", color: "var(--color-on-surface-variant)", ["--fill-hover-bg" as string]: "var(--color-surface-container)", ["--fill-hover-border" as string]: opt.dot }
                           }
                         >
                           <div className="relative z-10 text-center transition-colors duration-500">
@@ -991,7 +991,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         value={formData.lastName}
                         onChange={(e) => setFormData({ ...formData, lastName: autoCapitalize(e.target.value) })}
                         onBlur={() => setFormData((p) => ({ ...p, lastName: capitalizeWords(p.lastName) }))}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
                     <div>
@@ -1004,7 +1004,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         value={formData.firstName}
                         onChange={(e) => setFormData({ ...formData, firstName: autoCapitalize(e.target.value) })}
                         onBlur={() => setFormData((p) => ({ ...p, firstName: capitalizeWords(p.firstName) }))}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
                     <div>
@@ -1015,7 +1015,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         value={formData.middleInitial}
                         onChange={(e) => setFormData({ ...formData, middleInitial: e.target.value.replace(/\s+/g, "").toUpperCase() })}
                         onBlur={() => setFormData((p) => ({ ...p, middleInitial: normalizeMiddleInitial(p.middleInitial) }))}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
                     <div>
@@ -1031,7 +1031,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           if (isPrimaryRoleLocked) return;
                           setFormData({ ...formData, role: e.target.value });
                         }}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {ROLE_OPTIONS.map((opt) => (
                           <option key={opt} value={opt}>{opt}</option>
@@ -1051,7 +1051,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       maxLength={GRADE_LEVEL_LIMIT}
                       onChange={(e) => setFormData({ ...formData, level: e.target.value.slice(0, GRADE_LEVEL_LIMIT) })}
                       onBlur={() => setFormData((p) => ({ ...p, level: normalizeGradeLevel(p.level) }))}
-                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                     />
                     <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                       {formData.level.length}/{GRADE_LEVEL_LIMIT}
@@ -1070,7 +1070,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         maxLength={SECTION_LIMIT}
                         onChange={(e) => setFormData({ ...formData, section: e.target.value.slice(0, SECTION_LIMIT) })}
                         onBlur={() => setFormData((p) => ({ ...p, section: normalizeSection(p.section) }))}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                       <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                         {formData.section.length}/{SECTION_LIMIT}
@@ -1087,7 +1087,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         maxLength={ADVISER_LIMIT}
                         onChange={(e) => setFormData({ ...formData, adviser: autoCapitalize(e.target.value).slice(0, ADVISER_LIMIT) })}
                         onBlur={() => setFormData((p) => ({ ...p, adviser: capitalizeWords(p.adviser).slice(0, ADVISER_LIMIT) }))}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                       <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                         {formData.adviser.length}/{ADVISER_LIMIT}
@@ -1104,7 +1104,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       value={formData.sanction}
                       maxLength={TEXT_FIELD_LIMIT}
                       onChange={(e) => setFormData({ ...formData, sanction: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
-                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none resize-none"
                     />
                     <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                       {formData.sanction.length}/{TEXT_FIELD_LIMIT}
@@ -1145,7 +1145,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           value={student.lastName}
                           onChange={(e) => handleAdditionalStudentChange(index, "lastName", autoCapitalize(e.target.value))}
                           onBlur={() => handleAdditionalStudentBlur(index, "lastName")}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                         />
                       </div>
                       <div>
@@ -1158,7 +1158,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           value={student.firstName}
                           onChange={(e) => handleAdditionalStudentChange(index, "firstName", autoCapitalize(e.target.value))}
                           onBlur={() => handleAdditionalStudentBlur(index, "firstName")}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                         />
                       </div>
                       <div>
@@ -1169,7 +1169,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           value={student.middleInitial}
                           onChange={(e) => handleAdditionalStudentChange(index, "middleInitial", e.target.value.replace(/\s+/g, "").toUpperCase())}
                           onBlur={() => handleAdditionalStudentBlur(index, "middleInitial")}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                         />
                       </div>
                       <div>
@@ -1180,7 +1180,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         <select
                           value={student.role}
                           onChange={(e) => handleAdditionalStudentChange(index, "role", e.target.value)}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                         >
                           <option value="" disabled>Select a role</option>
                           {ROLE_OPTIONS.map((opt) => (
@@ -1201,7 +1201,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           maxLength={GRADE_LEVEL_LIMIT}
                           onChange={(e) => handleAdditionalStudentChange(index, "level", e.target.value)}
                           onBlur={() => handleAdditionalStudentBlur(index, "level")}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                         />
                         <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                           {student.level.length}/{GRADE_LEVEL_LIMIT}
@@ -1220,7 +1220,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           maxLength={SECTION_LIMIT}
                           onChange={(e) => handleAdditionalStudentChange(index, "section", e.target.value)}
                           onBlur={() => handleAdditionalStudentBlur(index, "section")}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                         />
                         <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                           {student.section.length}/{SECTION_LIMIT}
@@ -1237,7 +1237,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                           maxLength={ADVISER_LIMIT}
                           onChange={(e) => handleAdditionalStudentChange(index, "adviser", autoCapitalize(e.target.value))}
                           onBlur={() => handleAdditionalStudentBlur(index, "adviser")}
-                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                          className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                         />
                         <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                           {student.adviser.length}/{ADVISER_LIMIT}
@@ -1254,7 +1254,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                         value={student.sanction}
                         maxLength={TEXT_FIELD_LIMIT}
                         onChange={(e) => handleAdditionalStudentChange(index, "sanction", e.target.value.slice(0, TEXT_FIELD_LIMIT))}
-                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none resize-none"
                       />
                       <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                         {student.sanction.length}/{TEXT_FIELD_LIMIT}
@@ -1295,7 +1295,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       maxLength={CASE_TITLE_LIMIT}
                       onChange={(e) => setFormData({ ...formData, title: autoCapitalize(e.target.value.slice(0, CASE_TITLE_LIMIT)) })}
                       onBlur={() => setFormData((p) => ({ ...p, title: capitalizeWords(p.title).slice(0, CASE_TITLE_LIMIT) }))}
-                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none"
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
                     />
                     <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                       {formData.title.length}/{CASE_TITLE_LIMIT}
@@ -1378,7 +1378,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                   value={formData.description}
                   maxLength={TEXT_FIELD_LIMIT}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:outline-none resize-none"
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-2 px-3 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none resize-none"
                 />
                 <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                   {formData.description.length}/{TEXT_FIELD_LIMIT}

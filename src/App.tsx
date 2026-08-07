@@ -13,6 +13,7 @@ import SignIn from "./pages/SignIn";
 import GuidanceAI from "./pages/GuidanceAI";
 import SchoolYearSetupModal from "./components/SchoolYearSetupModal";
 import { useSchoolYears } from "./hooks/useSchoolYears";
+import { AcademicYearFilterProvider } from "./context/AcademicYearFilterContext";
 import "./App.css";
 
 function AppRoutes() {
@@ -31,19 +32,21 @@ function AppRoutes() {
   };
 
   return (
-    <Layout title={getTitle()} pageKey={location.pathname}>
-      <Routes location={location}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/reports" element={<SummaryReports />} />
-        <Route path="/catalog" element={<CaseCatalog />} />
-        <Route path="/pending" element={<PendingCases />} />
-        <Route path="/case/:id" element={<CaseDetails />} />
-        <Route path="/backup" element={<Navigate to="/account?tab=backup" replace />} />
-        <Route path="/account" element={<AccountSettings />} />
-        <Route path="/import-review" element={<ImportReview />} />
-        <Route path="/ai" element={<GuidanceAI />} />
-      </Routes>
-    </Layout>
+    <AcademicYearFilterProvider>
+      <Layout title={getTitle()} pageKey={location.pathname}>
+        <Routes location={location}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/reports" element={<SummaryReports />} />
+          <Route path="/catalog" element={<CaseCatalog />} />
+          <Route path="/pending" element={<PendingCases />} />
+          <Route path="/case/:id" element={<CaseDetails />} />
+          <Route path="/backup" element={<Navigate to="/account?tab=backup" replace />} />
+          <Route path="/account" element={<AccountSettings />} />
+          <Route path="/import-review" element={<ImportReview />} />
+          <Route path="/ai" element={<GuidanceAI />} />
+        </Routes>
+      </Layout>
+    </AcademicYearFilterProvider>
   );
 }
 
