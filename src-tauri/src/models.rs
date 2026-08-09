@@ -156,7 +156,7 @@ impl ImportRow {
         let trimmed_full = self.full_name.trim();
         if !trimmed_full.is_empty() {
             if !trimmed_full.contains(',') {
-                self.errors.push("Full Name must match 'Lastname, Firstname I.' format (comma required)".to_string());
+                self.errors.push("Name must follow this format: Last Name, First Name M.I. (e.g. Smith, Jane A.)".to_string());
             } else {
                 let parts: Vec<&str> = trimmed_full.splitn(2, ',').collect();
                 let last = parts.get(0).copied().unwrap_or("").trim();
@@ -164,7 +164,7 @@ impl ImportRow {
                 
                 let rest_tokens: Vec<&str> = rest.split_whitespace().collect();
                 if rest_tokens.is_empty() {
-                    self.errors.push("First Name is required after comma in Full Name".to_string());
+                    self.errors.push("Name must follow this format: Last Name, First Name M.I. (e.g. Smith, Jane A.)".to_string());
                 } else if rest_tokens.len() == 1 {
                     self.first_name = title_case(rest_tokens[0]);
                     self.middle_initial = String::new();
@@ -178,20 +178,51 @@ impl ImportRow {
             }
         }
 
-        if self.first_name.trim().is_empty() {
-            self.errors.push("First Name is required".to_string());
-        } else if self.first_name.trim().chars().all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',') {
-            self.errors.push("First Name cannot be purely numeric or punctuation".to_string());
-        } else {
-            self.first_name = title_case(&self.first_name);
+        let mut missing_fields = Vec::new();
+
+        if self.first_name.trim().is_empty() || self.last_name.trim().is_empty() {
+            missing_fields.push("Full Name");
+        }
+        if self.level.trim().is_empty() {
+            missing_fields.push("Grade");
+        }
+        if self.section.trim().is_empty() {
+            missing_fields.push("Section");
+        }
+        if self.date.trim().is_empty() {
+            missing_fields.push("Date");
+        }
+        if self.adviser.trim().is_empty() {
+            missing_fields.push("Adviser");
+        }
+        if self.r#case.trim().is_empty() {
+            missing_fields.push("Case Type");
+        }
+        if self.progress.trim().is_empty() {
+            missing_fields.push("Progress");
+        }
+        if self.sanction.trim().is_empty() {
+            missing_fields.push("Sanction");
         }
 
-        if self.last_name.trim().is_empty() {
-            self.errors.push("Last Name is required".to_string());
-        } else if self.last_name.trim().chars().all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',') {
-            self.errors.push("Last Name cannot be purely numeric or punctuation".to_string());
-        } else {
-            self.last_name = title_case(&self.last_name);
+        if !missing_fields.is_empty() {
+            self.errors.push(format!("These fields are required : {}", missing_fields.join(", ")));
+        }
+
+        if !self.first_name.trim().is_empty() {
+            if self.first_name.trim().chars().all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',') {
+                self.errors.push("First Name cannot be purely numeric or punctuation".to_string());
+            } else {
+                self.first_name = title_case(&self.first_name);
+            }
+        }
+
+        if !self.last_name.trim().is_empty() {
+            if self.last_name.trim().chars().all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',') {
+                self.errors.push("Last Name cannot be purely numeric or punctuation".to_string());
+            } else {
+                self.last_name = title_case(&self.last_name);
+            }
         }
 
         if !self.middle_initial.trim().is_empty() {
@@ -211,18 +242,16 @@ impl ImportRow {
             self.level = title_case(&self.level);
         }
         
-        if self.section.trim().is_empty() {
-            self.errors.push("Section is required".to_string());
-        } else if self.section.chars().count() > 250 {
-            self.errors.push("Section cannot exceed 250 characters".to_string());
-        } else {
-            self.section = self.section.trim().to_uppercase();
+        if !self.section.trim().is_empty() {
+            if self.section.chars().count() > 250 {
+                self.errors.push("Section cannot exceed 250 characters".to_string());
+            } else {
+                self.section = self.section.trim().to_uppercase();
+            }
         }
         
         let valid_progress = ["pending", "reprimand", "resolved", "closed"];
-        if self.progress.trim().is_empty() {
-            self.errors.push("Progress is required".to_string());
-        } else {
+        if !self.progress.trim().is_empty() {
             let p_lower = self.progress.trim().to_lowercase();
             if !valid_progress.contains(&p_lower.as_str()) {
                 self.errors.push("Progress must be Pending, Reprimand, Resolved, or Closed".to_string());
@@ -231,32 +260,63 @@ impl ImportRow {
             }
         }
 
-        if self.date.trim().is_empty() {
-            self.errors.push("Incident Date is required".to_string());
-        } else {
+        if !self.date.trim().is_empty() {
+            let mut s = self.date.trim().to_lowercase();
+            let months = [
+                (vec!["january", "jan.", "jan"], "1"),
+                (vec!["february", "feb.", "feb"], "2"),
+                (vec!["march", "mar.", "mar"], "3"),
+                (vec!["april", "apr.", "apr"], "4"),
+                (vec!["may.", "may"], "5"),
+                (vec!["june", "jun.", "jun"], "6"),
+                (vec!["july", "jul.", "jul"], "7"),
+                (vec!["august", "aug.", "aug"], "8"),
+                (vec!["septemer", "september", "sept.", "sept", "sep.", "sep"], "9"),
+                (vec!["october", "oct.", "oct"], "10"),
+                (vec!["november", "nov.", "nov"], "11"),
+                (vec!["december", "dec.", "dec"], "12"),
+            ];
+
+            let mut month_num = "";
+            let mut found_variant = "";
+            
+            for (variants, num) in months.iter() {
+                for variant in variants {
+                    // check if the string contains the variant
+                    if s.contains(variant) {
+                        month_num = num;
+                        found_variant = variant;
+                        break;
+                    }
+                }
+                if !month_num.is_empty() {
+                    break;
+                }
+            }
+
+            if !month_num.is_empty() {
+                let rest = s.replace(found_variant, "");
+                let parts: Vec<&str> = rest.split(|c: char| c == ',' || c == ' ' || c == '/').filter(|p| !p.is_empty()).collect();
+                if parts.len() == 2 {
+                    self.date = format!("{}/{}/{}", month_num, parts[0], parts[1]);
+                }
+            }
+
             let trimmed = self.date.trim();
             let mut parsed_date = None;
 
-            if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%y") {
+            if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%Y") {
                 parsed_date = Some(naive);
-            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%Y") {
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%-m/%-d/%Y") {
                 parsed_date = Some(naive);
             } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
-                parsed_date = Some(naive);
-            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%b %d, %Y") {
-                parsed_date = Some(naive);
-            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%B %d, %Y") {
-                parsed_date = Some(naive);
-            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%y") {
-                parsed_date = Some(naive);
-            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%Y") {
                 parsed_date = Some(naive);
             }
             
             if let Some(naive) = parsed_date {
-                self.date = naive.format("%b %d, %Y").to_string();
+                self.date = naive.format("%m/%d/%Y").to_string();
             } else {
-                self.errors.push("Incident Date must be a valid date (e.g. Jun 21, 2026 or 06/21/2026)".to_string());
+                self.errors.push("Date format must be MM/DD/YYYY".to_string());
             }
         }
 
@@ -312,26 +372,26 @@ impl ImportRow {
             if let Some(naive) = parsed_date {
                 self.date_filed = naive.format("%Y-%m-%d").to_string();
             } else {
-                self.errors.push("Date Filed must be a valid date in MM/DD/YYYY or YYYY-MM-DD format".to_string());
+                self.date_filed = self.date.clone();
             }
         } else {
             self.date_filed = self.date.clone();
         }
 
-        if self.adviser.trim().is_empty() {
-            self.errors.push("Adviser is required".to_string());
-        } else if self.adviser.chars().count() > 250 {
-            self.errors.push("Adviser cannot exceed 250 characters".to_string());
-        } else {
-            self.adviser = title_case(&self.adviser);
+        if !self.adviser.trim().is_empty() {
+            if self.adviser.chars().count() > 20 {
+                self.errors.push("Adviser cannot exceed 20 characters".to_string());
+            } else {
+                self.adviser = title_case(&self.adviser);
+            }
         }
 
-        if self.r#case.trim().is_empty() {
-            self.errors.push("Case Type is required".to_string());
-        } else if self.r#case.chars().count() > 250 {
-            self.errors.push("Case Type cannot exceed 250 characters".to_string());
-        } else {
-            self.r#case = title_case(&self.r#case);
+        if !self.r#case.trim().is_empty() {
+            if self.r#case.chars().count() > 250 {
+                self.errors.push("Case Type cannot exceed 250 characters".to_string());
+            } else {
+                self.r#case = title_case(&self.r#case);
+            }
         }
 
         if self.sanction.chars().count() > 250 {

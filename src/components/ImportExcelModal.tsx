@@ -168,7 +168,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
                     <tbody>
                       <tr className="bg-surface divide-x divide-outline-variant border-t border-outline-variant">
                         <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">Smith, Jane A.</td>
-                        <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">Jun 21, 2026</td>
+                        <td className="px-3 py-2 text-on-surface-variant whitespace-nowrap">06/21/2026</td>
                         <td className="px-3 py-2 text-on-surface-variant">Truancy</td>
                         <td className="px-3 py-2 text-on-surface-variant">Suspension</td>
                         <td className="px-3 py-2 text-on-surface-variant">Resolved</td>
