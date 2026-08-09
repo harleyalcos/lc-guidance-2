@@ -8,12 +8,13 @@ use crate::db::DbState;
 use crate::models::{CaseRecord, ImportRow, CasePayload};
 use super::db_error;
 
-const DB_IMPORT_HEADERS: [&str; 7] = [
+const DB_IMPORT_HEADERS: [&str; 8] = [
     "Full Name",
     "Date",
     "Case",
     "Sanction",
     "Progress",
+    "Grade",
     "Section",
     "Adviser",
 ];
@@ -44,7 +45,7 @@ fn cell_to_date_string(cell: Option<&calamine::Data>) -> String {
     match cell {
         Some(cell) => {
             if let Some(dt) = cell.as_date() {
-                dt.format("%m/%d/%y").to_string()
+                dt.format("%m/%d/%Y").to_string()
             } else {
                 cell.to_string().trim().to_string()
             }
@@ -124,9 +125,9 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
             r#case: cell_to_db_string(row.get(2)),
             sanction: cell_to_db_string(row.get(3)),
             progress: cell_to_db_string(row.get(4)),
-            level: String::new(),
-            section: cell_to_db_string(row.get(5)),
-            adviser: cell_to_db_string(row.get(6)),
+            level: cell_to_db_string(row.get(5)),
+            section: cell_to_db_string(row.get(6)),
+            adviser: cell_to_db_string(row.get(7)),
             date_filed: String::new(),
             description: String::new(),
             proofs: String::from("[]"),
@@ -291,7 +292,7 @@ pub fn generate_import_template(app: tauri::AppHandle) -> Result<String, String>
         .set_font_color("#FFFFFF")
         .set_background_color("#002F87");
 
-    let column_widths = [26.0, 18.0, 22.0, 24.0, 16.0, 16.0, 22.0];
+    let column_widths = [26.0, 18.0, 22.0, 24.0, 16.0, 16.0, 16.0, 22.0];
 
     for (col, header) in DB_IMPORT_HEADERS.iter().enumerate() {
         worksheet.write_string_with_format(0, col as u16, *header, &header_format).map_err(|e| e.to_string())?;

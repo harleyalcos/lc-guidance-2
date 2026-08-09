@@ -814,7 +814,7 @@ export default function CaseCatalog() {
       workbook.created = new Date();
 
       const worksheet = workbook.addWorksheet("Cases");
-      [10, 20, 20, 15, 16, 16, 16, 22, 22, 28, 42, 28, 18, 48].forEach((width, index) => {
+      [26, 18, 22, 24, 16, 16, 22].forEach((width, index) => {
         worksheet.getColumn(index + 1).width = width;
       });
 
@@ -824,24 +824,24 @@ export default function CaseCatalog() {
       worksheet.addRow([]);
       worksheet.addRow([]);
 
-      worksheet.mergeCells("D1:K1");
-      worksheet.mergeCells("D2:K2");
-      worksheet.mergeCells("D3:K3");
+      worksheet.mergeCells("B1:F1");
+      worksheet.mergeCells("B2:F2");
+      worksheet.mergeCells("B3:F3");
 
-      worksheet.getCell("D1").value = "LAGUNA COLLEGE";
-      worksheet.getCell("D2").value = "San Pablo City";
-      worksheet.getCell("D3").value = "Guidance Office";
+      worksheet.getCell("B1").value = "LAGUNA COLLEGE";
+      worksheet.getCell("B2").value = "San Pablo City";
+      worksheet.getCell("B3").value = "Guidance Office";
 
       worksheet.getRow(1).height = 20;
       worksheet.getRow(2).height = 17;
       worksheet.getRow(3).height = 27;
       worksheet.getRow(4).height = 6;
 
-      worksheet.getCell("D1").font = { name: "Georgia", bold: true, size: 13, color: { argb: "FF000000" } };
-      worksheet.getCell("D2").font = { name: "Georgia", bold: true, size: 11, color: { argb: "FF000000" } };
-      worksheet.getCell("D3").font = { name: "Georgia", bold: true, size: 18, color: { argb: "FF000000" } };
+      worksheet.getCell("B1").font = { name: "Georgia", bold: true, size: 13, color: { argb: "FF000000" } };
+      worksheet.getCell("B2").font = { name: "Georgia", bold: true, size: 11, color: { argb: "FF000000" } };
+      worksheet.getCell("B3").font = { name: "Georgia", bold: true, size: 18, color: { argb: "FF000000" } };
 
-      ["D1", "D2", "D3"].forEach((cellRef) => {
+      ["B1", "B2", "B3"].forEach((cellRef) => {
         worksheet.getCell(cellRef).alignment = { horizontal: "center", vertical: "middle" };
       });
 
@@ -860,12 +860,12 @@ export default function CaseCatalog() {
       });
 
       worksheet.addImage(lcImageId, {
-        tl: { col: 5.7, row: 0 },
+        tl: { col: 0.5, row: 0 },
         ext: { width: 86, height: 86 },
         editAs: "oneCell",
       });
       worksheet.addImage(guidanceImageId, {
-        tl: { col: 9.65, row: 0 },
+        tl: { col: 5.5, row: 0 },
         ext: { width: 86, height: 86 },
         editAs: "oneCell",
       });
@@ -882,27 +882,21 @@ export default function CaseCatalog() {
       worksheet.addRow([filterText]);
       worksheet.addRow([]); // Empty row
 
-      worksheet.mergeCells("A5:N5");
-      worksheet.mergeCells("A6:N6");
+      worksheet.mergeCells("A5:H5");
+      worksheet.mergeCells("A6:H6");
       worksheet.getCell("A5").font = { bold: true, color: { argb: "FF000000" } };
       worksheet.getCell("A6").font = { italic: true, color: { argb: "FF4B5563" } };
       worksheet.views = [{ state: "frozen", ySplit: 8 }];
 
       const headers = [
-        "Case ID",
-        "First Name",
-        "Last Name",
-        "Middle Initial",
-        "Grade Level",
-        "Section",
-        "Incident Date",
-        "Date Filed",
-        "Adviser",
-        "Case Type",
-        "Description",
+        "Full Name",
+        "Date",
+        "Case",
         "Sanction",
         "Progress",
-        "Proofs"
+        "Grade",
+        "Section",
+        "Adviser",
       ];
 
       const headerRow = worksheet.addRow(headers);
@@ -914,91 +908,39 @@ export default function CaseCatalog() {
       };
 
       filteredAndSortedCases.forEach((c) => {
-        let proofsText = "";
-        let hasImages = false;
-        let proofsArr: any[] = [];
-        try {
-          if (c.proofs) {
-            proofsArr = JSON.parse(c.proofs);
-            if (Array.isArray(proofsArr)) {
-              const nonImages = proofsArr.filter((p: any) => {
-                const isImg = p.data && p.data.match(/^data:image\/(png|jpeg|jpg|gif);/i);
-                if (isImg) hasImages = true;
-                return !isImg;
-              });
-              proofsText = nonImages.map((p: any) => p.name).join("\n");
-            }
-          }
-        } catch (e) { }
-
-        let firstNames = c.first_name;
-        let lastNames = c.last_name;
-        let middleInitials = c.middle_initial;
+        let fullNames = "";
 
         try {
           if (c.students) {
             const studentsArr = JSON.parse(c.students);
             if (Array.isArray(studentsArr) && studentsArr.length > 0) {
-              firstNames = studentsArr.map((s: any) => s.firstName).join("\n");
-              lastNames = studentsArr.map((s: any) => s.lastName).join("\n");
-              middleInitials = studentsArr.map((s: any) => s.middleInitial).join("\n");
+              fullNames = studentsArr.map((s: any) => {
+                const mi = s.middleInitial ? ` ${s.middleInitial}.` : "";
+                return `${s.lastName}, ${s.firstName}${mi}`;
+              }).join("\n");
+            } else {
+              const mi = c.middle_initial ? ` ${c.middle_initial}.` : "";
+              fullNames = `${c.last_name}, ${c.first_name}${mi}`;
             }
+          } else {
+            const mi = c.middle_initial ? ` ${c.middle_initial}.` : "";
+            fullNames = `${c.last_name}, ${c.first_name}${mi}`;
           }
-        } catch (e) { }
+        } catch (e) {
+          const mi = c.middle_initial ? ` ${c.middle_initial}.` : "";
+          fullNames = `${c.last_name}, ${c.first_name}${mi}`;
+        }
 
         const row = worksheet.addRow([
-          c.id,
-          firstNames,
-          lastNames,
-          middleInitials,
-          c.level,
-          c.section,
+          fullNames,
           c.date,
-          c.date_filed,
-          c.adviser,
           c.case,
-          c.description,
           c.sanction,
           c.progress,
-          proofsText,
+          c.level,
+          c.section,
+          c.adviser,
         ]);
-
-        const rIndex = row.number;
-
-        if (hasImages && Array.isArray(proofsArr)) {
-          row.height = 75; // Set row height in points (e.g. 75 points ~ 100px)
-
-          let imgIndex = 0;
-          proofsArr.forEach((p: any) => {
-            const match = p.data && p.data.match(/^data:image\/(png|jpeg|jpg|gif);base64,(.+)$/i);
-            if (match) {
-              let ext = match[1].toLowerCase();
-              if (ext === 'jpg') ext = 'jpeg';
-              const base64 = match[2];
-
-              try {
-                const imageId = workbook.addImage({
-                  base64: base64,
-                  extension: ext as 'png' | 'jpeg' | 'gif',
-                });
-
-                // Position side-by-side: 65x65px thumbnail
-                // Space them out by 75px (65px img + 10px margin)
-                const xOffsetPx = 10 + (imgIndex * 75);
-                const proofsColumnWidthPx = 336;
-
-                worksheet.addImage(imageId, {
-                  tl: { col: 13 + (xOffsetPx / proofsColumnWidthPx), row: rIndex - 0.95 },
-                  ext: { width: 65, height: 65 },
-                  editAs: 'oneCell'
-                });
-                imgIndex++;
-              } catch (err) {
-                console.error("Error adding image to excel:", err);
-              }
-            }
-          });
-        }
       });
 
       worksheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {

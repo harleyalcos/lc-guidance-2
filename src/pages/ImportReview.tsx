@@ -449,7 +449,7 @@ export default function ImportReview() {
                   <th className="py-3 px-4 w-16 text-center bg-surface-container-low/70">Row</th>
                   <th className="py-3 px-4 min-w-[150px] text-left">Student Name</th>
                   <th className="py-3 px-4 min-w-[120px] text-left">Incident Date</th>
-                  <th className="py-3 px-4 min-w-[150px] text-left">Case Type</th>
+                  <th className="py-3 px-4 min-w-[150px] text-center">Case Type</th>
                   
                   {activeTab === "issues" && <th className="py-3 px-4 min-w-[220px] text-left">Issues</th>}
                   {activeTab === "duplicates" && <th className="py-3 px-4 min-w-[160px] text-left">Database Match</th>}
@@ -479,7 +479,7 @@ export default function ImportReview() {
                         </td>
 
                         {/* Case Type */}
-                        <td className="py-2.5 px-4 text-sm">
+                        <td className="py-2.5 px-4 text-sm text-center">
                           <span className="bg-surface-variant/40 px-2 py-0.5 rounded font-medium text-on-surface-variant border border-outline-variant">{row.case}</span>
                         </td>
 
@@ -673,7 +673,7 @@ export default function ImportReview() {
               {/* Form grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">full name (Lastname, Firstname I.)</label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">full name (Lastname, Firstname M.I.)</label>
                   <input
                     type="text"
                     value={editData.full_name || ""}
@@ -683,7 +683,7 @@ export default function ImportReview() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">date (e.g. Jun 21, 2026 or 06/21/2026)</label>
+                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">DATE (mm/dd/yyyy)</label>
                   <input
                     type="text"
                     value={editData.date}
@@ -803,10 +803,14 @@ export default function ImportReview() {
                   <input
                     type="text"
                     value={editData.adviser}
-                    onChange={e => handleEditChange("adviser", autoCapitalize(e.target.value))}
+                    maxLength={20}
+                    onChange={e => handleEditChange("adviser", autoCapitalize(e.target.value).slice(0, 20))}
                     onBlur={() => handleEditChange("adviser", capitalizeWords(editData.adviser))}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted"
                   />
+                  <p className="mt-0.5 text-right text-[9px] font-medium text-secondary">
+                    {(editData.adviser || "").length}/20
+                  </p>
                 </div>
 
               </div>
