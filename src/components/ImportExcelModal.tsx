@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import ImportErrorModal from "./ImportErrorModal";
 
 export interface ImportExcelModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const navigate = useNavigate();
 
@@ -101,7 +103,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
       });
 
     } catch (e) {
-      showToast("error", `Failed to parse file: ${e}`);
+      setParseError(String(e));
     } finally {
       setIsLoading(false);
     }
@@ -109,6 +111,16 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
 
   return createPortal(
     <>
+      {parseError && (
+        <ImportErrorModal
+          isOpen={!!parseError}
+          onClose={() => setParseError(null)}
+          rawError={parseError}
+          onSelectAnotherFile={handleSelectFile}
+          onDownloadTemplate={handleDownloadTemplate}
+        />
+      )}
+
       {toast && (
         <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
           toast.type === "success"

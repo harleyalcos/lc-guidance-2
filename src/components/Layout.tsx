@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState, ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useState, ReactNode } from "react";
 import Sidebar from "./Sidebar";
 import TopAppBar from "./TopAppBar";
-import FileNewCaseModal from "./FileNewCaseModal";
 
 interface LayoutProps {
   children: ReactNode;
@@ -12,27 +10,6 @@ interface LayoutProps {
 
 export default function Layout({ children, title, pageKey }: LayoutProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false);
-  const [successToastMessage, setSuccessToastMessage] = useState("");
-  const [isSuccessToastVisible, setIsSuccessToastVisible] = useState(false);
-  const successToastTimerRef = useRef<number | null>(null);
-
-  const showSuccessToast = (message: string) => {
-    setSuccessToastMessage(message);
-    setIsSuccessToastVisible(false);
-    if (successToastTimerRef.current) window.clearTimeout(successToastTimerRef.current);
-    window.requestAnimationFrame(() => setIsSuccessToastVisible(true));
-    successToastTimerRef.current = window.setTimeout(() => {
-      setIsSuccessToastVisible(false);
-      window.setTimeout(() => setSuccessToastMessage(""), 1000);
-    }, 2800);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (successToastTimerRef.current) window.clearTimeout(successToastTimerRef.current);
-    };
-  }, []);
 
   const isImportReview = pageKey === "/import-review";
   const isPendingPage = pageKey === "/pending";
@@ -47,7 +24,7 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
       </div>
       <div className="print:hidden">
         {!isImportReview && (
-          <TopAppBar title={title} onNewCaseClick={() => setIsNewCaseModalOpen(true)} isSidebarCollapsed={isSidebarCollapsed} />
+          <TopAppBar title={title} isSidebarCollapsed={isSidebarCollapsed} />
         )}
       </div>
       <main className={`print:ml-0 print:min-h-0 print:p-0 transition-[margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
@@ -61,18 +38,6 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
           {children}
         </div>
       </main>
-      <FileNewCaseModal
-        isOpen={isNewCaseModalOpen}
-        onClose={() => setIsNewCaseModalOpen(false)}
-        onCaseFiled={() => showSuccessToast("Case filed successfully.")}
-      />
-      {successToastMessage && createPortal(
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] px-4 py-3 text-[#002F87] dark:text-[#b4c5ff] shadow-xl ${isSuccessToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
-          <span className="material-symbols-outlined text-primary dark:text-[#b4c5ff]" style={{ fontSize: 18 }}>info</span>
-          <p className="text-xs font-bold">{successToastMessage}</p>
-        </div>,
-        document.body
-      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useRef } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import DatePicker from "./DatePicker";
 
@@ -717,7 +718,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
   const activeCat = getCategoryForCase(formData.case);
   const displayCat = formData.case.trim() ? activeCat ?? OTHER_CASE_CATEGORY : null;
 
-  return (
+  return createPortal(
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200 ease-out ${isOpen ? "opacity-100 new-case-modal-backdrop-enter" : "opacity-0 pointer-events-none modal-backdrop-exit"}`}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseAttempt} />
@@ -1933,6 +1934,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

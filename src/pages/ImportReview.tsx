@@ -24,8 +24,6 @@ const autoCapitalize = (val: string) => {
   return val.replace(/(^|\s)\p{L}/gu, (match) => match.toUpperCase());
 };
 
-const normalizeMiddleInitial = (value: string) => value.replace(/\s+/g, "").toUpperCase();
-
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
 const PROGRESS_OPTIONS = ["Pending", "Resolved", "Closed", "Reprimand"];

@@ -3,16 +3,14 @@ import { useEffect, useState } from "react";
 
 interface TopAppBarProps {
   title: string;
-  onNewCaseClick?: () => void;
   isSidebarCollapsed?: boolean;
 }
 
-export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = false }: TopAppBarProps) {
+export default function TopAppBar({ title, isSidebarCollapsed = false }: TopAppBarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const isCaseDetails = location.pathname.startsWith("/case/");
   const showBackButton = isCaseDetails;
-  const showNewCaseButton = location.pathname === "/catalog" || location.pathname === "/pending" || location.pathname === "/";
 
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -53,24 +51,15 @@ export default function TopAppBar({ title, onNewCaseClick, isSidebarCollapsed = 
       </div>
 
       <div className="flex items-center gap-4">
-
-        {showNewCaseButton && (
-          <div className="flex items-center gap-2">
-            {pendingCount > 0 && (
-              <button
-                onClick={() => navigate("/import-review")}
-                className="border-2 border-[#FAC775] text-[#B06000] bg-[#FEF7E0] hover:bg-[#FEEFC3] font-bold py-2.5 px-6 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-all duration-300 shadow-sm cursor-pointer"
-                title="Click to resume pending imports review"
-              >
-                <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>pending</span>
-                <span>{pendingCount} Pending {pendingCount === 1 ? "Import" : "Imports"}</span>
-              </button>
-            )}
-            <button onClick={onNewCaseClick} className="btn-primary ml-2">
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              <span>New Case</span>
-            </button>
-          </div>
+        {pendingCount > 0 && (
+          <button
+            onClick={() => navigate("/import-review")}
+            className="border-2 border-[#FAC775] text-[#B06000] bg-[#FEF7E0] hover:bg-[#FEEFC3] font-bold py-2.5 px-6 rounded-xl flex items-center justify-center gap-1.5 text-xs transition-all duration-300 shadow-sm cursor-pointer"
+            title="Click to resume pending imports review"
+          >
+            <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>pending</span>
+            <span>{pendingCount} Pending {pendingCount === 1 ? "Import" : "Imports"}</span>
+          </button>
         )}
       </div>
     </header>

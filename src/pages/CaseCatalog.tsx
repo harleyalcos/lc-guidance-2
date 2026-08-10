@@ -4,7 +4,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import ImportExcelModal from "../components/ImportExcelModal";
+import ExportExcelModal, { ExportOptions, ExportColumns } from "../components/ExportExcelModal";
+import FileNewCaseModal from "../components/FileNewCaseModal";
 import lcOfficialLogo from "../assets/lc-official-logo.jpg";
 import guidanceLogo from "../assets/guidance-logo.png";
 import { useAcademicYearFilter } from "../context/AcademicYearFilterContext";
@@ -287,6 +290,8 @@ export default function CaseCatalog() {
     return stored ? Number(stored) || 1 : 1;
   });
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isFileNewCaseModalOpen, setIsFileNewCaseModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [isToastVisible, setIsToastVisible] = useState(false);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
@@ -783,25 +788,183 @@ export default function CaseCatalog() {
     }, MODAL_EXIT_MS);
   };
 
-  const handleExportExcel = async () => {
-    if (filteredAndSortedCases.length === 0) {
-      showToast("No cases to export.");
+  const handleExportExcelWithOptions = async (options: ExportOptions) => {
+    const targetCases = cases.filter((c) => {
+      // 1. Scope filter
+      if (options.scope === "specific") {
+        if (!c.level || c.level.trim().toLowerCase() !== options.selectedGrade.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 2. Status filter
+      if (options.selectedStatus !== "all" && options.selectedStatus !== "All Statuses") {
+        if (c.progress?.toLowerCase() !== options.selectedStatus.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 3. Date range filter
+      if (options.startDate || options.endDate) {
+        const caseDateStr = c.date;
+        if (caseDateStr) {
+          if (options.startDate && caseDateStr < options.startDate) return false;
+          if (options.endDate && caseDateStr > options.endDate) return false;
+        }
+      }
+
+      // 4. Search query filter
+      if (options.searchQuery.trim()) {
+        const query = options.searchQuery.trim().toLowerCase();
+        let nameMatch = false;
+
+        try {
+          if (c.students) {
+            const arr = JSON.parse(c.students);
+            if (Array.isArray(arr)) {
+              nameMatch = arr.some((s: any) =>
+                `${s.firstName} ${s.lastName}`.toLowerCase().includes(query)
+              );
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        if (!nameMatch) {
+          const fullName = `${c.first_name} ${c.last_name}`.toLowerCase();
+          const caseTitle = (c.case || "").toLowerCase();
+          const section = (c.section || "").toLowerCase();
+          const adviser = (c.adviser || "").toLowerCase();
+
+          if (
+            !fullName.includes(query) &&
+            !caseTitle.includes(query) &&
+            !section.includes(query) &&
+            !adviser.includes(query)
+          ) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    });
+
+    if (targetCases.length === 0) {
+      showToast("No cases match the selected export criteria.");
+      return;
+    }
+
+    const getStudentFullName = (c: CaseRecord) => {
+      try {
+        if (c.students) {
+          const studentsArr = JSON.parse(c.students);
+          if (Array.isArray(studentsArr) && studentsArr.length > 0) {
+            return studentsArr.map((s: any) => {
+              const mi = s.middleInitial ? ` ${s.middleInitial}.` : "";
+              return `${s.lastName}, ${s.firstName}${mi}`;
+            }).join("\n");
+          }
+        }
+      } catch {
+        // fallback
+      }
+      const mi = c.middle_initial ? ` ${c.middle_initial}.` : "";
+      return `${c.last_name}, ${c.first_name}${mi}`;
+    };
+
+    const getStudentRoles = (c: CaseRecord) => {
+      try {
+        if (c.students) {
+          const studentsArr = JSON.parse(c.students);
+          if (Array.isArray(studentsArr) && studentsArr.length > 0) {
+            return studentsArr.map((s: any) => {
+              const r = s.role || "Respondent";
+              return `${s.lastName}, ${s.firstName}: ${r}`;
+            }).join("\n");
+          }
+        }
+      } catch {
+        // fallback
+      }
+      return "Respondent";
+    };
+
+    const getProofsCount = (c: CaseRecord) => {
+      if (!c.proofs) return "0";
+      try {
+        const parsed = JSON.parse(c.proofs);
+        return Array.isArray(parsed) ? `${parsed.length}` : "0";
+      } catch {
+        return "0";
+      }
+    };
+
+    const getUpdateHistorySummary = (c: CaseRecord) => {
+      if (!c.update_history) return "None";
+      try {
+        const history = JSON.parse(c.update_history);
+        return Array.isArray(history) && history.length > 0 ? `${history.length} update(s)` : "None";
+      } catch {
+        return "None";
+      }
+    };
+
+    const formatDateFiled = (dateStr?: string) => {
+      if (!dateStr) return "—";
+      try {
+        return new Date(dateStr).toLocaleString();
+      } catch {
+        return dateStr;
+      }
+    };
+
+    const allColumnDefs = [
+      // First 8 standard importable fields (Default = true)
+      { key: "fullName", header: "Full Name", width: 26, getValue: getStudentFullName },
+      { key: "date", header: "Date", width: 18, getValue: (c: CaseRecord) => c.date || "" },
+      { key: "case", header: "Case", width: 22, getValue: (c: CaseRecord) => c.case || "" },
+      { key: "sanction", header: "Sanction", width: 24, getValue: (c: CaseRecord) => c.sanction || "" },
+      { key: "progress", header: "Progress", width: 16, getValue: (c: CaseRecord) => c.progress || "" },
+      { key: "level", header: "Grade", width: 16, getValue: (c: CaseRecord) => c.level || "" },
+      { key: "section", header: "Section", width: 22, getValue: (c: CaseRecord) => c.section || "" },
+      { key: "adviser", header: "Adviser", width: 22, getValue: (c: CaseRecord) => c.adviser || "" },
+
+      // Additional case details fields (Default = false)
+      { key: "caseId", header: "Case ID", width: 14, getValue: (c: CaseRecord) => `#${c.id.toString().padStart(4, "0")}` },
+      { key: "title", header: "Case Title", width: 28, getValue: (c: CaseRecord) => c.title || "—" },
+      { key: "dateFiled", header: "Date Filed", width: 22, getValue: (c: CaseRecord) => formatDateFiled(c.date_filed) },
+      { key: "description", header: "Description", width: 35, getValue: (c: CaseRecord) => c.description || "—" },
+      { key: "role", header: "Student Roles", width: 26, getValue: getStudentRoles },
+      { key: "reportingStudent", header: "Reporting Student", width: 24, getValue: (c: CaseRecord) => c.reporting_student || "—" },
+      { key: "schoolYear", header: "School Year", width: 18, getValue: (c: CaseRecord) => c.school_year || "—" },
+      { key: "groupId", header: "Group ID", width: 26, getValue: (c: CaseRecord) => c.group_id || "—" },
+      { key: "proofsCount", header: "Attached Proofs", width: 18, getValue: getProofsCount },
+      { key: "updateHistory", header: "Update History", width: 20, getValue: getUpdateHistorySummary },
+    ];
+
+    const activeCols = allColumnDefs.filter((col) => options.columns[col.key as keyof ExportColumns]);
+
+    if (activeCols.length === 0) {
+      showToast("Please select at least one column to export.");
       return;
     }
 
     const filenameParts: string[] = ["cases_export"];
-    if (statusFilter !== "All Statuses") {
-      filenameParts.push(statusFilter.toLowerCase());
+    if (options.selectedStatus !== "all" && options.selectedStatus !== "All Statuses") {
+      filenameParts.push(options.selectedStatus.toLowerCase());
     }
-
-    if (startDate || endDate) {
-      const start = startDate ? startDate.replace(/-/g, "") : "Any";
-      const end = endDate ? endDate.replace(/-/g, "") : "Any";
+    if (options.scope === "specific") {
+      filenameParts.push(options.selectedGrade.toLowerCase().replace(/\s+/g, "_"));
+    }
+    if (options.startDate || options.endDate) {
+      const start = options.startDate ? options.startDate.replace(/-/g, "") : "Any";
+      const end = options.endDate ? options.endDate.replace(/-/g, "") : "Any";
       filenameParts.push(`${start}_to_${end}`);
     }
-
-    if (searchQuery.trim()) {
-      filenameParts.push(`search_${searchQuery.trim().replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()}`);
+    if (options.searchQuery.trim()) {
+      filenameParts.push(`search_${options.searchQuery.trim().replace(/[^a-zA-Z0-9]/g, "_").toLowerCase()}`);
     }
     if (filenameParts.length === 1) {
       filenameParts.push(getTodayDateString());
@@ -814,8 +977,9 @@ export default function CaseCatalog() {
       workbook.created = new Date();
 
       const worksheet = workbook.addWorksheet("Cases");
-      [26, 18, 22, 24, 16, 16, 22].forEach((width, index) => {
-        worksheet.getColumn(index + 1).width = width;
+
+      activeCols.forEach((col, index) => {
+        worksheet.getColumn(index + 1).width = col.width;
       });
 
       // Official document header
@@ -824,9 +988,10 @@ export default function CaseCatalog() {
       worksheet.addRow([]);
       worksheet.addRow([]);
 
-      worksheet.mergeCells("B1:F1");
-      worksheet.mergeCells("B2:F2");
-      worksheet.mergeCells("B3:F3");
+      const colEndLetter = String.fromCharCode(65 + Math.max(1, activeCols.length - 1));
+      worksheet.mergeCells(`B1:${colEndLetter}1`);
+      worksheet.mergeCells(`B2:${colEndLetter}2`);
+      worksheet.mergeCells(`B3:${colEndLetter}3`);
 
       worksheet.getCell("B1").value = "LAGUNA COLLEGE";
       worksheet.getCell("B2").value = "San Pablo City";
@@ -865,7 +1030,7 @@ export default function CaseCatalog() {
         editAs: "oneCell",
       });
       worksheet.addImage(guidanceImageId, {
-        tl: { col: 5.5, row: 0 },
+        tl: { col: Math.max(2, activeCols.length - 0.5), row: 0 },
         ext: { width: 86, height: 86 },
         editAs: "oneCell",
       });
@@ -874,31 +1039,18 @@ export default function CaseCatalog() {
 
       let filterText = "Filters: None";
       const activeFilters = [];
-      if (statusFilter !== "All Statuses") activeFilters.push(`Status: ${statusFilter}`);
-
-      if (startDate || endDate) activeFilters.push(`Date Range: ${startDate || 'Any'} to ${endDate || 'Any'}`);
-      if (searchQuery) activeFilters.push(`Search: ${searchQuery}`);
+      if (options.scope === "specific") activeFilters.push(`Scope: ${options.selectedGrade}`);
+      if (options.selectedStatus !== "all" && options.selectedStatus !== "All Statuses") activeFilters.push(`Status: ${options.selectedStatus}`);
+      if (options.startDate || options.endDate) activeFilters.push(`Date Range: ${options.startDate || 'Any'} to ${options.endDate || 'Any'}`);
+      if (options.searchQuery) activeFilters.push(`Search: ${options.searchQuery}`);
       if (activeFilters.length > 0) filterText = `Filters: ${activeFilters.join(" | ")}`;
+
       worksheet.addRow([filterText]);
       worksheet.addRow([]); // Empty row
 
-      worksheet.mergeCells("A5:H5");
-      worksheet.mergeCells("A6:H6");
-      worksheet.getCell("A5").font = { bold: true, color: { argb: "FF000000" } };
-      worksheet.getCell("A6").font = { italic: true, color: { argb: "FF4B5563" } };
       worksheet.views = [{ state: "frozen", ySplit: 8 }];
 
-      const headers = [
-        "Full Name",
-        "Date",
-        "Case",
-        "Sanction",
-        "Progress",
-        "Grade",
-        "Section",
-        "Adviser",
-      ];
-
+      const headers = activeCols.map((c) => c.header);
       const headerRow = worksheet.addRow(headers);
       headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
       headerRow.fill = {
@@ -907,46 +1059,13 @@ export default function CaseCatalog() {
         fgColor: { argb: "FF002F87" },
       };
 
-      filteredAndSortedCases.forEach((c) => {
-        let fullNames = "";
-
-        try {
-          if (c.students) {
-            const studentsArr = JSON.parse(c.students);
-            if (Array.isArray(studentsArr) && studentsArr.length > 0) {
-              fullNames = studentsArr.map((s: any) => {
-                const mi = s.middleInitial ? ` ${s.middleInitial}.` : "";
-                return `${s.lastName}, ${s.firstName}${mi}`;
-              }).join("\n");
-            } else {
-              const mi = c.middle_initial ? ` ${c.middle_initial}.` : "";
-              fullNames = `${c.last_name}, ${c.first_name}${mi}`;
-            }
-          } else {
-            const mi = c.middle_initial ? ` ${c.middle_initial}.` : "";
-            fullNames = `${c.last_name}, ${c.first_name}${mi}`;
-          }
-        } catch (e) {
-          const mi = c.middle_initial ? ` ${c.middle_initial}.` : "";
-          fullNames = `${c.last_name}, ${c.first_name}${mi}`;
-        }
-
-        const row = worksheet.addRow([
-          fullNames,
-          c.date,
-          c.case,
-          c.sanction,
-          c.progress,
-          c.level,
-          c.section,
-          c.adviser,
-        ]);
+      targetCases.forEach((c) => {
+        const rowData = activeCols.map((col) => col.getValue(c));
+        worksheet.addRow(rowData);
       });
 
       worksheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
-        if (rowNumber <= 7) {
-          return;
-        }
+        if (rowNumber <= 7) return;
         row.eachCell((cell: ExcelJS.Cell) => {
           cell.alignment = { vertical: "top", wrapText: true };
           cell.border = {
@@ -959,10 +1078,108 @@ export default function CaseCatalog() {
       });
 
       const buffer = await workbook.xlsx.writeBuffer();
-      const base64Data = arrayBufferToBase64(buffer as ArrayBuffer);
-      await invoke("save_file", { base64Data, filename });
+      const isZipExport = options.columns.proofsCount || options.columns.updateHistory;
+
+      if (isZipExport) {
+        const zip = new JSZip();
+        // Add the main Excel spreadsheet to the root of the ZIP
+        zip.file(filename, buffer);
+
+        // 1. Add attached_proofs/ folder if Attached Proofs is checked
+        if (options.columns.proofsCount) {
+          const proofsFolder = zip.folder("attached_proofs");
+          targetCases.forEach((c) => {
+            if (c.proofs) {
+              try {
+                const parsedProofs = JSON.parse(c.proofs);
+                if (Array.isArray(parsedProofs) && parsedProofs.length > 0) {
+                  const caseIdStr = `#${c.id.toString().padStart(4, "0")}`;
+                  const safeName = getStudentFullName(c).replace(/[\r\n,]+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "_");
+                  const caseFolder = proofsFolder?.folder(`Case_${caseIdStr}_${safeName}`);
+
+                  parsedProofs.forEach((proof: any, idx: number) => {
+                    if (proof.data && typeof proof.data === "string") {
+                      const match = proof.data.match(/^data:([^;]+);base64,(.+)$/);
+                      const base64Str = match ? match[2] : proof.data;
+                      try {
+                        const binaryStr = atob(base64Str);
+                        const bytes = new Uint8Array(binaryStr.length);
+                        for (let i = 0; i < binaryStr.length; i++) {
+                          bytes[i] = binaryStr.charCodeAt(i);
+                        }
+                        const cleanFileName = (proof.name || `proof_${idx + 1}.png`).replace(/[^a-zA-Z0-9._-]/g, "_");
+                        caseFolder?.file(cleanFileName, bytes);
+                      } catch (err) {
+                        console.error("Failed to parse proof data", err);
+                      }
+                    }
+                  });
+                }
+              } catch {
+                // ignore invalid proof JSON
+              }
+            }
+          });
+        }
+
+        // 2. Add update_history/ folder if Update History is checked
+        if (options.columns.updateHistory) {
+          const historyFolder = zip.folder("update_history");
+          targetCases.forEach((c) => {
+            if (c.update_history) {
+              try {
+                const parsedHistory = JSON.parse(c.update_history);
+                const caseIdStr = `#${c.id.toString().padStart(4, "0")}`;
+                const safeName = getStudentFullName(c).replace(/[\r\n,]+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "_");
+
+                let logTxt = `==================================================\n`;
+                logTxt += `CASE UPDATE HISTORY LOG - Case ${caseIdStr}\n`;
+                logTxt += `Student(s) : ${getStudentFullName(c).replace(/\n/g, "; ")}\n`;
+                logTxt += `Case Type  : ${c.case || "—"}\n`;
+                logTxt += `Sanction   : ${c.sanction || "—"}\n`;
+                logTxt += `Progress   : ${c.progress || "—"}\n`;
+                logTxt += `Date Filed : ${c.date_filed || "—"}\n`;
+                logTxt += `School Year: ${c.school_year || "—"}\n`;
+                logTxt += `==================================================\n\n`;
+
+                if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
+                  logTxt += `LOGGED UPDATES & AUDIT TRAIL (${parsedHistory.length}):\n`;
+                  logTxt += `--------------------------------------------------\n`;
+                  parsedHistory.forEach((item: any, idx: number) => {
+                    logTxt += `[Update #${idx + 1}]\n`;
+                    if (item.timestamp || item.date) logTxt += `Date/Time : ${item.timestamp || item.date}\n`;
+                    if (item.action) logTxt += `Action    : ${item.action}\n`;
+                    if (item.field) logTxt += `Field     : ${item.field}\n`;
+                    if (item.oldValue !== undefined) logTxt += `Previous  : ${typeof item.oldValue === 'object' ? JSON.stringify(item.oldValue) : item.oldValue}\n`;
+                    if (item.newValue !== undefined) logTxt += `New Value : ${typeof item.newValue === 'object' ? JSON.stringify(item.newValue) : item.newValue}\n`;
+                    if (item.user) logTxt += `User      : ${item.user}\n`;
+                    if (item.note) logTxt += `Note      : ${item.note}\n`;
+                    logTxt += `--------------------------------------------------\n`;
+                  });
+                } else {
+                  logTxt += `No updates logged for this record.\n`;
+                }
+
+                historyFolder?.file(`Case_${caseIdStr}_${safeName}_history.txt`, logTxt);
+              } catch {
+                // ignore invalid update history JSON
+              }
+            }
+          });
+        }
+
+        const zipFilename = filename.replace(/\.xlsx$/i, ".zip");
+        const zipContent = await zip.generateAsync({ type: "uint8array" });
+        const base64Data = arrayBufferToBase64(zipContent);
+        await invoke("save_file", { base64Data, filename: zipFilename });
+        showToast(`Successfully exported ZIP archive (${zipFilename}) with Excel sheet & folders.`);
+      } else {
+        const base64Data = arrayBufferToBase64(buffer as ArrayBuffer);
+        await invoke("save_file", { base64Data, filename });
+        showToast(`Successfully exported ${targetCases.length} case(s) to Excel.`);
+      }
     } catch (err) {
-      alert("Failed to export Excel file: " + err);
+      alert("Failed to export: " + err);
     }
   };
 
@@ -987,11 +1204,24 @@ export default function CaseCatalog() {
             <span>Import Excel</span>
           </button>
           <button
-            onClick={handleExportExcel}
+            onClick={() => {
+              if (cases.length === 0) {
+                showToast("No cases available to export.");
+                return;
+              }
+              setIsExportModalOpen(true);
+            }}
             className="btn-secondary"
           >
             <span className="material-symbols-outlined text-[18px]">table_view</span>
             <span>Export to Excel</span>
+          </button>
+          <button
+            onClick={() => setIsFileNewCaseModalOpen(true)}
+            className="btn-primary"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            <span>File New Case</span>
           </button>
         </div>
       </div>
@@ -1260,7 +1490,6 @@ export default function CaseCatalog() {
                       <td className={`py-1 px-4 transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}></td>
                     </tr>
                     {showSubRows && group.cases.map((caseRecord, subIndex) => {
-                      const isLastSubRow = subIndex === group.cases.length - 1;
                       const subBorderClass = "border-b border-outline-variant";
                       const animClass = isCollapsing ? "group-row-collapse" : "group-row-expand";
                       const delay = isCollapsing
@@ -1566,6 +1795,27 @@ export default function CaseCatalog() {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImportComplete={loadCases}
+      />
+
+      <ExportExcelModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        cases={cases}
+        initialStatusFilter={statusFilter}
+        initialStartDate={startDate}
+        initialEndDate={endDate}
+        initialSearchQuery={searchQuery}
+        onExport={handleExportExcelWithOptions}
+      />
+
+      <FileNewCaseModal
+        isOpen={isFileNewCaseModalOpen}
+        onClose={() => setIsFileNewCaseModalOpen(false)}
+        onCaseFiled={() => {
+          setIsFileNewCaseModalOpen(false);
+          loadCases();
+          showToast("Case filed successfully.");
+        }}
       />
     </>
   );
