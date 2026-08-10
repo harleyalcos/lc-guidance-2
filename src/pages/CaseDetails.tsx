@@ -704,6 +704,10 @@ export default function CaseDetails() {
   const displayedStudents = caseRecord ? parseStudents(caseRecord.students) : [];
   const displayedRespondents = displayedStudents.filter(isRespondent);
   const displayedComplainantSubjects = displayedStudents.filter(isComplainantSubject);
+  const shouldShowRole = useMemo(() => {
+    if (displayedStudents.length <= 1) return false;
+    return displayedStudents.some((s) => normalizeRole(s.role) !== "Respondent");
+  }, [displayedStudents]);
   const hasLinkedGroup = Boolean(caseRecord?.group_id);
   const updateHistory = useMemo(() => {
     if (!caseRecord || !caseRecord.update_history) return [];
@@ -974,17 +978,19 @@ export default function CaseDetails() {
               ))
             ) : (
               displayedRespondents.map((student, idx) => (
-                <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
+                <div key={idx} className={`grid grid-cols-1 ${shouldShowRole ? "md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr]" : "md:grid-cols-[2.5fr_1fr_1fr_1.5fr]"} gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0`}>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
                     <p className="text-sm font-medium text-on-surface">
                       {student.lastName}, {student.firstName}{student.middleInitial ? ` ${student.middleInitial}.` : ""}
                     </p>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
-                    <p className="text-sm font-medium text-on-surface">{student.role || "—"}</p>
-                  </div>
+                  {shouldShowRole && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
+                      <p className="text-sm font-medium text-on-surface">{student.role || "—"}</p>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Level</label>
                     <p className="text-sm font-medium text-on-surface">{student.level || "—"}</p>
@@ -1007,17 +1013,19 @@ export default function CaseDetails() {
           {showComplainant && displayedComplainantSubjects.length > 0 && (
             <div className="space-y-4 border-t border-outline-variant pt-8">
               {displayedComplainantSubjects.map((student, idx) => (
-                <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
+                <div key={idx} className={`grid grid-cols-1 ${shouldShowRole ? "md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr]" : "md:grid-cols-[2.5fr_1fr_1fr_1.5fr]"} gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0`}>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
                     <p className="text-sm font-medium text-on-surface">
                       {student.lastName}, {student.firstName}{student.middleInitial ? ` ${student.middleInitial}.` : ""}
                     </p>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
-                    <p className="text-sm font-medium text-on-surface">{student.role || "—"}</p>
-                  </div>
+                  {shouldShowRole && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
+                      <p className="text-sm font-medium text-on-surface">{student.role || "—"}</p>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Level</label>
                     <p className="text-sm font-medium text-on-surface">{student.level || "—"}</p>
@@ -1476,7 +1484,7 @@ export default function CaseDetails() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "sans-serif", fontSize: 11 }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
-                    {["Student Name", "Role", "Grade & Section", "Adviser"].map(h => (
+                    {(shouldShowRole ? ["Student Name", "Role", "Grade & Section", "Adviser"] : ["Student Name", "Grade & Section", "Adviser"]).map(h => (
                       <th key={h} style={{ padding: "6px 8px 6px 0", textAlign: "left", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6b7280" }}>{h}</th>
                     ))}
                   </tr>
@@ -1485,7 +1493,9 @@ export default function CaseDetails() {
                   {displayedRespondents.map((s, idx) => (
                     <tr key={`r${idx}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
                       <td style={{ padding: "6px 8px 6px 0", fontWeight: 600, color: "#111827" }}>{s.lastName}, {s.firstName}{s.middleInitial ? ` ${s.middleInitial}.` : ""}</td>
-                      <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.role || "Respondent"}</td>
+                      {shouldShowRole && (
+                        <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.role || "Respondent"}</td>
+                      )}
                       <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.level}{s.section ? ` - ${s.section}` : ""}</td>
                       <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.adviser || "—"}</td>
                     </tr>
@@ -1493,7 +1503,9 @@ export default function CaseDetails() {
                   {showComplainant && displayedComplainantSubjects.map((s, idx) => (
                     <tr key={`c${idx}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
                       <td style={{ padding: "6px 8px 6px 0", fontWeight: 600, color: "#111827" }}>{s.lastName}, {s.firstName}{s.middleInitial ? ` ${s.middleInitial}.` : ""}</td>
-                      <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.role || "Complainant / Subject"}</td>
+                      {shouldShowRole && (
+                        <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.role || "Complainant / Subject"}</td>
+                      )}
                       <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.level}{s.section ? ` - ${s.section}` : ""}</td>
                       <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.adviser || "—"}</td>
                     </tr>
