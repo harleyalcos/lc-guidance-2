@@ -1,6 +1,8 @@
 import { useState, ReactNode } from "react";
 import Sidebar from "./Sidebar";
 import TopAppBar from "./TopAppBar";
+import UpdateBanner from "./UpdateBanner";
+import UpdateModal from "./UpdateModal";
 
 interface LayoutProps {
   children: ReactNode;
@@ -22,11 +24,13 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
       <div className="print:hidden">
         <Sidebar isCollapsed={isSidebarCollapsed} onCollapsedChange={setIsSidebarCollapsed} />
       </div>
-      <div className="print:hidden">
+      <div className="print:hidden sticky top-0 z-20">
         {!isImportReview && (
           <TopAppBar title={title} isSidebarCollapsed={isSidebarCollapsed} />
         )}
+        <UpdateBanner isSidebarCollapsed={isSidebarCollapsed} />
       </div>
+      <UpdateModal />
       <main className={`print:ml-0 print:min-h-0 print:p-0 transition-[margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
         } ${isImportReview
           ? "h-screen flex flex-col overflow-hidden"
