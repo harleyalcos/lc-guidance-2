@@ -72,7 +72,7 @@ export default function AccountSettings() {
 
   const { currentYear, setYear, refreshYears } = useSchoolYears();
   const [showSchoolYearModal, setShowSchoolYearModal] = useState(false);
-  const { checkForUpdates, isChecking: isCheckingUpdates, hasUpdate, updateInfo, lastChecked } = useAppUpdate();
+  const { currentVersion, checkForUpdates, isChecking: isCheckingUpdates, hasUpdate, updateInfo, lastChecked } = useAppUpdate();
 
   const [pinVerificationAction, setPinVerificationAction] = useState<"export" | "import" | null>(null);
   const [verificationPin, setVerificationPin] = useState("");
@@ -959,7 +959,7 @@ export default function AccountSettings() {
                 <p className="text-sm font-bold text-on-surface">Laguna College Guidance Information System</p>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-surface-container-highest text-secondary border border-outline-variant">
-                    Version 0.1.0
+                    Version {currentVersion}
                   </span>
                   {hasUpdate && updateInfo ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">

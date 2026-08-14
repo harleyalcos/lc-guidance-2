@@ -45,3 +45,4 @@ jobs:
           releaseBody: 'Release updates and fixes for Laguna College Guidance Office Information System.'
           releaseDraft: false
           prerelease: false
+          uploadUpdaterJson: true
