@@ -7,6 +7,7 @@ import { useDarkMode } from "../hooks/useDarkMode";
 import Backup from "./Backup";
 import { useSchoolYears } from "../hooks/useSchoolYears";
 import SchoolYearSetupModal from "../components/SchoolYearSetupModal";
+import { useAppUpdate } from "../context/UpdateContext";
 
 const cleanPin = (value: string) => value.replace(/\D/g, "").slice(0, 6);
 type ToastType = "success" | "error";
@@ -71,6 +72,7 @@ export default function AccountSettings() {
 
   const { currentYear, setYear, refreshYears } = useSchoolYears();
   const [showSchoolYearModal, setShowSchoolYearModal] = useState(false);
+  const { checkForUpdates, isChecking: isCheckingUpdates, hasUpdate, updateInfo, lastChecked } = useAppUpdate();
 
   const [pinVerificationAction, setPinVerificationAction] = useState<"export" | "import" | null>(null);
   const [verificationPin, setVerificationPin] = useState("");
@@ -932,6 +934,60 @@ export default function AccountSettings() {
                 <span>Import Database</span>
               </button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <h2 className="micro-label">System & Updates</h2>
+          <div className="h-px flex-1 bg-outline-variant" />
+        </div>
+        <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
+            <h3 className="section-header-h2 mb-0">
+              About & Software Updates
+            </h3>
+            <p className="text-xs text-secondary mt-1">Check for system updates, bug fixes, and feature enhancements.</p>
+          </div>
+          <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 dark:bg-primary/20 text-primary dark:text-[#b4c5ff] flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[28px]">rocket_launch</span>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-on-surface">Laguna College Guidance Information System</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-surface-container-highest text-secondary border border-outline-variant">
+                    Version 0.1.0
+                  </span>
+                  {hasUpdate && updateInfo ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                      Update v{updateInfo.version} Available
+                    </span>
+                  ) : lastChecked ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-secondary">
+                      Up to date
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void checkForUpdates(true)}
+              disabled={isCheckingUpdates}
+              className="btn-primary shrink-0 cursor-pointer"
+            >
+              {isCheckingUpdates ? (
+                <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined text-[18px]">sync</span>
+              )}
+              <span>{isCheckingUpdates ? "Checking..." : "Check for Updates"}</span>
+            </button>
           </div>
         </div>
       </section>

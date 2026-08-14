@@ -31,5 +31,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZFNThGRTRDNUIxMDA2MEUKUldRT0JoQmJUUDVZL205T05kMFRNam1abjcwVVF3Ti9rQVNoTm5YWVNFOGY1emMrMGhwMWVFN3UK",
+      "endpoints": [
+        "https://github.com/tomatofrog1/lc-guidance-2/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

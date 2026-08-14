@@ -205,14 +205,14 @@ pub fn parse_import_file(state: State<'_, DbState>, file_path: String) -> Result
 }
 
 #[tauri::command]
-pub fn batch_import_cases(app: tauri::AppHandle, state: State<'_, DbState>, mut rows: Vec<ImportRow>) -> Result<BatchImportResult, String> {
+pub fn batch_import_cases(_app: tauri::AppHandle, state: State<'_, DbState>, mut rows: Vec<ImportRow>) -> Result<BatchImportResult, String> {
     let mut connection = state.connection.lock().map_err(db_error)?;
     
     // Create backup before import if not in debug mode
     #[cfg(not(debug_assertions))]
     {
         use tauri::Manager;
-        if let (Ok(db_path), Ok(app_data_dir)) = (crate::db::get_db_path(&app), app.path().app_data_dir()) {
+        if let (Ok(db_path), Ok(app_data_dir)) = (crate::db::get_db_path(&_app), _app.path().app_data_dir()) {
             let backup_dir = app_data_dir.join("backups");
             let _ = std::fs::create_dir_all(&backup_dir);
             let _ = crate::db::backup::run_backup(&db_path, &backup_dir, &connection);

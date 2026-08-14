@@ -14,6 +14,7 @@ import GuidanceAI from "./pages/GuidanceAI";
 import SchoolYearSetupModal from "./components/SchoolYearSetupModal";
 import { useSchoolYears } from "./hooks/useSchoolYears";
 import { AcademicYearFilterProvider } from "./context/AcademicYearFilterContext";
+import { UpdateProvider } from "./context/UpdateContext";
 import "./App.css";
 
 function AppRoutes() {
@@ -99,9 +100,11 @@ function App() {
   }
 
   return (
-    <Router>
-      <AppRoutes />
-    </Router>
+    <UpdateProvider>
+      <Router>
+        <AppRoutes />
+      </Router>
+    </UpdateProvider>
   );
 }
 

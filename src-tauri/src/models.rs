@@ -261,7 +261,7 @@ impl ImportRow {
         }
 
         if !self.date.trim().is_empty() {
-            let mut s = self.date.trim().to_lowercase();
+            let s = self.date.trim().to_lowercase();
             let months = [
                 (vec!["january", "jan.", "jan"], "1"),
                 (vec!["february", "feb.", "feb"], "2"),
