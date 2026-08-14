@@ -940,7 +940,7 @@ export default function SummaryReports() {
         {/* Main Preview Area below */}
         <div className="w-full flex flex-col items-center">
           <div className="text-sm text-gray-400 dark:text-secondary mb-2 print:hidden self-start flex items-center gap-2">
-            Preview — this is what prints
+            Preview
           </div>
           
           {/* Paper Background Container */}
