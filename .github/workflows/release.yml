@@ -30,8 +30,13 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build Tauri App & Publish Release
         uses: tauri-apps/tauri-action@v0
