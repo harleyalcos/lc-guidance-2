@@ -546,7 +546,6 @@ export default function PendingCases() {
                         const firstStudent = students[0];
                         return [
                           firstStudent.level && `Grade ${firstStudent.level.replace("Grade ", "")}`,
-                          firstStudent.section && `Section ${firstStudent.section}`,
                           firstStudent.adviser && `Adviser: ${firstStudent.adviser}`
                         ].filter(Boolean).join(" · ");
                       })()}
@@ -556,21 +555,13 @@ export default function PendingCases() {
                   <hr className="border-outline-variant" />
 
                   {/* Case information */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                     <div>
                       <p className="text-[11px] text-muted dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Case type</p>
                       <p className="text-sm font-bold text-on-surface dark:text-slate-200">{selectedCase.case || "—"}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-muted dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Date of Incident</p>
-                      <p className="text-sm font-medium text-on-surface dark:text-slate-200">
-                        {selectedCase.date.includes('T')
-                          ? `${formatDate(selectedCase.date)} ${new Date(selectedCase.date).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
-                          : formatDate(selectedCase.date)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Date filed</p>
+                      <p className="text-[11px] text-muted dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Date</p>
                       <p className="text-sm font-medium text-on-surface dark:text-slate-200">{formatDateTime(selectedCase.date_filed || selectedCase.date)}</p>
                     </div>
                     <div className="col-span-2">
@@ -601,8 +592,7 @@ export default function PendingCases() {
                             <thead>
                               <tr className="border-b border-outline-variant">
                                 <th className="py-2 micro-label text-left">Full name</th>
-                                <th className="py-2 micro-label text-left w-24">Grade level</th>
-                                <th className="py-2 micro-label text-left w-24">Section</th>
+                                <th className="py-2 micro-label text-left w-24">Grade</th>
                                 <th className="py-2 micro-label text-left w-36">Adviser</th>
                                 <th className="py-2 micro-label text-left w-36">Role</th>
                               </tr>
@@ -615,9 +605,6 @@ export default function PendingCases() {
                                   </td>
                                   <td className="py-3 text-muted dark:text-slate-400">
                                     {student.level || "—"}
-                                  </td>
-                                  <td className="py-3 text-muted dark:text-slate-400">
-                                    {student.section || "—"}
                                   </td>
                                   <td className="py-3 text-muted dark:text-slate-400">
                                     {student.adviser || "—"}

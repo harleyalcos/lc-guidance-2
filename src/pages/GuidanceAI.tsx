@@ -11,7 +11,7 @@ interface Message {
   id: string;
 }
 
-const SYSTEM_PROMPT = `You are the Laguna College Guidance AI Assistant. Your purpose is to help guidance counselors analyze student case records. 
+const SYSTEM_PROMPT = `You are the Laguna College Guidance AI Assistant. Your purpose is to help guidance counselors analyze student case records and answer their questions. 
 Use the \`query_database_for_ai\` tool to get context from the SQLite database. The table is named 'cases'.
 
 Schema for 'cases' table:
@@ -35,44 +35,53 @@ Schema for 'cases' table:
 - group_id (TEXT): Unique ID linking group incidents involving multiple students.
 - update_history (TEXT, JSON array): History log of status and case updates.
 
-IMPORTANT RULES & QUERY GUIDANCE:
+IMPORTANT RULES & RESPONSE FORMATTING:
 1. ALWAYS use the \`query_database_for_ai\` tool if you need information about cases.
 2. Understanding Status vs. Sanction:
    - CASE STATUS is stored in the 'progress' column ('Pending', 'Reprimand', 'Resolved', 'Closed').
-   - CASE SANCTION is stored in the 'sanction' column.
-   - When asked for "reprimand cases" or "reprimand records" without qualification, check status ('progress') OR sanction ('sanction'), or explain both if applicable (e.g., SELECT * FROM cases WHERE LOWER(progress) LIKE '%reprimand%' OR LOWER(sanction) LIKE '%reprimand%').
+   - CASE SANCTION is stored in the 'sanction' column and is purely a descriptive text field (e.g. 'Written Reprimand', 'Verbal Warning', 'Suspension'). It has no impact on case status counts.
+   - When asked for case statuses, status counts, or reprimand cases, always query the 'progress' column (e.g., LOWER(progress) LIKE '%reprimand%').
 3. NEVER fabricate statistics, names, or case details. If information is unavailable or the query returns no results, clearly state that.
 4. Keep queries efficient (e.g. use COUNT, GROUP BY). Use case-insensitive matching like LOWER(...) or LIKE '%...%' for text comparisons.
-5. Generate professional reports suitable for counselors and administrators.
-6. Prioritize clarity, accuracy, and actionable insights. Format using Markdown.
-7. COMPACT SIDE-BY-SIDE SUMMARY TABLES:
-   - DO NOT create large, full-page-width stacked tables for short summary metrics (such as Case Status counts and Top Incident Categories).
-   - ALWAYS combine short summary breakdowns side-by-side into a single 4-column comparison table layout.
-   - Example format for side-by-side summary data:
-     | Case Status | Count | Top Incident Categories | Frequency |
-     | :--- | :---: | :--- | :---: |
-     | Pending | 16 | Poor Academic Performance | 5 |
-     | Closed | 9 | Vandalism | 5 |
-     | Resolved | 5 | Theft | 3 |
-     | Reprimand | 5 | Smoking/Vaping | 3 |
-     | **Total** | **35** | Academic Dishonesty | 3 |
-   - Keep short summary tables compact and side-by-side to save vertical document space.
-8. STUDENT DETAILED TABLES: Always put student lists in clean markdown tables with appropriate columns (Name, Grade & Section, Role, Incident Date, Status).
-9. PDF REPORT GENERATION: If you generate a formal report (like a weekly/monthly summary or a list of students), YOU MUST append the following JSON block at the very end of your message to enable PDF download. This metadata will be used for the PDF letterhead:
+5. CONVERSATIONAL DEFAULT (PLAIN TEXT):
+   - When the user asks a question, requests numbers/counts, inquires about specific students, or asks for advice/explanations: respond in clear, helpful, and concise standard Markdown text (with bullet points or short tables as appropriate). DO NOT generate a formal report sheet.
+6. FORMAL REPORT SHEETS (ONLY WHEN EXPLICITLY REQUESTED):
+   - ONLY generate a formal printable report sheet if the user EXPLICITLY asks to generate or create a report (e.g., "generate a report", "create a weekly/monthly report", "export a report", "give me a report sheet", or when using a report template).
+   - The report format MUST BE IDENTICAL to the Reports page format of Laguna College Guidance Office.
+   - When listing cases, use the EXACT standard table column headers matching the Reports page:
+     | # | Date | Student | Grade | Adviser | Type | Description | Sanction | Status |
+     - '#' is the row number (1, 2, 3...)
+     - 'Date' is formatted as 'MMM D, YYYY' (e.g., Oct 14, 2025)
+     - 'Student' is formatted as 'LastName, FirstName M.' (e.g., Santos, Maria C.)
+     - 'Grade' is formatted as 'Grade X' (e.g., Grade 7, Grade 10)
+     - 'Adviser' is the teacher/adviser name or '—'
+     - 'Type' is the case type/offense (e.g., Bullying, Vaping, Tardiness)
+     - 'Description' is the incident description or '—'
+     - 'Sanction' is the consequence or penalty (e.g., Verbal Warning, Written Reprimand, 1-Day Suspension) or '—'
+     - 'Status' is the exact case status ('Pending', 'Reprimand', 'Resolved', 'Closed')
+   - Section heading: Use '### Case List' (or specific section name) above the table.
+   - You MUST append the following JSON block at the very end of your response to provide report metadata and summary metrics:
 \`\`\`json report_metadata
 {
-  "title": "Title of the Report",
-  "reporting_period": "e.g., August 1, 2025 - January 31, 2026",
+  "title": "Guidance Office Cases Report",
+  "reporting_period": "e.g., August 1, 2025 – May 31, 2026",
   "scope": "e.g., All year levels",
   "status_filter": "e.g., All statuses",
-  "orientation": "portrait" // Use "landscape" ONLY if your report includes a wide table of students or if the length of the rows will be too long to fit in portrait mode
+  "stats": {
+    "total": 12,
+    "pending": 3,
+    "resolved": 5,
+    "reprimand": 2,
+    "closed": 2
+  }
 }
 \`\`\`
+   - For all ordinary questions, inquiries, and conversations, NEVER include this JSON block.
 `;
 
 const extractPdfMetadata = (text: string): { metadata: AiReportMetadata | null; cleanText: string } => {
-  const marker1 = "\`\`\`json report_metadata";
-  const marker2 = "\`\`\`json\nreport_metadata";
+  const marker1 = "```json report_metadata";
+  const marker2 = "```json\nreport_metadata";
   let startIdx = text.indexOf(marker1);
   let markerLength = marker1.length;
   if (startIdx === -1) {
@@ -82,7 +91,7 @@ const extractPdfMetadata = (text: string): { metadata: AiReportMetadata | null; 
   
   if (startIdx === -1) return { metadata: null, cleanText: text };
 
-  const endIdx = text.indexOf("\`\`\`", startIdx + markerLength);
+  const endIdx = text.indexOf("```", startIdx + markerLength);
   if (endIdx === -1) return { metadata: null, cleanText: text };
 
   const jsonStr = text.substring(startIdx + markerLength, endIdx).trim();
@@ -116,52 +125,52 @@ const SUGGESTIONS: SuggestionItem[] = [
     prompt: "Generate a Monthly Case Summary Report for the current month covering all grade levels.",
   },
   {
-    ref: "RPT-AY",
-    title: "Academic Year Report",
-    sub: "AY 2026–2027",
-    prompt: "Generate an Academic Year Case Summary Report for AY 2026-2027 covering all year levels.",
+    ref: "RPT-YR",
+    title: "Annual Summary Report",
+    sub: "Year 2026 · all levels",
+    prompt: "Generate an Annual Case Summary Report for the year 2026 covering all year levels.",
   },
   {
     ref: "RPT-GL",
     title: "Grade Level Trends",
-    sub: "AY 2026–2027 · Grades 7–12",
-    prompt: "Analyze grade level case trends and offense distributions for AY 2026-2027 across Grades 7 to 12.",
+    sub: "Year 2026 · Grades 7–12",
+    prompt: "Generate a Grade Level Case Trends Report for 2026 across Grades 7 to 12.",
   },
   {
-    ref: "CMP-AY",
+    ref: "CMP-YR",
     title: "Year-over-Year Comparison",
-    sub: "AY 2026–2027 vs AY 2025–2026",
-    prompt: "Compare case counts, status breakdown, and incident trends between AY 2026-2027 and AY 2025-2026.",
+    sub: "2026 vs 2025",
+    prompt: "Compare case counts, status breakdown, and incident trends between 2026 and 2025.",
   },
   {
     ref: "RPT-BH",
     title: "Top Behavioral Offenses",
-    sub: "AY 2026–2027 · all levels",
-    prompt: "Identify and summarize the most common behavioral offenses for AY 2026-2027 covering all year levels.",
+    sub: "Year 2026 · all levels",
+    prompt: "Identify and summarize the most common behavioral offenses for 2026 covering all year levels.",
   },
   {
     ref: "RPT-AC",
     title: "Top Academic Concerns",
-    sub: "AY 2026–2027 · Senior High",
-    prompt: "Report on the most common academic issues and attendance concerns for AY 2026-2027 for Senior High School (Grades 11-12).",
+    sub: "Year 2026 · Senior High",
+    prompt: "Report on the most common academic issues and attendance concerns for 2026 for Senior High School (Grades 11-12).",
   },
   {
     ref: "RPT-MU",
     title: "Repeat Offender Audit",
-    sub: "AY 2026–2027 · multiple cases",
-    prompt: "Identify and list all students with multiple recorded case records during AY 2026-2027.",
+    sub: "Year 2026 · multiple cases",
+    prompt: "Identify and list all students with multiple recorded case records during 2026.",
   },
   {
     ref: "PLN-INT",
     title: "Intervention Guidance Plan",
-    sub: "AY 2026–2027 · all levels",
-    prompt: "Generate counselor intervention recommendations based on case trends for AY 2026-2027 across all year levels.",
+    sub: "Year 2026 · all levels",
+    prompt: "Provide counselor intervention recommendations based on case trends for 2026 across all year levels.",
   },
   {
     ref: "PRD-HR",
     title: "High-Risk Student Identification",
-    sub: "AY 2026–2027 · early warning",
-    prompt: "Analyze case history to identify high-risk students needing immediate guidance counseling for AY 2026-2027.",
+    sub: "Year 2026 · early warning",
+    prompt: "Analyze case history to identify high-risk students needing immediate guidance counseling for 2026.",
   },
 ];
 
@@ -665,7 +674,7 @@ export default function GuidanceAI() {
             <span className="material-symbols-outlined text-[18px] translate-x-[1px]">send</span>
           </button>
         </div>
-        <p className="text-center text-[10px] text-secondary mt-2">
+        <p className="text-center text-xs text-secondary mt-2.5 font-medium">
           Guidance AI can make mistakes. Always verify important statistics and recommendations.
         </p>
       </div>

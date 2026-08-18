@@ -8,6 +8,7 @@ import guidanceLogo from "../assets/guidance-logo.png";
 
 
 import { CaseRecord, StudentInfo } from "../types";
+import { RoleDropdown } from "../components/RoleDropdown";
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
@@ -31,11 +32,11 @@ interface ProofItem {
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
 const TEXT_FIELD_LIMIT = 250;
-const CASE_TITLE_LIMIT = 20;
-const ADVISER_LIMIT = 20;
+const CASE_TITLE_LIMIT = 50;
+const ADVISER_LIMIT = 50;
 const GRADE_LEVEL_LIMIT = 8;
 const SECTION_LIMIT = 10;
-const CASE_TYPE_LIMIT = 25;
+const CASE_TYPE_LIMIT = 50;
 const MODAL_EXIT_MS = 200;
 const CASE_TYPE_OPTIONS = [
   "Poor academic performance",
@@ -258,6 +259,22 @@ export default function CaseDetails() {
   const [isDeleteProofConfirmClosing, setIsDeleteProofConfirmClosing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
+
+  // Add Student Modal State
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  const [isAddStudentClosing, setIsAddStudentClosing] = useState(false);
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [addStudentError, setAddStudentError] = useState("");
+  const [newStudentForm, setNewStudentForm] = useState({
+    firstName: "",
+    lastName: "",
+    middleInitial: "",
+    role: "Respondent",
+    level: "",
+    adviser: "",
+    sanction: "",
+    caseTitle: "",
+  });
 
   // ─── PDF helpers (mirror SummaryReports style) ───────────────────────────
 
@@ -692,11 +709,289 @@ export default function CaseDetails() {
         },
         updateLog
       });
+
+      // If this case is part of a group, propagate the updated complainants to all sibling cases
+      if (caseRecord.group_id) {
+        try {
+          const allCases = await invoke<CaseRecord[]>("get_cases");
+          const siblingCases = allCases.filter(
+            (c) => c.group_id === caseRecord.group_id && c.id !== caseRecord.id
+          );
+          const updatedComplainants = normalizedStudents.filter(isComplainantSubject);
+
+          for (const sibling of siblingCases) {
+            const sibStudents = parseStudents(sibling.students);
+            const sibRespondents = sibStudents.filter(isRespondent);
+            const finalRespondents =
+              sibRespondents.length > 0
+                ? sibRespondents
+                : [
+                    {
+                      firstName: sibling.first_name,
+                      lastName: sibling.last_name,
+                      middleInitial: "",
+                      level: sibling.level,
+                      section: sibling.section,
+                      adviser: sibling.adviser,
+                      sanction: sibling.sanction,
+                      role: "Respondent",
+                    },
+                  ];
+
+            const updatedSibStudents = [...finalRespondents, ...updatedComplainants];
+
+            await invoke("update_case", {
+              id: sibling.id,
+              payload: {
+                students: updatedSibStudents,
+                date: sibling.date,
+                dateFiled: sibling.date_filed,
+                case: normalizeCaseType(sibling.case),
+                description: (sibling.description || "").slice(0, TEXT_FIELD_LIMIT),
+                sanction: (sibling.sanction || "").slice(0, TEXT_FIELD_LIMIT),
+                progress: sibling.progress,
+                proofs: sibling.proofs,
+                title: normalizedTitle || sibling.title,
+                reportingStudent: sibling.reporting_student || "",
+                groupId: sibling.group_id,
+              },
+              updateLog: JSON.stringify({
+                text: "Complainant / Subject details updated across group.",
+                diffs: [{ label: "Complainant Update", oldVal: "Previous info", newVal: "Updated info" }],
+              }),
+            });
+          }
+        } catch (propagateErr) {
+          console.error("Failed to propagate complainant updates to sibling cases:", propagateErr);
+        }
+      }
+
       setIsEditing(false);
       window.dispatchEvent(new Event("cases:changed"));
       loadCase();
     } catch (err) {
       alert("Failed to save case details: " + err);
+    }
+  };
+
+  const handleOpenAddStudent = () => {
+    setIsAddStudentClosing(false);
+    setAddStudentError("");
+    setNewStudentForm({
+      firstName: "",
+      lastName: "",
+      middleInitial: "",
+      role: "Respondent",
+      level: "",
+      adviser: "",
+      sanction: "",
+      caseTitle: caseRecord?.title || "",
+    });
+    setIsAddStudentOpen(true);
+  };
+
+  const closeAddStudentModal = () => {
+    setIsAddStudentClosing(true);
+    window.setTimeout(() => {
+      setIsAddStudentOpen(false);
+      setIsAddStudentClosing(false);
+      setAddStudentError("");
+    }, MODAL_EXIT_MS);
+  };
+
+  const handleAddStudentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!caseRecord) return;
+    setAddStudentError("");
+
+    if (!newStudentForm.lastName.trim() || !newStudentForm.firstName.trim()) {
+      setAddStudentError("Please fill out all required fields (First name and Last name).");
+      return;
+    }
+
+    const currentStudents = parseStudents(caseRecord.students);
+    const isRespondentStudent = normalizeRole(newStudentForm.role) === "Respondent";
+    const isIndividualCase = !caseRecord.group_id;
+
+    if (isIndividualCase && isRespondentStudent && !newStudentForm.caseTitle.trim()) {
+      setAddStudentError("Case Title is required when linking another student to an individual case.");
+      return;
+    }
+
+    setIsAddingStudent(true);
+    try {
+      const newStudent: StudentInfo = {
+        firstName: capitalizeWords(newStudentForm.firstName),
+        lastName: capitalizeWords(newStudentForm.lastName),
+        middleInitial: normalizeMiddleInitial(newStudentForm.middleInitial),
+        level: normalizeGradeLevel(newStudentForm.level),
+        section: normalizeSection(caseRecord.section),
+        adviser: capitalizeWords(newStudentForm.adviser).slice(0, ADVISER_LIMIT),
+        sanction: newStudentForm.sanction.trim().slice(0, TEXT_FIELD_LIMIT),
+        role: normalizeRole(newStudentForm.role),
+      };
+
+      const resolvedTitle = (newStudentForm.caseTitle.trim() || caseRecord.title || "").slice(0, CASE_TITLE_LIMIT);
+      const currentComplainants = currentStudents.filter(isComplainantSubject);
+
+      if (isRespondentStudent) {
+        if (isIndividualCase) {
+          // 1. Assign groupId to current case and update title
+          const groupId = crypto.randomUUID();
+          await invoke("update_case", {
+            id: caseRecord.id,
+            payload: {
+              students: currentStudents,
+              date: caseRecord.date,
+              dateFiled: caseRecord.date_filed,
+              case: normalizeCaseType(caseRecord.case),
+              description: (caseRecord.description || "").slice(0, TEXT_FIELD_LIMIT),
+              sanction: (caseRecord.sanction || "").slice(0, TEXT_FIELD_LIMIT),
+              progress: caseRecord.progress,
+              proofs: caseRecord.proofs,
+              title: resolvedTitle,
+              reportingStudent: caseRecord.reporting_student || "",
+              groupId: groupId,
+            },
+            updateLog: `Linked case with new student ${newStudent.firstName} ${newStudent.lastName}`,
+          });
+
+          // 2. Add a new case record for the 2nd student sharing the same groupId
+          await invoke<number>("add_case", {
+            payload: {
+              students: [newStudent, ...currentComplainants],
+              date: caseRecord.date,
+              dateFiled: new Date().toISOString(),
+              case: caseRecord.case.trim(),
+              description: (caseRecord.description || "").trim().slice(0, TEXT_FIELD_LIMIT),
+              sanction: newStudent.sanction ? newStudent.sanction.trim().slice(0, TEXT_FIELD_LIMIT) : "",
+              progress: "Pending",
+              proofs: caseRecord.proofs,
+              title: resolvedTitle,
+              reportingStudent: "",
+              groupId: groupId,
+            },
+          });
+        } else {
+          // Already a linked or grouped case (shares caseRecord.group_id)
+          const groupId = caseRecord.group_id!;
+          await invoke<number>("add_case", {
+            payload: {
+              students: [newStudent, ...currentComplainants],
+              date: caseRecord.date,
+              dateFiled: new Date().toISOString(),
+              case: caseRecord.case.trim(),
+              description: (caseRecord.description || "").trim().slice(0, TEXT_FIELD_LIMIT),
+              sanction: newStudent.sanction ? newStudent.sanction.trim().slice(0, TEXT_FIELD_LIMIT) : "",
+              progress: "Pending",
+              proofs: caseRecord.proofs,
+              title: resolvedTitle || caseRecord.title,
+              reportingStudent: "",
+              groupId: groupId,
+            },
+          });
+
+          if (resolvedTitle && resolvedTitle !== caseRecord.title) {
+            await invoke("update_case", {
+              id: caseRecord.id,
+              payload: {
+                students: currentStudents,
+                date: caseRecord.date,
+                dateFiled: caseRecord.date_filed,
+                case: normalizeCaseType(caseRecord.case),
+                description: (caseRecord.description || "").slice(0, TEXT_FIELD_LIMIT),
+                sanction: (caseRecord.sanction || "").slice(0, TEXT_FIELD_LIMIT),
+                progress: caseRecord.progress,
+                proofs: caseRecord.proofs,
+                title: resolvedTitle,
+                reportingStudent: caseRecord.reporting_student || "",
+                groupId: groupId,
+              },
+              updateLog: `Updated case title to ${resolvedTitle}`,
+            });
+          }
+        }
+      } else {
+        // Role is "Complainant / Subject"
+        if (caseRecord.group_id) {
+          try {
+            const allCases = await invoke<CaseRecord[]>("get_cases", {});
+            const groupSiblings = allCases.filter((c) => c.group_id === caseRecord.group_id);
+            for (const sibling of groupSiblings) {
+              const sibStudents = parseStudents(sibling.students);
+              const alreadyExists = sibStudents.some(
+                (s) => s.firstName.toLowerCase() === newStudent.firstName.toLowerCase() &&
+                       s.lastName.toLowerCase() === newStudent.lastName.toLowerCase()
+              );
+              if (!alreadyExists) {
+                await invoke("update_case", {
+                  id: sibling.id,
+                  payload: {
+                    students: [...sibStudents, newStudent],
+                    date: sibling.date,
+                    dateFiled: sibling.date_filed,
+                    case: normalizeCaseType(sibling.case),
+                    description: (sibling.description || "").slice(0, TEXT_FIELD_LIMIT),
+                    sanction: (sibling.sanction || "").slice(0, TEXT_FIELD_LIMIT),
+                    progress: sibling.progress,
+                    proofs: sibling.proofs,
+                    title: resolvedTitle || sibling.title,
+                    reportingStudent: sibling.reporting_student || "",
+                    groupId: sibling.group_id,
+                  },
+                  updateLog: `Added complainant ${newStudent.firstName} ${newStudent.lastName}`,
+                });
+              }
+            }
+          } catch (e) {
+            const updatedStudents = [...currentStudents, newStudent];
+            await invoke("update_case", {
+              id: caseRecord.id,
+              payload: {
+                students: updatedStudents,
+                date: caseRecord.date,
+                dateFiled: caseRecord.date_filed,
+                case: normalizeCaseType(caseRecord.case),
+                description: (caseRecord.description || "").slice(0, TEXT_FIELD_LIMIT),
+                sanction: (caseRecord.sanction || "").slice(0, TEXT_FIELD_LIMIT),
+                progress: caseRecord.progress,
+                proofs: caseRecord.proofs,
+                title: resolvedTitle,
+                reportingStudent: caseRecord.reporting_student || "",
+                groupId: caseRecord.group_id,
+              },
+              updateLog: `Added complainant ${newStudent.firstName} ${newStudent.lastName}`,
+            });
+          }
+        } else {
+          const updatedStudents = [...currentStudents, newStudent];
+          await invoke("update_case", {
+            id: caseRecord.id,
+            payload: {
+              students: updatedStudents,
+              date: caseRecord.date,
+              dateFiled: caseRecord.date_filed,
+              case: normalizeCaseType(caseRecord.case),
+              description: (caseRecord.description || "").slice(0, TEXT_FIELD_LIMIT),
+              sanction: (caseRecord.sanction || "").slice(0, TEXT_FIELD_LIMIT),
+              progress: caseRecord.progress,
+              proofs: caseRecord.proofs,
+              title: resolvedTitle,
+              reportingStudent: caseRecord.reporting_student || "",
+              groupId: null,
+            },
+            updateLog: `Added complainant ${newStudent.firstName} ${newStudent.lastName}`,
+          });
+        }
+      }
+
+      closeAddStudentModal();
+      window.dispatchEvent(new Event("cases:changed"));
+      loadCase();
+    } catch (err) {
+      setAddStudentError("Failed to add student: " + err);
+    } finally {
+      setIsAddingStudent(false);
     }
   };
 
@@ -721,6 +1016,9 @@ export default function CaseDetails() {
   const editRespondents = editForm.students
     .map((student, index) => ({ student, index }))
     .filter(({ student }) => isRespondent(student));
+  const editComplainantSubjects = editForm.students
+    .map((student, index) => ({ student, index }))
+    .filter(({ student }) => isComplainantSubject(student));
 
   if (isLoading) {
     return (
@@ -801,13 +1099,23 @@ export default function CaseDetails() {
               {displayedComplainantSubjects.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setShowComplainant(!showComplainant)}
-                  className="btn-secondary"
+                  onClick={() => setShowComplainant((prev) => !prev)}
+                  className={`btn-secondary transition-all duration-300 active:scale-95 group ${
+                    !showComplainant ? "bg-primary/10 border-primary/40 text-primary dark:bg-primary/20 dark:border-primary/50" : ""
+                  }`}
+                  title={showComplainant ? "Hide complainant details from view" : "Show complainant details"}
                 >
-                  <span className="material-symbols-outlined text-sm">
+                  <span
+                    className="material-symbols-outlined text-sm transition-transform duration-300 group-hover:scale-110"
+                    style={{
+                      transform: showComplainant ? "rotate(0deg)" : "rotate(180deg)",
+                    }}
+                  >
                     {showComplainant ? "visibility_off" : "visibility"}
                   </span>
-                  <span>{showComplainant ? "Hide Complainant" : "Show Complainant"}</span>
+                  <span className="transition-all duration-300">
+                    {showComplainant ? "Hide Complainant" : "Show Complainant"}
+                  </span>
                 </button>
               )}
               <button
@@ -826,6 +1134,25 @@ export default function CaseDetails() {
                     <span>Export PDF</span>
                   </>
                 )}
+              </button>
+              {caseRecord.group_id && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/group-case/${caseRecord.group_id}`)}
+                  className="btn-secondary"
+                  title="View full group case record document"
+                >
+                  <span className="material-symbols-outlined text-sm">groups</span>
+                  <span>View Group Case</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleOpenAddStudent}
+                className="btn-secondary"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                <span>Add a Student</span>
               </button>
               <button
                 onClick={() => setIsEditing(true)}
@@ -928,7 +1255,7 @@ export default function CaseDetails() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Level</label>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Grade</label>
                     <input
                       type="text"
                       value={student.level}
@@ -941,22 +1268,6 @@ export default function CaseDetails() {
                     />
                     <p className="mt-1 text-right text-[10px] font-medium text-secondary">
                       {student.level.length}/{GRADE_LEVEL_LIMIT}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Section</label>
-                    <input
-                      type="text"
-                      value={student.section}
-                      list="case-details-section-options"
-                      placeholder="e.g. STEM"
-                      maxLength={SECTION_LIMIT}
-                      onChange={(e) => handleEditStudentChange(idx, "section", e.target.value)}
-                      onBlur={() => handleEditStudentBlur(idx, "section")}
-                      className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
-                    />
-                    <p className="mt-1 text-right text-[10px] font-medium text-secondary">
-                      {student.section.length}/{SECTION_LIMIT}
                     </p>
                   </div>
                   <div>
@@ -978,7 +1289,7 @@ export default function CaseDetails() {
               ))
             ) : (
               displayedRespondents.map((student, idx) => (
-                <div key={idx} className={`grid grid-cols-1 ${shouldShowRole ? "md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr]" : "md:grid-cols-[2.5fr_1fr_1fr_1.5fr]"} gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0`}>
+                <div key={idx} className={`grid grid-cols-1 ${shouldShowRole ? "md:grid-cols-[2.5fr_1fr_1fr_1.5fr]" : "md:grid-cols-[2.5fr_1fr_1.5fr]"} gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0`}>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
                     <p className="text-sm font-medium text-on-surface">
@@ -992,12 +1303,8 @@ export default function CaseDetails() {
                     </div>
                   )}
                   <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Level</label>
+                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Grade</label>
                     <p className="text-sm font-medium text-on-surface">{student.level || "—"}</p>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Section</label>
-                    <p className="text-sm font-medium text-on-surface">{student.section || "—"}</p>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Adviser</label>
@@ -1010,36 +1317,115 @@ export default function CaseDetails() {
 
 
 
-          {showComplainant && displayedComplainantSubjects.length > 0 && (
-            <div className="space-y-4 border-t border-outline-variant pt-8">
-              {displayedComplainantSubjects.map((student, idx) => (
-                <div key={idx} className={`grid grid-cols-1 ${shouldShowRole ? "md:grid-cols-[2.5fr_1fr_1fr_1fr_1.5fr]" : "md:grid-cols-[2.5fr_1fr_1fr_1.5fr]"} gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0`}>
-                  <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
-                    <p className="text-sm font-medium text-on-surface">
-                      {student.lastName}, {student.firstName}{student.middleInitial ? ` ${student.middleInitial}.` : ""}
-                    </p>
-                  </div>
-                  {shouldShowRole && (
-                    <div>
-                      <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
-                      <p className="text-sm font-medium text-on-surface">{student.role || "—"}</p>
+          {displayedComplainantSubjects.length > 0 && (
+            <div
+              className={`grid transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                showComplainant
+                  ? "grid-rows-[1fr] opacity-100 border-t border-outline-variant pt-8 mt-4"
+                  : "grid-rows-[0fr] opacity-0 border-t-0 pt-0 mt-0 pointer-events-none"
+              }`}
+            >
+              <div className="overflow-hidden space-y-4">
+                {isEditing ? (
+                  editComplainantSubjects.map(({ student, index: idx }) => (
+                    <div key={idx} className="grid grid-cols-1 md:grid-cols-[2.5fr_1fr_1fr_1.5fr] gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
+                      <div>
+                        <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={student.lastName}
+                            placeholder="Last Name"
+                            onChange={(e) => handleEditStudentChange(idx, "lastName", autoCapitalize(e.target.value))}
+                            onBlur={() => handleEditStudentBlur(idx, "lastName")}
+                            className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
+                          />
+                          <input
+                            type="text"
+                            value={student.firstName}
+                            placeholder="First Name"
+                            onChange={(e) => handleEditStudentChange(idx, "firstName", autoCapitalize(e.target.value))}
+                            onBlur={() => handleEditStudentBlur(idx, "firstName")}
+                            className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
+                          />
+                          <input
+                            type="text"
+                            value={student.middleInitial}
+                            placeholder="M.I."
+                            maxLength={3}
+                            onChange={(e) => handleEditStudentChange(idx, "middleInitial", e.target.value.replace(/\s+/g, "").toUpperCase())}
+                            onBlur={() => handleEditStudentBlur(idx, "middleInitial")}
+                            className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-16"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Grade</label>
+                        <input
+                          type="text"
+                          value={student.level}
+                          list="case-details-grade-level-options"
+                          placeholder="e.g. Grade 10"
+                          maxLength={GRADE_LEVEL_LIMIT}
+                          onChange={(e) => handleEditStudentChange(idx, "level", e.target.value)}
+                          onBlur={() => handleEditStudentBlur(idx, "level")}
+                          className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                        />
+                        <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                          {student.level.length}/{GRADE_LEVEL_LIMIT}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Adviser</label>
+                        <input
+                          type="text"
+                          value={student.adviser}
+                          placeholder="e.g. Mr. Santos"
+                          maxLength={ADVISER_LIMIT}
+                          onChange={(e) => handleEditStudentChange(idx, "adviser", autoCapitalize(e.target.value))}
+                          onBlur={() => handleEditStudentBlur(idx, "adviser")}
+                          className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                        />
+                        <p className="mt-1 text-right text-[10px] font-medium text-secondary">
+                          {student.adviser.length}/{ADVISER_LIMIT}
+                        </p>
+                      </div>
                     </div>
-                  )}
-                  <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Level</label>
-                    <p className="text-sm font-medium text-on-surface">{student.level || "—"}</p>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Section</label>
-                    <p className="text-sm font-medium text-on-surface">{student.section || "—"}</p>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Adviser</label>
-                    <p className="text-sm font-medium text-on-surface">{student.adviser || "—"}</p>
-                  </div>
-                </div>
-              ))}
+                  ))
+                ) : (
+                  displayedComplainantSubjects.map((student, idx) => (
+                    <div
+                      key={idx}
+                      className={`grid grid-cols-1 ${
+                        shouldShowRole ? "md:grid-cols-[2.5fr_1fr_1fr_1.5fr]" : "md:grid-cols-[2.5fr_1fr_1.5fr]"
+                      } gap-x-8 gap-y-5 border-b border-outline-variant pb-4 mb-4 last:border-0 last:pb-0 last:mb-0 transition-all duration-500 ${
+                        showComplainant ? "translate-y-0 opacity-100" : "-translate-y-3 opacity-0"
+                      }`}
+                    >
+                      <div>
+                        <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Full Name</label>
+                        <p className="text-sm font-medium text-on-surface">
+                          {student.lastName}, {student.firstName}{student.middleInitial ? ` ${student.middleInitial}.` : ""}
+                        </p>
+                      </div>
+                      {shouldShowRole && (
+                        <div>
+                          <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Role</label>
+                          <p className="text-sm font-medium text-on-surface">{student.role || "—"}</p>
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Grade</label>
+                        <p className="text-sm font-medium text-on-surface">{student.level || "—"}</p>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Adviser</label>
+                        <p className="text-sm font-medium text-on-surface">{student.adviser || "—"}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
 
@@ -1097,26 +1483,8 @@ export default function CaseDetails() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Date Filed</label>
+                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Date</label>
                 <p className="text-sm font-medium text-on-surface">{formatDateTime(caseRecord.date_filed)}</p>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Date of Incident</label>
-                {isEditing ? (
-                  <input
-                    type="date"
-                    value={editForm.date}
-                    max={getTodayDateString()}
-                    onChange={(e) => {
-                      const nextDate = e.target.value;
-                      setEditForm({ ...editForm, date: nextDate > getTodayDateString() ? getTodayDateString() : nextDate });
-                    }}
-                    className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-full"
-                  />
-                ) : (
-                  <p className="text-sm font-medium text-on-surface">{formatDate(caseRecord.date)}</p>
-                )}
               </div>
 
               {!isEditing && (
@@ -1484,7 +1852,7 @@ export default function CaseDetails() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "sans-serif", fontSize: 11 }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
-                    {(shouldShowRole ? ["Student Name", "Role", "Grade & Section", "Adviser"] : ["Student Name", "Grade & Section", "Adviser"]).map(h => (
+                    {(shouldShowRole ? ["Student Name", "Role", "Grade", "Adviser"] : ["Student Name", "Grade", "Adviser"]).map(h => (
                       <th key={h} style={{ padding: "6px 8px 6px 0", textAlign: "left", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6b7280" }}>{h}</th>
                     ))}
                   </tr>
@@ -1496,7 +1864,7 @@ export default function CaseDetails() {
                       {shouldShowRole && (
                         <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.role || "Respondent"}</td>
                       )}
-                      <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.level}{s.section ? ` - ${s.section}` : ""}</td>
+                      <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.level}</td>
                       <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.adviser || "—"}</td>
                     </tr>
                   ))}
@@ -1506,7 +1874,7 @@ export default function CaseDetails() {
                       {shouldShowRole && (
                         <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.role || "Complainant / Subject"}</td>
                       )}
-                      <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.level}{s.section ? ` - ${s.section}` : ""}</td>
+                      <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.level}</td>
                       <td style={{ padding: "6px 8px 6px 0", color: "#4b5563" }}>{s.adviser || "—"}</td>
                     </tr>
                   ))}
@@ -1529,12 +1897,8 @@ export default function CaseDetails() {
                   <span style={{ color: "#111827" }}>{caseRecord.case}</span>
                 </div>
                 <div style={{ display: "flex" }}>
-                  <span style={{ width: 120, flexShrink: 0, color: "#6b7280", fontWeight: 700, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>Date Filed</span>
+                  <span style={{ width: 120, flexShrink: 0, color: "#6b7280", fontWeight: 700, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>Date</span>
                   <span style={{ color: "#111827" }}>{formatDateTime(caseRecord.date_filed)}</span>
-                </div>
-                <div style={{ display: "flex" }}>
-                  <span style={{ width: 120, flexShrink: 0, color: "#6b7280", fontWeight: 700, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>Date of Incident</span>
-                  <span style={{ color: "#111827" }}>{formatDate(caseRecord.date)}</span>
                 </div>
                 <div style={{ display: "flex" }}>
                   <span style={{ width: 120, flexShrink: 0, color: "#6b7280", fontWeight: 700, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</span>
@@ -1589,6 +1953,222 @@ export default function CaseDetails() {
               {pdfFooter(idx + 2, 1 + displayedProofs.length)}
             </div>
           ))}
+        </div>,
+        document.body
+      )}
+
+      {/* Add Student Modal */}
+      {isAddStudentOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8">
+          <div
+            className={`absolute inset-0 bg-black/50 ${
+              isAddStudentClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+            onClick={closeAddStudentModal}
+          />
+          <div
+            className={`relative bg-surface rounded-2xl border border-outline-variant shadow-2xl max-w-[780px] w-full flex flex-col overflow-hidden max-h-[90vh] ${
+              isAddStudentClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-8 py-5 border-b border-outline-variant bg-surface-container-low flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+                  <span className="material-symbols-outlined text-2xl">person_add</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-on-surface">Add a Student</h3>
+                  <p className="text-xs text-secondary mt-0.5">Link an additional respondent or complainant/subject to this case record.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeAddStudentModal}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-variant text-on-surface-variant transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[22px]">close</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <form onSubmit={handleAddStudentSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-8 overflow-y-auto max-h-[calc(85vh-140px)] flex flex-col gap-6">
+                {addStudentError && (
+                  <div className="text-xs text-error bg-error-container/60 p-4 rounded-xl border border-error/30 flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-[20px] text-error shrink-0">error</span>
+                    <span className="font-semibold">{addStudentError}</span>
+                  </div>
+                )}
+
+                {/* Student info inputs */}
+                <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 flex flex-col gap-5">
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Student Information</p>
+                  
+                  {/* Row 1: Names */}
+                  <div className="flex flex-col sm:flex-row gap-4 items-start">
+                    <div className="flex-1 w-full min-w-0">
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-2">
+                        Last name
+                        <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Dela Cruz"
+                        value={newStudentForm.lastName}
+                        onChange={(e) => setNewStudentForm({ ...newStudentForm, lastName: autoCapitalize(e.target.value) })}
+                        onBlur={() => setNewStudentForm((p) => ({ ...p, lastName: capitalizeWords(p.lastName) }))}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-xl py-2.5 px-3.5 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex-1 w-full min-w-0">
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-2">
+                        First name
+                        <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Juan"
+                        value={newStudentForm.firstName}
+                        onChange={(e) => setNewStudentForm({ ...newStudentForm, firstName: autoCapitalize(e.target.value) })}
+                        onBlur={() => setNewStudentForm((p) => ({ ...p, firstName: capitalizeWords(p.firstName) }))}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-xl py-2.5 px-3.5 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
+                      />
+                    </div>
+                    <div className="w-full sm:w-16 shrink-0">
+                      <label className="block text-xs font-bold text-secondary uppercase tracking-wider mb-2 whitespace-nowrap text-center sm:text-left">
+                        M.I.
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. M"
+                        maxLength={3}
+                        value={newStudentForm.middleInitial}
+                        onChange={(e) => setNewStudentForm({ ...newStudentForm, middleInitial: e.target.value.replace(/\s+/g, "").toUpperCase() })}
+                        onBlur={() => setNewStudentForm((p) => ({ ...p, middleInitial: normalizeMiddleInitial(p.middleInitial) }))}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-xl py-2.5 px-2 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none text-center"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 2: Role, Grade Level, Adviser */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-2">
+                        Role
+                        <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                      </label>
+                      <RoleDropdown
+                        value={newStudentForm.role}
+                        onChange={(val) => setNewStudentForm({ ...newStudentForm, role: val })}
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-2">
+                        Grade level
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Grade 10"
+                        list="case-details-grade-level-options"
+                        value={newStudentForm.level}
+                        maxLength={GRADE_LEVEL_LIMIT}
+                        onChange={(e) => setNewStudentForm({ ...newStudentForm, level: e.target.value.slice(0, GRADE_LEVEL_LIMIT) })}
+                        onBlur={() => setNewStudentForm((p) => ({ ...p, level: normalizeGradeLevel(p.level) }))}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-xl py-2.5 px-3.5 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-2">
+                        Adviser
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Mr. Santos"
+                        value={newStudentForm.adviser}
+                        maxLength={ADVISER_LIMIT}
+                        onChange={(e) => setNewStudentForm({ ...newStudentForm, adviser: autoCapitalize(e.target.value.slice(0, ADVISER_LIMIT)) })}
+                        onBlur={() => setNewStudentForm((p) => ({ ...p, adviser: capitalizeWords(p.adviser).slice(0, ADVISER_LIMIT) }))}
+                        className="w-full bg-surface-container-low border border-outline-variant rounded-xl py-2.5 px-3.5 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 3: Sanction / Action Taken */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider mb-2">
+                      Sanction / action taken
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Describe the sanction or action taken…"
+                      value={newStudentForm.sanction}
+                      maxLength={TEXT_FIELD_LIMIT}
+                      onChange={(e) => setNewStudentForm({ ...newStudentForm, sanction: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-xl py-2.5 px-3.5 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none resize-none leading-relaxed"
+                    />
+                    <p className="mt-1.5 text-right text-[10px] font-medium text-secondary">
+                      {newStudentForm.sanction.length}/{TEXT_FIELD_LIMIT}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Case Title Section (Required if case was individual / has no title and role is Respondent) */}
+                {(!caseRecord.group_id || !caseRecord.title?.trim()) && (
+                  <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 flex flex-col gap-3 animate-fade-in">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-secondary uppercase tracking-wider">
+                      Case Title
+                      <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Science Lab Incident"
+                      value={newStudentForm.caseTitle}
+                      maxLength={CASE_TITLE_LIMIT}
+                      onChange={(e) => setNewStudentForm({ ...newStudentForm, caseTitle: autoCapitalize(e.target.value.slice(0, CASE_TITLE_LIMIT)) })}
+                      onBlur={() => setNewStudentForm((p) => ({ ...p, caseTitle: capitalizeWords(p.caseTitle).slice(0, CASE_TITLE_LIMIT) }))}
+                      className="w-full bg-surface-container-low border border-outline-variant rounded-xl py-2.5 px-3.5 text-sm text-on-surface placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none"
+                    />
+                    <div className="flex justify-between items-center mt-0.5">
+                      <p className="text-xs text-secondary">A case title is required to link and group cases together in the catalog.</p>
+                      <p className="text-[10px] font-medium text-secondary">{newStudentForm.caseTitle.length}/{CASE_TITLE_LIMIT}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-8 py-5 bg-surface-container-low border-t border-outline-variant flex justify-end gap-3.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={closeAddStudentModal}
+                  disabled={isAddingStudent}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAddingStudent}
+                  className="btn-primary"
+                >
+                  {isAddingStudent ? (
+                    <>
+                      <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                      <span>Adding...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-sm">person_add</span>
+                      <span>Add Student</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>,
         document.body
       )}

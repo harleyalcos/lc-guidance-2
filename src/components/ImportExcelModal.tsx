@@ -84,24 +84,63 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
   const handleSelectFile = async () => {
     try {
       const selected = await open({
-        multiple: false,
+        multiple: true,
         filters: [{ name: "Excel", extensions: ["xlsx"] }]
       });
 
-      if (selected === null) return;
-      
+      if (!selected) return;
+
+      const filePaths: string[] = Array.isArray(selected) ? selected : [selected];
+      if (filePaths.length === 0) return;
+
       setIsLoading(true);
-      // Wait, we need the filename from `selected`. `selected` is an absolute path.
-      // We can extract filename by splitting by '/' or '\'.
-      const filename = selected.replace(/^.*[\\\/]/, '');
 
-      const result = await invoke<any>("parse_import_file", { filePath: selected });
-      
+      const allNewRows: any[] = [];
+      const newFilenames: string[] = [];
+
+      for (const filePath of filePaths) {
+        const fname = filePath.replace(/^.*[\\\/]/, '');
+        newFilenames.push(fname);
+        const result = await invoke<any>("parse_import_file", { filePath });
+        if (result && Array.isArray(result.rows)) {
+          allNewRows.push(...result.rows);
+        }
+      }
+
+      let combinedRows = allNewRows;
+      let combinedFilename = newFilenames.join(", ");
+
+      try {
+        const storedRowsStr = localStorage.getItem("lc_pending_import_rows");
+        const storedFilenameStr = localStorage.getItem("lc_pending_import_filename");
+        if (storedRowsStr) {
+          const storedRows = JSON.parse(storedRowsStr);
+          if (Array.isArray(storedRows) && storedRows.length > 0) {
+            combinedRows = [...storedRows, ...allNewRows];
+            if (storedFilenameStr) {
+              const existingNames = storedFilenameStr.split(", ").map((s: string) => s.trim()).filter(Boolean);
+              const addedNames = newFilenames.filter((f) => !existingNames.includes(f));
+              combinedFilename = [...existingNames, ...addedNames].join(", ");
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error reading existing pending imports:", e);
+      }
+
       closeWithAnimation(() => {
-        // Navigate to review page
-        navigate("/import-review", { state: { parseResult: result, filename } });
+        navigate("/import-review", {
+          state: {
+            parseResult: {
+              rows: combinedRows,
+              valid_count: combinedRows.filter((r: any) => !r.has_errors && !r.is_duplicate).length,
+              duplicate_count: combinedRows.filter((r: any) => r.is_duplicate && !r.has_errors).length,
+              error_count: combinedRows.filter((r: any) => r.has_errors).length,
+            },
+            filename: combinedFilename,
+          },
+        });
       });
-
     } catch (e) {
       setParseError(String(e));
     } finally {

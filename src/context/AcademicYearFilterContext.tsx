@@ -18,7 +18,8 @@ export const AcademicYearFilterProvider: React.FC<{ children: React.ReactNode }>
   const { allYears, currentYear, isLoading: isYearsLoading } = useSchoolYears();
 
   const [selectedSchoolYear, setSelectedSchoolYearState] = useState<string | null>(() => {
-    return sessionStorage.getItem("selected_school_year") || null;
+    const saved = sessionStorage.getItem("selected_school_year");
+    return saved && saved !== "null" ? saved : "all";
   });
 
   const [startDate, setStartDateState] = useState<string>(() => {
@@ -30,14 +31,11 @@ export const AcademicYearFilterProvider: React.FC<{ children: React.ReactNode }>
   });
 
   useEffect(() => {
-    if (!isYearsLoading && selectedSchoolYear === null) {
-      const latestYear = allYears[0] || currentYear;
-      if (latestYear) {
-        setSelectedSchoolYearState(latestYear);
-        sessionStorage.setItem("selected_school_year", latestYear);
-      }
+    if (!selectedSchoolYear) {
+      setSelectedSchoolYearState("all");
+      sessionStorage.setItem("selected_school_year", "all");
     }
-  }, [currentYear, allYears, isYearsLoading, selectedSchoolYear]);
+  }, [selectedSchoolYear]);
 
   const setSelectedSchoolYear = (year: string | null) => {
     setSelectedSchoolYearState(year);

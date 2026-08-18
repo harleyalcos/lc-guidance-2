@@ -118,6 +118,30 @@ const getCaseGradeLevel = (caseRecord: CaseRecord) => {
   return students[0]?.level || caseRecord.level || "Unspecified";
 };
 
+export interface SignatureItem {
+  show: boolean;
+  label: string;
+  title: string;
+}
+
+export interface SignatureConfig {
+  sig1: SignatureItem;
+  sig2: SignatureItem;
+}
+
+const DEFAULT_SIGNATURE_CONFIG: SignatureConfig = {
+  sig1: {
+    show: true,
+    label: "Prepared by:",
+    title: "Guidance Counselor",
+  },
+  sig2: {
+    show: true,
+    label: "Noted by:",
+    title: "School Principal",
+  },
+};
+
 export default function SummaryReports() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [scope, setScope] = useState<"all" | "specific">("all");
@@ -129,6 +153,7 @@ export default function SummaryReports() {
     summary: true,
     signature: true,
   });
+  const [signatureConfig, setSignatureConfig] = useState<SignatureConfig>(DEFAULT_SIGNATURE_CONFIG);
   const [visibleColumns, setVisibleColumns] = useState({
     date: true,
     student: true,
@@ -194,8 +219,9 @@ export default function SummaryReports() {
     
     const loadCases = async () => {
       try {
+        const queryYear = (selectedSchoolYear === 'all' || (startDate && endDate)) ? null : selectedSchoolYear;
         const loadedCases = await invoke<CaseRecord[]>("get_cases", { 
-          schoolYear: selectedSchoolYear === 'all' ? null : selectedSchoolYear 
+          schoolYear: queryYear 
         });
         setCases(loadedCases);
       } catch (err) {
@@ -207,7 +233,7 @@ export default function SummaryReports() {
     const handleCasesChanged = () => loadCases();
     window.addEventListener("cases:changed", handleCasesChanged);
     return () => window.removeEventListener("cases:changed", handleCasesChanged);
-  }, [selectedSchoolYear, isYearsLoading]);
+  }, [selectedSchoolYear, isYearsLoading, startDate, endDate]);
 
 
 
@@ -222,18 +248,16 @@ export default function SummaryReports() {
       // 3. Filter by status
       if (selectedStatus !== "all") {
         const p = (c.progress || "").toLowerCase();
-        const s = (c.sanction || "").toLowerCase();
-        const isRep = p.includes("reprimand") || s.includes("reprimand");
         const statusLower = selectedStatus.toLowerCase();
         
         if (statusLower === "resolved") {
-          if (p !== "resolved" || isRep) return false;
+          if (p !== "resolved") return false;
         } else if (statusLower === "closed") {
-          if (p !== "closed" || isRep) return false;
+          if (p !== "closed") return false;
         } else if (statusLower === "reprimand") {
-          if (!isRep) return false;
+          if (!p.includes("reprimand")) return false;
         } else if (statusLower === "pending") {
-          const isPending = p !== "resolved" && p !== "closed" && !isRep;
+          const isPending = p !== "resolved" && p !== "closed" && !p.includes("reprimand");
           if (!isPending) return false;
         }
       }
@@ -263,24 +287,9 @@ export default function SummaryReports() {
 
   const stats = useMemo(() => {
     const total = activeCases.length;
-    const resolved = activeCases.filter(
-      c => c.progress.toLowerCase() === "resolved" &&
-      !c.sanction.toLowerCase().includes("reprimand") &&
-      !c.progress.toLowerCase().includes("reprimand")
-    ).length;
-    
-    const closed = activeCases.filter(
-      c => c.progress.toLowerCase() === "closed" &&
-      !c.sanction.toLowerCase().includes("reprimand") &&
-      !c.progress.toLowerCase().includes("reprimand")
-    ).length;
-    
-    const reprimand = activeCases.filter(
-      c => c.progress.toLowerCase().includes("reprimand") ||
-      c.sanction.toLowerCase().includes("reprimand")
-    ).length;
-    
-    // Pending includes everything else (fallback for 'In Progress', 'Pending', etc.)
+    const resolved = activeCases.filter(c => (c.progress || "").toLowerCase() === "resolved").length;
+    const closed = activeCases.filter(c => (c.progress || "").toLowerCase() === "closed").length;
+    const reprimand = activeCases.filter(c => (c.progress || "").toLowerCase().includes("reprimand")).length;
     const pending = total - resolved - closed - reprimand;
 
     return { total, pending, resolved, reprimand, closed };
@@ -330,6 +339,7 @@ export default function SummaryReports() {
       summary: true,
       signature: true,
     });
+    setSignatureConfig(DEFAULT_SIGNATURE_CONFIG);
     setVisibleColumns({
       date: true,
       student: true,
@@ -452,9 +462,9 @@ export default function SummaryReports() {
     <thead>
       <tr className="border-b border-gray-200 text-gray-600 font-bold uppercase text-[11px] tracking-wider font-sans">
         <th className="py-2 pr-2 w-8">#</th>
-        {visibleColumns.date && <th className="py-2 pr-2">Incident Date</th>}
+        {visibleColumns.date && <th className="py-2 pr-2">Date</th>}
         {visibleColumns.student && <th className="py-2 pr-2">Student</th>}
-        {visibleColumns.class && <th className="py-2 pr-2">Class</th>}
+        {visibleColumns.class && <th className="py-2 pr-2">Grade</th>}
         {visibleColumns.adviser && <th className="py-2 pr-2">Adviser</th>}
         {visibleColumns.type && <th className="py-2 pr-2">Type</th>}
         {visibleColumns.description && <th className="py-2 pr-2 max-w-[140px]">Description</th>}
@@ -474,28 +484,38 @@ export default function SummaryReports() {
     </div>
   );
 
-  const renderClosingBlock = () => (
-    <div className="mt-6 font-sans">
-      <div className="border-t border-gray-300 pt-3 mb-4 text-center text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-        End of Report
-      </div>
-      
-      {includes.signature && (
-        <div className="flex justify-between w-3/4 mx-auto mt-10">
-          <div className="flex flex-col items-center w-56 text-center">
-            <div className="border-b border-gray-800 w-full mb-2"></div>
-            <div className="font-bold text-sm">Guidance Counselor</div>
-            <div className="text-xs text-gray-500 mt-1">Prepared by</div>
-          </div>
-          <div className="flex flex-col items-center w-56 text-center">
-            <div className="border-b border-gray-800 w-full mb-2"></div>
-            <div className="font-bold text-sm">School Principal</div>
-            <div className="text-xs text-gray-500 mt-1">Noted by</div>
-          </div>
+  const renderClosingBlock = () => {
+    const showSig1 = includes.signature && signatureConfig.sig1.show;
+    const showSig2 = includes.signature && signatureConfig.sig2.show;
+    const activeCount = (showSig1 ? 1 : 0) + (showSig2 ? 1 : 0);
+
+    return (
+      <div className="mt-6 font-sans">
+        <div className="border-t border-gray-300 pt-3 mb-4 text-center text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+          End of Report
         </div>
-      )}
-    </div>
-  );
+        
+        {includes.signature && activeCount > 0 && (
+          <div className={`flex ${activeCount === 2 ? 'justify-between w-3/4' : 'justify-center w-full'} mx-auto mt-10`}>
+            {showSig1 && (
+              <div className="flex flex-col items-center w-56 text-center">
+                <div className="border-b border-gray-800 w-full mb-2"></div>
+                <div className="font-bold text-sm">{signatureConfig.sig1.title || "Guidance Counselor"}</div>
+                <div className="text-xs text-gray-500 mt-1">{signatureConfig.sig1.label || "Prepared by:"}</div>
+              </div>
+            )}
+            {showSig2 && (
+              <div className="flex flex-col items-center w-56 text-center">
+                <div className="border-b border-gray-800 w-full mb-2"></div>
+                <div className="font-bold text-sm">{signatureConfig.sig2.title || "School Principal"}</div>
+                <div className="text-xs text-gray-500 mt-1">{signatureConfig.sig2.label || "Noted by:"}</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderTableRow = (c: CaseRecord, index: number, isHiddenRef?: boolean) => {
     const students = parseStudents(c.students);
@@ -506,11 +526,11 @@ export default function SummaryReports() {
     if (students.length > 0) {
       const s = students[0];
       studentName = `${s.lastName}, ${s.firstName}${s.middleInitial ? ` ${s.middleInitial}.` : ""}`;
-      studentGrade = `${s.level.replace('Grade ', '')}-${s.section}`;
+      studentGrade = s.level ? (s.level.startsWith('Grade') ? s.level : `Grade ${s.level}`) : "—";
       studentAdviser = s.adviser || c.adviser || "—";
     } else {
       studentName = `${c.last_name}, ${c.first_name}${c.middle_initial ? ` ${c.middle_initial}.` : ""}`;
-      studentGrade = `${c.level.replace('Grade ', '')}-${c.section}`;
+      studentGrade = c.level ? (c.level.startsWith('Grade') ? c.level : `Grade ${c.level}`) : "—";
       studentAdviser = c.adviser || "—";
     }
     
@@ -522,7 +542,7 @@ export default function SummaryReports() {
         style={{ pageBreakInside: 'avoid' }}
       >
         <td className="py-3 pr-2 pl-2 text-gray-500 font-sans font-bold">{index + 1}</td>
-        {visibleColumns.date && <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{formatDate(c.date)}</td>}
+        {visibleColumns.date && <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{formatDate(c.date_filed || c.date)}</td>}
         {visibleColumns.student && <td className="py-3 pr-2 font-medium text-gray-900 font-sans">{studentName}</td>}
         {visibleColumns.class && <td className="py-3 pr-2 text-gray-600 font-sans whitespace-nowrap">{studentGrade}</td>}
         {visibleColumns.adviser && <td className="py-3 pr-2 text-gray-600 font-sans">{studentAdviser}</td>}
@@ -595,7 +615,7 @@ export default function SummaryReports() {
     const frameEl = document.querySelector('[data-measurement-root] [data-page-frame]');
     if (!frameEl) return;
     
-    const PAGE_HEIGHT_PX = frameEl.getBoundingClientRect().height;
+    const PAGE_HEIGHT_PX = frameEl.getBoundingClientRect().height || 793.7;
     
     const firstHeaderH = document.querySelector('[data-measurement-root] [data-first-header]')?.getBoundingClientRect().height || 0;
     const contHeaderH = document.querySelector('[data-measurement-root] [data-cont-header]')?.getBoundingClientRect().height || 0;
@@ -606,72 +626,159 @@ export default function SummaryReports() {
     const rowEls = document.querySelectorAll('[data-measurement-root] [data-row]');
     const rowHeights = Array.from(rowEls).map(el => el.getBoundingClientRect().height);
     
-    const SAFETY_MARGIN = 12;
+    const SAFETY_MARGIN = 20;
     const topPadding = 32;
     const bottomAbsoluteOffset = 32;
     const footerBudget = bottomAbsoluteOffset + footerH;
     
     const contentBudget = PAGE_HEIGHT_PX - topPadding - footerBudget - SAFETY_MARGIN;
 
-    const heightByCaseId = new Map(activeCases.map((c, i) => [c.id, rowHeights[i]]));
-
-    const newPages: { rows: CaseRecord[], isFirstPage: boolean, hasClosing: boolean }[] = [];
-    
     if (activeCases.length === 0) {
       const hasClosing = (firstHeaderH + tableHeaderH + closingH) <= contentBudget;
-      newPages.push({ rows: [], isFirstPage: true, hasClosing });
+      const newPages = [{ rows: [] as CaseRecord[], isFirstPage: true, hasClosing }];
       if (!hasClosing) {
-         newPages.push({ rows: [], isFirstPage: false, hasClosing: true });
+        newPages.push({ rows: [] as CaseRecord[], isFirstPage: false, hasClosing: true });
       }
       setPaginatedPages(newPages);
       return;
     }
 
-    let currentBudget = contentBudget - firstHeaderH - tableHeaderH;
-    let currentRowBucket: CaseRecord[] = [];
-    let isFirstPage = true;
+    const page1Budget = contentBudget - firstHeaderH - tableHeaderH;
+    const contBudgetNoClosing = contentBudget - contHeaderH - tableHeaderH;
+    const contBudgetWithClosing = contBudgetNoClosing - closingH;
+
+    const getRowHeight = (index: number) => rowHeights[index] || 40;
+
+    // Check if everything fits on a single page
+    let totalAllHeight = 0;
+    for (let i = 0; i < activeCases.length; i++) {
+      totalAllHeight += getRowHeight(i);
+    }
+
+    if (totalAllHeight + closingH <= page1Budget) {
+      setPaginatedPages([{ rows: activeCases, isFirstPage: true, hasClosing: true }]);
+      return;
+    }
+
+    // Step 1: Allocate cases to Page 1 up to page1Budget
+    const page1Rows: CaseRecord[] = [];
+    let page1Height = 0;
 
     for (let i = 0; i < activeCases.length; i++) {
-      const caseRecord = activeCases[i];
-      const rowHeight = rowHeights[i];
-      
-      if (currentBudget >= rowHeight || currentRowBucket.length === 0) {
-        currentRowBucket.push(caseRecord);
-        currentBudget -= rowHeight;
+      const h = getRowHeight(i);
+      if (page1Height + h <= page1Budget) {
+        page1Rows.push(activeCases[i]);
+        page1Height += h;
       } else {
-        newPages.push({ rows: currentRowBucket, isFirstPage, hasClosing: false });
-        isFirstPage = false;
-        currentRowBucket = [caseRecord];
-        currentBudget = contentBudget - contHeaderH - tableHeaderH - rowHeight;
+        break;
       }
     }
 
-    if (currentRowBucket.length > 0) {
-      if (currentBudget >= closingH) {
-        newPages.push({ rows: currentRowBucket, isFirstPage, hasClosing: true });
+    if (page1Rows.length === 0 && activeCases.length > 0) {
+      page1Rows.push(activeCases[0]);
+    }
+
+    const remainingCases = activeCases.slice(page1Rows.length);
+
+    if (remainingCases.length === 0) {
+      const shiftCount = Math.min(Math.floor(page1Rows.length / 2), 3);
+      if (shiftCount > 0) {
+        setPaginatedPages([
+          { rows: page1Rows.slice(0, page1Rows.length - shiftCount), isFirstPage: true, hasClosing: false },
+          { rows: page1Rows.slice(page1Rows.length - shiftCount), isFirstPage: false, hasClosing: true },
+        ]);
       } else {
-        let rebalanced = false;
-        const maxTrim = Math.min(3, currentRowBucket.length);
-        for (let trim = 1; trim <= maxTrim; trim++) {
-          const movedRows = currentRowBucket.slice(-trim);
-          const keptRows = currentRowBucket.slice(0, currentRowBucket.length - trim);
-          if (keptRows.length === 0) break;
-          const movedHeight = movedRows.reduce((sum, r) => sum + (heightByCaseId.get(r.id) || 0), 0);
-          const freshPageBudget = contentBudget - contHeaderH - tableHeaderH;
-          if (freshPageBudget - movedHeight >= closingH) {
-            newPages.push({ rows: keptRows, isFirstPage, hasClosing: false });
-            newPages.push({ rows: movedRows, isFirstPage: false, hasClosing: true });
-            rebalanced = true;
-            break;
-          }
-        }
-        if (!rebalanced) {
-          newPages.push({ rows: currentRowBucket, isFirstPage, hasClosing: false });
-          newPages.push({ rows: [], isFirstPage: false, hasClosing: true });
-        }
+        setPaginatedPages([
+          { rows: page1Rows, isFirstPage: true, hasClosing: false },
+          { rows: [], isFirstPage: false, hasClosing: true },
+        ]);
+      }
+      return;
+    }
+
+    // Step 2: Check if all remaining cases fit on Page 2 WITH closing block
+    let totalRemainingHeight = 0;
+    for (let i = 0; i < remainingCases.length; i++) {
+      totalRemainingHeight += getRowHeight(page1Rows.length + i);
+    }
+
+    if (totalRemainingHeight <= contBudgetWithClosing) {
+      setPaginatedPages([
+        { rows: page1Rows, isFirstPage: true, hasClosing: false },
+        { rows: remainingCases, isFirstPage: false, hasClosing: true },
+      ]);
+      return;
+    }
+
+    // Step 3: Balanced distribution across K continuation pages
+    const avgRowHeight = totalRemainingHeight / remainingCases.length || 40;
+    const maxRowsPerCont = Math.max(1, Math.floor(contBudgetNoClosing / avgRowHeight));
+    const maxRowsLast = Math.max(1, Math.floor(contBudgetWithClosing / avgRowHeight));
+
+    let contPageCount = 1;
+    while (true) {
+      contPageCount++;
+      const totalCapacity = (contPageCount - 1) * maxRowsPerCont + maxRowsLast;
+      if (totalCapacity >= remainingCases.length || contPageCount > 50) {
+        break;
       }
     }
-    
+
+    const contBuckets: CaseRecord[][] = [];
+    let currentIndex = 0;
+
+    for (let p = 0; p < contPageCount; p++) {
+      const isLastContPage = p === contPageCount - 1;
+      const currentMaxBudget = isLastContPage ? contBudgetWithClosing : contBudgetNoClosing;
+
+      const pageBucket: CaseRecord[] = [];
+      let bucketHeight = 0;
+
+      const itemsLeft = remainingCases.length - currentIndex;
+      const pagesLeft = contPageCount - p;
+      const targetForThisPage = Math.ceil(itemsLeft / pagesLeft);
+
+      while (currentIndex < remainingCases.length) {
+        const nextCase = remainingCases[currentIndex];
+        const nextH = getRowHeight(page1Rows.length + currentIndex);
+
+        if (bucketHeight + nextH <= currentMaxBudget) {
+          pageBucket.push(nextCase);
+          bucketHeight += nextH;
+          currentIndex++;
+          if (pageBucket.length >= targetForThisPage && !isLastContPage) {
+            break;
+          }
+        } else {
+          if (pageBucket.length === 0) {
+            pageBucket.push(nextCase);
+            currentIndex++;
+          }
+          break;
+        }
+      }
+
+      contBuckets.push(pageBucket);
+    }
+
+    while (currentIndex < remainingCases.length) {
+      const lastBucket = contBuckets[contBuckets.length - 1];
+      lastBucket.push(remainingCases[currentIndex]);
+      currentIndex++;
+    }
+
+    const newPages: { rows: CaseRecord[]; isFirstPage: boolean; hasClosing: boolean }[] = [
+      { rows: page1Rows, isFirstPage: true, hasClosing: false },
+    ];
+
+    contBuckets.forEach((bucket, idx) => {
+      newPages.push({
+        rows: bucket,
+        isFirstPage: false,
+        hasClosing: idx === contBuckets.length - 1,
+      });
+    });
+
     setPaginatedPages(newPages);
   }, [activeCases, includes, startDate, endDate, scope, selectedGrade, selectedStatus, visibleColumns]);
 
@@ -871,8 +978,8 @@ export default function SummaryReports() {
                   isLoadingYears={isYearsLoading}
                   startDate={startDate}
                   endDate={endDate}
-                  className="w-full max-w-[220px]"
-                  placeholder="Pick range"
+                  className="w-full min-w-[280px] max-w-[320px]"
+                  placeholder="All Records"
                   onRangeChange={(start, end) => setDateRange(start, end)}
                 />
               </div>
@@ -882,23 +989,137 @@ export default function SummaryReports() {
             <div>
               <label className="text-xs font-bold text-gray-400 dark:text-secondary uppercase tracking-wider mb-3 block">Include</label>
               <div className="space-y-3">
-                {[
-                  { id: 'summary', label: 'Summary statistics' },
-                  { id: 'signature', label: 'Signature block' },
-                ].map((item) => (
-                  <label key={item.id} className="flex items-center gap-3 cursor-pointer group">
+                <label className="flex items-center gap-3 cursor-pointer group select-none">
+                  <div className="relative flex items-center">
+                    <input 
+                      type="checkbox" 
+                      checked={includes.summary}
+                      onChange={(e) => setIncludes({ ...includes, summary: e.target.checked })}
+                      className="peer custom-checkbox-box appearance-none w-4 h-4 border border-outline-variant rounded bg-surface checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer" 
+                    />
+                    <span className="material-symbols-outlined custom-checkbox-icon absolute text-white pointer-events-none left-1/2 top-1/2" style={{ fontSize: '12px', fontWeight: 'bold' }}>check</span>
+                  </div>
+                  <span className="text-sm text-gray-700 dark:text-on-surface group-hover:text-gray-900 dark:group-hover:text-white transition-colors">Summary statistics</span>
+                </label>
+
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer group select-none">
                     <div className="relative flex items-center">
                       <input 
                         type="checkbox" 
-                        checked={includes[item.id as keyof typeof includes]}
-                        onChange={(e) => setIncludes({...includes, [item.id]: e.target.checked})}
-                        className="peer appearance-none w-4 h-4 border border-outline-variant rounded bg-surface checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer" 
+                        checked={includes.signature}
+                        onChange={(e) => setIncludes({ ...includes, signature: e.target.checked })}
+                        className="peer custom-checkbox-box appearance-none w-4 h-4 border border-outline-variant rounded bg-surface checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer" 
                       />
-                      <span className="material-symbols-outlined absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ fontSize: '12px', fontWeight: 'bold' }}>check</span>
+                      <span className="material-symbols-outlined custom-checkbox-icon absolute text-white pointer-events-none left-1/2 top-1/2" style={{ fontSize: '12px', fontWeight: 'bold' }}>check</span>
                     </div>
-                    <span className="text-sm text-gray-700 dark:text-on-surface group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{item.label}</span>
+                    <span className="text-sm text-gray-700 dark:text-on-surface group-hover:text-gray-900 dark:group-hover:text-white transition-colors">Signature block</span>
                   </label>
-                ))}
+
+                  <div className={`expandable-panel ${includes.signature ? "is-expanded" : ""}`}>
+                    <div className="expandable-content mt-3 pl-3 sm:pl-4 space-y-3 border-l-2 border-primary/20">
+                      {/* Signature 1 */}
+                      <div className="space-y-1.5">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <div className="relative flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={signatureConfig.sig1.show}
+                              onChange={(e) => setSignatureConfig({
+                                ...signatureConfig,
+                                sig1: { ...signatureConfig.sig1, show: e.target.checked }
+                              })}
+                              className="peer custom-checkbox-box appearance-none w-3.5 h-3.5 border border-outline-variant rounded bg-surface checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                            />
+                            <span className="material-symbols-outlined custom-checkbox-icon absolute text-white pointer-events-none left-1/2 top-1/2" style={{ fontSize: '10px', fontWeight: 'bold' }}>check</span>
+                          </div>
+                          <span className="text-xs font-semibold text-gray-700 dark:text-on-surface">Signature 1</span>
+                        </label>
+                        
+                        <div className={`expandable-panel ${signatureConfig.sig1.show ? "is-expanded" : ""}`}>
+                          <div className="expandable-content pl-5 pt-1 space-y-1.5">
+                            <div>
+                              <span className="text-[10px] text-gray-500 dark:text-secondary font-medium block">Label</span>
+                              <input
+                                type="text"
+                                value={signatureConfig.sig1.label}
+                                onChange={(e) => setSignatureConfig({
+                                  ...signatureConfig,
+                                  sig1: { ...signatureConfig.sig1, label: e.target.value }
+                                })}
+                                placeholder="Prepared by:"
+                                className="w-full text-xs px-2 py-1 border border-outline-variant rounded bg-surface text-on-surface focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-gray-500 dark:text-secondary font-medium block">Name / Title</span>
+                              <input
+                                type="text"
+                                value={signatureConfig.sig1.title}
+                                onChange={(e) => setSignatureConfig({
+                                  ...signatureConfig,
+                                  sig1: { ...signatureConfig.sig1, title: e.target.value }
+                                })}
+                                placeholder="Guidance Counselor"
+                                className="w-full text-xs px-2 py-1 border border-outline-variant rounded bg-surface text-on-surface focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Signature 2 */}
+                      <div className="space-y-1.5 pt-2 border-t border-outline-variant/30">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <div className="relative flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={signatureConfig.sig2.show}
+                              onChange={(e) => setSignatureConfig({
+                                ...signatureConfig,
+                                sig2: { ...signatureConfig.sig2, show: e.target.checked }
+                              })}
+                              className="peer custom-checkbox-box appearance-none w-3.5 h-3.5 border border-outline-variant rounded bg-surface checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                            />
+                            <span className="material-symbols-outlined custom-checkbox-icon absolute text-white pointer-events-none left-1/2 top-1/2" style={{ fontSize: '10px', fontWeight: 'bold' }}>check</span>
+                          </div>
+                          <span className="text-xs font-semibold text-gray-700 dark:text-on-surface">Signature 2</span>
+                        </label>
+                        
+                        <div className={`expandable-panel ${signatureConfig.sig2.show ? "is-expanded" : ""}`}>
+                          <div className="expandable-content pl-5 pt-1 space-y-1.5">
+                            <div>
+                              <span className="text-[10px] text-gray-500 dark:text-secondary font-medium block">Label</span>
+                              <input
+                                type="text"
+                                value={signatureConfig.sig2.label}
+                                onChange={(e) => setSignatureConfig({
+                                  ...signatureConfig,
+                                  sig2: { ...signatureConfig.sig2, label: e.target.value }
+                                })}
+                                placeholder="Noted by:"
+                                className="w-full text-xs px-2 py-1 border border-outline-variant rounded bg-surface text-on-surface focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-gray-500 dark:text-secondary font-medium block">Name / Title</span>
+                              <input
+                                type="text"
+                                value={signatureConfig.sig2.title}
+                                onChange={(e) => setSignatureConfig({
+                                  ...signatureConfig,
+                                  sig2: { ...signatureConfig.sig2, title: e.target.value }
+                                })}
+                                placeholder="School Principal"
+                                className="w-full text-xs px-2 py-1 border border-outline-variant rounded bg-surface text-on-surface focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -907,16 +1128,16 @@ export default function SummaryReports() {
               <label className="text-xs font-bold text-gray-400 dark:text-secondary uppercase tracking-wider mb-3 block">Columns</label>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 max-h-[160px] overflow-y-auto pr-1">
                 {[
-                  { id: 'date', label: 'Incident Date' },
+                  { id: 'date', label: 'Date' },
                   { id: 'student', label: 'Student' },
-                  { id: 'class', label: 'Class' },
+                  { id: 'class', label: 'Grade' },
                   { id: 'adviser', label: 'Adviser' },
                   { id: 'type', label: 'Type' },
                   { id: 'description', label: 'Description' },
                   { id: 'sanction', label: 'Sanction' },
                   { id: 'status', label: 'Status' },
                 ].map((col) => (
-                  <label key={col.id} className="flex items-center gap-3 cursor-pointer group">
+                  <label key={col.id} className="flex items-center gap-3 cursor-pointer group select-none">
                     <div className="relative flex items-center">
                       <input 
                         type="checkbox" 
@@ -925,9 +1146,9 @@ export default function SummaryReports() {
                           ...visibleColumns,
                           [col.id]: e.target.checked
                         })}
-                        className="peer appearance-none w-4 h-4 border border-outline-variant rounded bg-surface checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer" 
+                        className="peer custom-checkbox-box appearance-none w-4 h-4 border border-outline-variant rounded bg-surface checked:bg-primary checked:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer" 
                       />
-                      <span className="material-symbols-outlined absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ fontSize: '12px', fontWeight: 'bold' }}>check</span>
+                      <span className="material-symbols-outlined custom-checkbox-icon absolute text-white pointer-events-none left-1/2 top-1/2" style={{ fontSize: '12px', fontWeight: 'bold' }}>check</span>
                     </div>
                     <span className="text-xs text-gray-700 dark:text-on-surface group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{col.label}</span>
                   </label>

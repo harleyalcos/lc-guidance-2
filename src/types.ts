@@ -54,6 +54,7 @@ export interface ImportRow {
   existing_case: CaseRecord | null;
   has_errors: boolean;
   errors: string[];
+  group_id?: string | null;
 }
 
 

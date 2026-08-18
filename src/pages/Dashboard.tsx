@@ -32,12 +32,81 @@ const parseStudents = (studentsStr: string): StudentInfo[] => {
 
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 
-const CASE_TYPE_GROUPS = [
-  { label: "Academic", color: "#7C96E8" },
-  { label: "Behavioral", color: "#F0B94D" },
-  { label: "Attendance", color: "#4FD1C5" },
-  { label: "Personal", color: "#F17272" },
+const PRESET_CASE_TYPES: string[] = [
+  "Poor academic performance",
+  "Learning difficulties",
+  "Study skills & habits",
+  "Absenteeism / tardiness",
+  "Course selection",
+  "Dropout prevention",
+  "Peer relationship issues",
+  "Family problems",
+  "Self-esteem & identity",
+  "Adjustment difficulties",
+  "Grief & loss",
+  "Gender & sexuality",
+  "Substance use",
+  "Social media issues",
+  "Defiance / non-compliance",
+  "Classroom disruption",
+  "Bullying",
+  "Truancy / skipping",
+  "Vandalism / property damage",
+  "Theft & dishonesty",
+  "Inappropriate language",
+  "Gang-related behaviour",
+  "Substance possession",
+  "Physical fighting",
+  "Assault on staff",
+  "Weapons possession",
+  "Threats & intimidation",
+  "Self-harm & suicide risk",
+  "Sexual harassment",
+  "Anxiety & depression",
+  "Trauma & abuse",
+  "Crisis intervention",
+  "Tardiness",
+  "Vaping",
+  "Cutting Classes",
+  "Vandalism",
+  "Gambling",
+  "Insubordination",
+  "Dress Code Violation",
+  "Cheating",
+  "Academic Dishonesty",
+  "Unauthorized Phone Usage",
+  "Loitering During Class Hours",
 ];
+
+const TYPE_COLORS = [
+  "#7C96E8", // Blue
+  "#F0B94D", // Amber
+  "#4FD1C5", // Teal/Emerald
+  "#F17272", // Coral/Red
+  "#94A3B8", // Slate/Others
+];
+
+const matchPresetCaseType = (rawCase: string): string => {
+  const trimmed = (rawCase || "").trim();
+  if (!trimmed) return "Others";
+
+  const lower = trimmed.toLowerCase();
+
+  for (const preset of PRESET_CASE_TYPES) {
+    if (preset.toLowerCase() === lower) {
+      return preset;
+    }
+  }
+
+  for (const preset of PRESET_CASE_TYPES) {
+    const parts = preset.toLowerCase().split("/").map((p) => p.trim());
+    if (parts.includes(lower)) {
+      return preset;
+    }
+  }
+
+  return "Others";
+};
 
 const STATUS_CHART_SEGMENTS = [
   { label: "Resolved", color: "#7C96E8" },
@@ -107,23 +176,6 @@ const formatDashboardDateRange = (startStr: string, endStr: string, casesList: C
   return "all recorded periods";
 };
 
-const isSameMonth = (a: Date, b: Date) =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
-
-const categorizeCaseType = (caseType: string) => {
-  const normalized = caseType.toLowerCase();
-  if (/absentee|tardin|truancy|skipping|attendance/.test(normalized)) {
-    return "Attendance";
-  }
-  if (/academic|learning|study|course|dropout|performance|grade/.test(normalized)) {
-    return "Academic";
-  }
-  if (/peer|family|self|identity|adjustment|grief|gender|sexual|anxiety|depression|trauma|abuse|crisis|harassment/.test(normalized)) {
-    return "Personal";
-  }
-  return "Behavioral";
-};
-
 const getCaseGradeLevel = (caseRecord: CaseRecord) => {
   const students = parseStudents(caseRecord.students);
   return students[0]?.level || caseRecord.level || "Unspecified";
@@ -157,8 +209,9 @@ export default function Dashboard() {
     
     const loadCases = async () => {
       try {
+        const queryYear = (selectedSchoolYear === 'all' || (dashStartDate && dashEndDate)) ? null : selectedSchoolYear;
         const loadedCases = await invoke<CaseRecord[]>("get_cases", { 
-          schoolYear: selectedSchoolYear === 'all' ? null : selectedSchoolYear 
+          schoolYear: queryYear
         });
         setCases(loadedCases);
       } catch (err) {
@@ -170,7 +223,7 @@ export default function Dashboard() {
     const handleCasesChanged = () => loadCases();
     window.addEventListener("cases:changed", handleCasesChanged);
     return () => window.removeEventListener("cases:changed", handleCasesChanged);
-  }, [selectedSchoolYear, isYearsLoading]);
+  }, [selectedSchoolYear, isYearsLoading, dashStartDate, dashEndDate]);
 
   // Filter cases by the selected date range
   const filteredCases = useMemo(() => {
@@ -196,28 +249,11 @@ export default function Dashboard() {
   }, [cases, dashStartDate, dashEndDate]);
 
 
-
   const stats = useMemo(() => {
     const total = filteredCases.length;
-    
-    const resolved = filteredCases.filter(
-      c => c.progress.toLowerCase() === "resolved" &&
-      !c.sanction.toLowerCase().includes("reprimand") &&
-      !c.progress.toLowerCase().includes("reprimand")
-    ).length;
-    
-    const closed = filteredCases.filter(
-      c => c.progress.toLowerCase() === "closed" &&
-      !c.sanction.toLowerCase().includes("reprimand") &&
-      !c.progress.toLowerCase().includes("reprimand")
-    ).length;
-    
-    const reprimand = filteredCases.filter(
-      c => c.progress.toLowerCase().includes("reprimand") ||
-      c.sanction.toLowerCase().includes("reprimand")
-    ).length;
-    
-    // Pending includes everything else (fallback for 'In Progress', 'Pending', etc.)
+    const resolved = filteredCases.filter(c => (c.progress || "").toLowerCase() === "resolved").length;
+    const closed = filteredCases.filter(c => (c.progress || "").toLowerCase() === "closed").length;
+    const reprimand = filteredCases.filter(c => (c.progress || "").toLowerCase().includes("reprimand")).length;
     const pending = total - resolved - closed - reprimand;
 
     return { total, pending, resolved, closed, reprimand };
@@ -228,77 +264,65 @@ export default function Dashboard() {
     const start = dashStartDate ? new Date(dashStartDate) : new Date(new Date().getFullYear(), 0, 1);
     const end = dashEndDate ? new Date(dashEndDate) : new Date(new Date().getFullYear(), 11, 31);
     const startYear = start.getFullYear();
-    const startMonth = start.getMonth();
     const endYear = end.getFullYear();
-    const endMonth = end.getMonth();
 
-    // 1. Single month selection (weekly view)
-    if (startYear === endYear && startMonth === endMonth) {
-      const monthName = start.toLocaleDateString("en-US", { month: "long" });
-      const lastDay = new Date(startYear, startMonth + 1, 0).getDate();
-      
-      const weeks = [
-        { label: "Week 1", startDay: 1, endDay: 7 },
-        { label: "Week 2", startDay: 8, endDay: 14 },
-        { label: "Week 3", startDay: 15, endDay: 21 },
-        { label: "Week 4", startDay: 22, endDay: 28 },
-      ];
-      if (lastDay > 28) {
-        weeks.push({ label: "Week 5", startDay: 29, endDay: lastDay });
+    const isDifferentYears = startYear !== endYear;
+
+    if (isDifferentYears) {
+      const yearMap = new Map<number, number>();
+      for (let y = startYear; y <= endYear; y++) {
+        yearMap.set(y, 0);
       }
 
-      const data = weeks.map(w => {
-        const count = filteredCases.filter(c => {
-          const d = getCaseDate(c);
-          if (!d) return false;
-          return d.getFullYear() === startYear && d.getMonth() === startMonth && d.getDate() >= w.startDay && d.getDate() <= w.endDay;
-        }).length;
-        return { label: w.label, value: count };
-      });
-
-      return {
-        mode: "weekly" as const,
-        title: `${monthName} ${startYear} Weekly Case Volume`,
-        data,
-      };
-    }
-
-    // 2. Full calendar year selection
-    if (startYear === endYear && startMonth === 0 && endMonth === 11) {
-      const data = Array.from({ length: 12 }, (_, index) => {
-        const monthDate = new Date(startYear, index, 1);
-        return {
-          label: monthDate.toLocaleDateString("en-US", { month: "short" }),
-          value: filteredCases.filter((c) => {
-            const d = getCaseDate(c);
-            return d ? isSameMonth(d, monthDate) : false;
-          }).length,
-        };
-      });
-
-      return {
-        mode: "monthly" as const,
-        title: `${startYear} Monthly Case Volume`,
-        data,
-      };
-    }
-
-    // 3. General multi-month range: list all months in range
-    const months: Date[] = [];
-    let current = new Date(startYear, startMonth, 1);
-    const targetEnd = new Date(endYear, endMonth, 1);
-    while (current.getTime() <= targetEnd.getTime()) {
-      months.push(new Date(current));
-      current.setMonth(current.getMonth() + 1);
-    }
-
-    const data = months.map((monthDate) => ({
-      label: monthDate.toLocaleDateString("en-US", { month: "short" }),
-      value: filteredCases.filter((c) => {
+      for (const c of filteredCases) {
         const d = getCaseDate(c);
-        return d ? isSameMonth(d, monthDate) : false;
-      }).length,
-    }));
+        if (!d) continue;
+        const y = d.getFullYear();
+        if (yearMap.has(y)) {
+          yearMap.set(y, yearMap.get(y)! + 1);
+        }
+      }
+
+      const data = Array.from(yearMap.entries()).map(([year, count]) => ({
+        label: `${year}`,
+        value: count,
+      }));
+
+      return {
+        mode: "annual" as const,
+        title: "Annual Case Volume",
+        data,
+      };
+    }
+
+    const monthData = [
+      { label: "Jan", value: 0 },
+      { label: "Feb", value: 0 },
+      { label: "Mar", value: 0 },
+      { label: "Apr", value: 0 },
+      { label: "May", value: 0 },
+      { label: "Jun", value: 0 },
+      { label: "Jul", value: 0 },
+      { label: "Aug", value: 0 },
+      { label: "Sep", value: 0 },
+      { label: "Oct", value: 0 },
+      { label: "Nov", value: 0 },
+      { label: "Dec", value: 0 },
+    ];
+
+    for (const c of filteredCases) {
+      const d = getCaseDate(c);
+      if (!d) continue;
+      if (d.getFullYear() === startYear) {
+        const m = d.getMonth();
+        monthData[m].value += 1;
+      }
+    }
+
+    // Filter to only include months within the selected date range
+    const startMonth = start.getMonth();
+    const endMonth = end.getMonth();
+    const data = monthData.slice(startMonth, endMonth + 1);
 
     return {
       mode: "monthly" as const,
@@ -310,23 +334,9 @@ export default function Dashboard() {
   }, [dashStartDate, dashEndDate, filteredCases]);
 
   const statusDistribution = useMemo(() => {
-    const resolved = filteredCases.filter(
-      c => c.progress.toLowerCase() === "resolved" &&
-      !c.sanction.toLowerCase().includes("reprimand") &&
-      !c.progress.toLowerCase().includes("reprimand")
-    ).length;
-
-    const closed = filteredCases.filter(
-      c => c.progress.toLowerCase() === "closed" &&
-      !c.sanction.toLowerCase().includes("reprimand") &&
-      !c.progress.toLowerCase().includes("reprimand")
-    ).length;
-
-    const reprimand = filteredCases.filter(
-      c => c.progress.toLowerCase().includes("reprimand") ||
-      c.sanction.toLowerCase().includes("reprimand")
-    ).length;
-
+    const resolved = filteredCases.filter(c => (c.progress || "").toLowerCase() === "resolved").length;
+    const closed = filteredCases.filter(c => (c.progress || "").toLowerCase() === "closed").length;
+    const reprimand = filteredCases.filter(c => (c.progress || "").toLowerCase().includes("reprimand")).length;
     const pending = filteredCases.length - resolved - closed - reprimand;
 
     return STATUS_CHART_SEGMENTS.map((segment) => {
@@ -345,26 +355,92 @@ export default function Dashboard() {
   }, [filteredCases]);
 
   const typeDistribution = useMemo(() => {
-    return CASE_TYPE_GROUPS.map((group) => ({
-      ...group,
-      value: filteredCases.filter((c) => categorizeCaseType(c.case || "") === group.label).length,
-    }));
+    if (filteredCases.length === 0) {
+      return [
+        { label: "Bullying", value: 0, color: TYPE_COLORS[0] },
+        { label: "Tardiness", value: 0, color: TYPE_COLORS[1] },
+        { label: "Vaping", value: 0, color: TYPE_COLORS[2] },
+        { label: "Cheating", value: 0, color: TYPE_COLORS[3] },
+        { label: "Others", value: 0, color: TYPE_COLORS[4] },
+      ];
+    }
+
+    const countsMap = new Map<string, number>();
+    let othersCount = 0;
+
+    for (const c of filteredCases) {
+      const matched = matchPresetCaseType(c.case || "");
+      if (matched === "Others") {
+        othersCount++;
+      } else {
+        countsMap.set(matched, (countsMap.get(matched) || 0) + 1);
+      }
+    }
+
+    const sortedPresets = Array.from(countsMap.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+    const top4 = sortedPresets.slice(0, 4);
+    const remainingPresets = sortedPresets.slice(4);
+
+    for (const [_, count] of remainingPresets) {
+      othersCount += count;
+    }
+
+    const result: { label: string; value: number; color: string }[] = [];
+
+    top4.forEach(([label, value], idx) => {
+      result.push({
+        label,
+        value,
+        color: TYPE_COLORS[idx % TYPE_COLORS.length],
+      });
+    });
+
+    if (othersCount > 0 || result.length < 4) {
+      result.push({
+        label: "Others",
+        value: othersCount,
+        color: TYPE_COLORS[4],
+      });
+    }
+
+    return result;
   }, [filteredCases]);
 
   const gradeCaseload = useMemo(() => {
+    const activeTopLabels = typeDistribution.filter((t) => t.label !== "Others").map((t) => t.label);
+
     return GRADE_LEVEL_OPTIONS.map((grade) => {
       const gradeCases = filteredCases.filter((c) => getCaseGradeLevel(c) === grade);
-      const segments = CASE_TYPE_GROUPS.map((group) => ({
-        ...group,
-        value: gradeCases.filter((c) => categorizeCaseType(c.case || "") === group.label).length,
-      }));
+      const segments = typeDistribution.map((t) => {
+        let count = 0;
+        for (const c of gradeCases) {
+          const matched = matchPresetCaseType(c.case || "");
+          if (t.label === "Others") {
+            if (matched === "Others" || !activeTopLabels.includes(matched)) {
+              count++;
+            }
+          } else {
+            if (matched === t.label) {
+              count++;
+            }
+          }
+        }
+        return {
+          label: t.label,
+          value: count,
+          color: t.color,
+        };
+      });
+
       return {
         label: grade,
         total: gradeCases.length,
         segments,
       };
     });
-  }, [filteredCases]);
+  }, [filteredCases, typeDistribution]);
 
 
   // ─── PDF helpers (mirror SummaryReports / CaseDetails style) ──────────────
@@ -591,7 +667,7 @@ export default function Dashboard() {
         ))}
         {filteredCases.length === 0 && (
           <text x={width / 2} y={height / 2} textAnchor="middle" className="fill-muted text-[14px] font-bold" style={isForPdf ? { fill: "#9ca3af" } : undefined}>
-            No cases for this academic year
+            No cases recorded for this period
           </text>
         )}
       </svg>
@@ -657,14 +733,16 @@ export default function Dashboard() {
     const maxValue = Math.max(1, ...typeDistribution.map((item) => item.value));
 
     return (
-      <div className="space-y-4 py-2">
+      <div className="space-y-3.5 py-2">
         {typeDistribution.map((item) => {
           const widthPercent = item.value === 0 ? 0 : Math.max(8, (item.value / maxValue) * 100);
           return (
-            <div key={item.label} className="grid grid-cols-[92px_minmax(0,1fr)_32px] items-center gap-3">
-              <span className={`text-xs font-bold ${isForPdf ? "text-slate-600" : "text-secondary"}`}>{item.label}</span>
+            <div key={item.label} className="grid grid-cols-[130px_minmax(0,1fr)_32px] items-center gap-3">
+              <span className={`text-xs font-bold truncate ${isForPdf ? "text-slate-600" : "text-secondary"}`} title={item.label}>
+                {item.label}
+              </span>
               <div
-                className={`h-9 border rounded overflow-hidden ${isForPdf ? "bg-[#f1f5f9] border-[#e5e7eb]" : "bg-surface-container border-outline-variant"}`}
+                className={`h-8 border rounded overflow-hidden ${isForPdf ? "bg-[#f1f5f9] border-[#e5e7eb]" : "bg-surface-container border-outline-variant"}`}
               >
                 <div
                   className="h-full rounded-r transition-[width] duration-500"
@@ -738,9 +816,9 @@ export default function Dashboard() {
           )}
         </svg>
         <div className={`flex flex-wrap justify-center gap-x-5 gap-y-2 mt-4 text-xs ${isForPdf ? "text-slate-600" : "text-secondary"}`}>
-          {CASE_TYPE_GROUPS.map((group) => (
+          {typeDistribution.map((group) => (
             <div key={group.label} className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: group.color }} />
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
               <span>{group.label}</span>
             </div>
           ))}
@@ -767,7 +845,7 @@ export default function Dashboard() {
             isLoadingYears={isYearsLoading}
             startDate={dashStartDate}
             endDate={dashEndDate}
-            className="w-[240px]"
+            className="w-[290px] sm:w-[310px]"
             placeholder="All Records"
             onRangeChange={(start, end) => setDateRange(start, end)}
           />
