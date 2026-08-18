@@ -78,6 +78,7 @@ pub struct ImportRow {
     pub existing_case: Option<CaseRecord>,
     pub has_errors: bool,
     pub errors: Vec<String>,
+    pub group_id: Option<String>,
     pub school_year: Option<String>,
 }
 
@@ -152,57 +153,78 @@ impl ImportRow {
                 .join(" ")
         };
 
-        // 1. Full Name parsing (Format: Lastname, Firstname I.)
+        // 1. Full Name parsing (Accepts any non-empty name string without strict format errors)
         let trimmed_full = self.full_name.trim();
-        if !trimmed_full.is_empty() {
-            if !trimmed_full.contains(',') {
-                self.errors.push("Name must follow this format: Last Name, First Name M.I. (e.g. Smith, Jane A.)".to_string());
+        if trimmed_full.is_empty() {
+            self.first_name = String::new();
+            self.last_name = String::new();
+            self.middle_initial = String::new();
+        } else if trimmed_full.contains(',') {
+            let parts: Vec<&str> = trimmed_full.splitn(2, ',').collect();
+            let last = parts.get(0).copied().unwrap_or("").trim();
+            let rest = parts.get(1).copied().unwrap_or("").trim();
+
+            let rest_tokens: Vec<&str> = rest.split_whitespace().collect();
+            if rest_tokens.is_empty() {
+                let formatted_last = title_case(last);
+                self.last_name = formatted_last.clone();
+                self.first_name = formatted_last;
+                self.middle_initial = String::new();
+            } else if rest_tokens.len() == 1 {
+                self.first_name = title_case(rest_tokens[0]);
+                self.middle_initial = String::new();
+                self.last_name = title_case(last);
             } else {
-                let parts: Vec<&str> = trimmed_full.splitn(2, ',').collect();
-                let last = parts.get(0).copied().unwrap_or("").trim();
-                let rest = parts.get(1).copied().unwrap_or("").trim();
-                
-                let rest_tokens: Vec<&str> = rest.split_whitespace().collect();
-                if rest_tokens.is_empty() {
-                    self.errors.push("Name must follow this format: Last Name, First Name M.I. (e.g. Smith, Jane A.)".to_string());
-                } else if rest_tokens.len() == 1 {
-                    self.first_name = title_case(rest_tokens[0]);
-                    self.middle_initial = String::new();
-                } else {
-                    let last_token = rest_tokens.last().copied().unwrap_or("");
+                let last_token = rest_tokens.last().copied().unwrap_or("");
+                if last_token.len() <= 2 || last_token.ends_with('.') {
                     let fn_tokens = &rest_tokens[..rest_tokens.len() - 1];
                     self.first_name = title_case(&fn_tokens.join(" "));
-                    self.middle_initial = title_case(last_token);
+                    self.middle_initial = title_case(last_token.trim_end_matches('.'));
+                } else {
+                    self.first_name = title_case(&rest_tokens.join(" "));
+                    self.middle_initial = String::new();
                 }
                 self.last_name = title_case(last);
+            }
+        } else {
+            let tokens: Vec<&str> = trimmed_full.split_whitespace().collect();
+            if tokens.len() <= 1 {
+                let single_name = title_case(trimmed_full);
+                self.first_name = single_name.clone();
+                self.last_name = single_name;
+                self.middle_initial = String::new();
+            } else if tokens.len() == 2 {
+                self.first_name = title_case(tokens[0]);
+                self.last_name = title_case(tokens[1]);
+                self.middle_initial = String::new();
+            } else {
+                let second_to_last = tokens[tokens.len() - 2];
+                if second_to_last.len() <= 2 || second_to_last.ends_with('.') {
+                    self.first_name = title_case(&tokens[..tokens.len() - 2].join(" "));
+                    self.middle_initial = title_case(second_to_last.trim_end_matches('.'));
+                    self.last_name = title_case(tokens[tokens.len() - 1]);
+                } else {
+                    self.first_name = title_case(&tokens[..tokens.len() - 1].join(" "));
+                    self.middle_initial = String::new();
+                    self.last_name = title_case(tokens[tokens.len() - 1]);
+                }
             }
         }
 
         let mut missing_fields = Vec::new();
 
-        if self.first_name.trim().is_empty() || self.last_name.trim().is_empty() {
+        if trimmed_full.is_empty() || self.first_name.trim().is_empty() || self.last_name.trim().is_empty() {
             missing_fields.push("Full Name");
-        }
-        if self.level.trim().is_empty() {
-            missing_fields.push("Grade");
-        }
-        if self.section.trim().is_empty() {
-            missing_fields.push("Section");
         }
         if self.date.trim().is_empty() {
             missing_fields.push("Date");
         }
-        if self.adviser.trim().is_empty() {
-            missing_fields.push("Adviser");
-        }
         if self.r#case.trim().is_empty() {
             missing_fields.push("Case Type");
         }
+
         if self.progress.trim().is_empty() {
-            missing_fields.push("Progress");
-        }
-        if self.sanction.trim().is_empty() {
-            missing_fields.push("Sanction");
+            self.progress = "Pending".to_string();
         }
 
         if !missing_fields.is_empty() {
@@ -231,11 +253,17 @@ impl ImportRow {
 
         // Reconstruct canonical full_name
         if !self.last_name.is_empty() && !self.first_name.is_empty() {
-            if !self.middle_initial.is_empty() {
+            if self.last_name == self.first_name {
+                self.full_name = self.first_name.clone();
+            } else if !self.middle_initial.is_empty() {
                 self.full_name = format!("{}, {} {}", self.last_name, self.first_name, self.middle_initial);
             } else {
                 self.full_name = format!("{}, {}", self.last_name, self.first_name);
             }
+        } else if !trimmed_full.is_empty() {
+            self.full_name = title_case(trimmed_full);
+        } else {
+            self.full_name = String::new();
         }
 
         if !self.level.trim().is_empty() {
@@ -379,8 +407,8 @@ impl ImportRow {
         }
 
         if !self.adviser.trim().is_empty() {
-            if self.adviser.chars().count() > 20 {
-                self.errors.push("Adviser cannot exceed 20 characters".to_string());
+            if self.adviser.chars().count() > 50 {
+                self.errors.push("Adviser cannot exceed 50 characters".to_string());
             } else {
                 self.adviser = title_case(&self.adviser);
             }

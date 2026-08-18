@@ -3,11 +3,8 @@ import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { useDarkMode } from "../hooks/useDarkMode";
 import Backup from "./Backup";
-import { useSchoolYears } from "../hooks/useSchoolYears";
-import SchoolYearSetupModal from "../components/SchoolYearSetupModal";
 import { useAppUpdate } from "../context/UpdateContext";
 
 const cleanPin = (value: string) => value.replace(/\D/g, "").slice(0, 6);
@@ -71,11 +68,6 @@ export default function AccountSettings() {
   const [isToastVisible, setIsToastVisible] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
 
-  const { currentYear, setYear, refreshYears } = useSchoolYears();
-  const [showSchoolYearModal, setShowSchoolYearModal] = useState(false);
-  const [restartPromptYear, setRestartPromptYear] = useState<string | null>(null);
-  const [isRestartModalClosing, setIsRestartModalClosing] = useState(false);
-  const [isRestarting, setIsRestarting] = useState(false);
   const { currentVersion, checkForUpdates, isChecking: isCheckingUpdates, hasUpdate, updateInfo, lastChecked } = useAppUpdate();
 
   const [pinVerificationAction, setPinVerificationAction] = useState<"export" | "import" | null>(null);
@@ -105,24 +97,7 @@ export default function AccountSettings() {
     }, 200);
   };
 
-  const handleCloseRestartModal = () => {
-    if (isRestarting) return;
-    setIsRestartModalClosing(true);
-    window.setTimeout(() => {
-      setRestartPromptYear(null);
-      setIsRestartModalClosing(false);
-    }, 200);
-  };
 
-  const handleRestartApp = async () => {
-    setIsRestarting(true);
-    try {
-      await relaunch();
-    } catch (err) {
-      console.error("Failed to relaunch application:", err);
-      window.location.reload();
-    }
-  };
 
   const handleVerifyAndExecute = async (e: FormEvent) => {
     e.preventDefault();
@@ -714,36 +689,7 @@ export default function AccountSettings() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <h2 className="micro-label">Academic Year Management</h2>
-          <div className="h-px flex-1 bg-outline-variant" />
-        </div>
-        <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
-            <h3 className="section-header-h2 mb-0">
-              Current Academic Year
-            </h3>
-            <p className="text-xs text-secondary mt-1">Manage the active academic school year for your reports and cases.</p>
-          </div>
-          <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-bold text-on-surface">Active Year: <span className="text-primary text-base ml-2">{currentYear || "Not Set"}</span></p>
-              <p className="mt-1 text-xs text-secondary">
-                Starting a new academic year will change the default filter for the dashboard and reports.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowSchoolYearModal(true)}
-              className="btn-primary shrink-0"
-            >
-              <span className="material-symbols-outlined text-[20px]">add_circle</span>
-              <span>Start New School Year</span>
-            </button>
-          </div>
-        </div>
-      </section>
+
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
@@ -1184,89 +1130,7 @@ export default function AccountSettings() {
         document.body
       )}
 
-      {showSchoolYearModal && (
-        <SchoolYearSetupModal
-          onComplete={async (y) => {
-            const formatted = await setYear(y);
-            await refreshYears();
-            setShowSchoolYearModal(false);
-            setRestartPromptYear(formatted || `${y}-${parseInt(y) + 1}`);
-            setIsRestartModalClosing(false);
-          }}
-          onCancel={() => setShowSchoolYearModal(false)}
-          title="Start New Academic Year"
-          description="Enter the starting year for the new academic year. Your previous cases will remain accessible under their respective years."
-        />
-      )}
 
-      {restartPromptYear && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div 
-            className={`absolute inset-0 bg-black/45 ${
-              isRestartModalClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
-            }`}
-            style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
-            onClick={handleCloseRestartModal}
-          />
-          <div 
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="restart-modal-title"
-            className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-md w-full border border-outline-variant ${
-              isRestartModalClosing ? "modal-panel-exit" : "modal-panel-enter"
-            }`}
-          >
-            <div className="flex items-start gap-4 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 dark:bg-primary/20 text-primary dark:text-[#b4c5ff] flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[28px]">restart_alt</span>
-              </div>
-              <div>
-                <h3 id="restart-modal-title" className="text-lg font-bold text-on-surface">
-                  Restart Application
-                </h3>
-                <p className="text-xs text-secondary mt-0.5">
-                  Academic Year: <span className="font-semibold text-primary dark:text-[#b4c5ff]">{restartPromptYear}</span>
-                </p>
-              </div>
-            </div>
-
-            <p className="text-secondary text-sm mb-6 leading-relaxed">
-              Academic Year <strong className="text-on-surface font-semibold">{restartPromptYear}</strong> has been set successfully. Please restart the application to apply all changes across the system.
-            </p>
-
-            <div className="flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={handleCloseRestartModal}
-                disabled={isRestarting}
-                className="btn-secondary"
-              >
-                <span className="material-symbols-outlined text-[18px]">schedule</span>
-                <span>Restart Later</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleRestartApp}
-                disabled={isRestarting}
-                className="btn-primary"
-              >
-                {isRestarting ? (
-                  <>
-                    <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
-                    <span>Restarting...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[18px]">restart_alt</span>
-                    <span>Restart Now</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </div>
   );
 }

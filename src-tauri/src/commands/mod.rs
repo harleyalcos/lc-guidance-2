@@ -310,8 +310,8 @@ FROM cases
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
     
     if let Some(ref year) = school_year {
-        if !year.is_empty() {
-            query.push_str(" WHERE school_year = ?1 ");
+        if !year.is_empty() && year != "all" {
+            query.push_str(" WHERE (strftime('%Y', date) = ?1 OR school_year = ?1) ");
             params_vec.push(Box::new(year.clone()));
         }
     }
@@ -332,46 +332,39 @@ FROM cases
 }
 
 #[tauri::command]
-pub fn get_current_school_year(state: State<'_, DbState>) -> Result<Option<String>, String> {
-    let connection = state.connection.lock().map_err(db_error)?;
-    get_config(&connection, "current_school_year")
+pub fn get_current_school_year(_state: State<'_, DbState>) -> Result<Option<String>, String> {
+    Ok(Some(chrono::Utc::now().format("%Y").to_string()))
 }
 
 #[tauri::command]
 pub fn set_current_school_year(state: State<'_, DbState>, start_year: String) -> Result<String, String> {
-    let start = start_year.trim().parse::<i32>().map_err(|_| "Start year must be a valid number")?;
-    let formatted = format!("{}-{}", start, start + 1);
-    
     let connection = state.connection.lock().map_err(db_error)?;
-    set_config(&connection, "current_school_year", &formatted)?;
-    
-    Ok(formatted)
+    set_config(&connection, "current_school_year", &start_year)?;
+    Ok(start_year)
 }
 
 #[tauri::command]
 pub fn get_all_school_years(state: State<'_, DbState>) -> Result<Vec<String>, String> {
     let connection = state.connection.lock().map_err(db_error)?;
     
-    let current = get_config(&connection, "current_school_year")?;
-    
     let mut statement = connection
-        .prepare("SELECT DISTINCT school_year FROM cases WHERE school_year != '' ORDER BY school_year DESC")
+        .prepare("SELECT DISTINCT strftime('%Y', date) as yr FROM cases WHERE date IS NOT NULL AND date != '' UNION SELECT DISTINCT school_year as yr FROM cases WHERE school_year != '' ORDER BY yr DESC")
         .map_err(db_error)?;
         
     let mut years: Vec<String> = statement
         .query_map([], |row| row.get(0))
         .map_err(db_error)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(db_error)?;
+        .filter_map(|r| r.ok())
+        .filter(|y: &String| !y.is_empty() && y != "null")
+        .collect();
         
-    if let Some(curr) = current {
-        if !years.contains(&curr) {
-            years.insert(0, curr);
-        }
+    let current_calendar_year = chrono::Utc::now().format("%Y").to_string();
+    if !years.contains(&current_calendar_year) {
+        years.insert(0, current_calendar_year);
     }
     
-    // Sort descending again in case we just inserted at 0 but it shouldn't be first alphabetically
     years.sort_by(|a, b| b.cmp(a));
+    years.dedup();
     
     Ok(years)
 }

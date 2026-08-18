@@ -16,6 +16,24 @@ import StatCard from "../components/StatCard";
 import { CaseRecord, StudentInfo } from "../types";
 
 const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
+
+const getMissingFields = (c: CaseRecord): string[] => {
+  const missing: string[] = [];
+  const students = parseStudents(c.students);
+  const firstStudent = students[0];
+
+  const level = firstStudent?.level || c.level;
+  const adviser = firstStudent?.adviser || c.adviser;
+  const description = c.description;
+  const sanction = firstStudent?.sanction || c.sanction;
+
+  if (!level || !level.trim()) missing.push("Grade");
+  if (!adviser || !adviser.trim()) missing.push("Adviser");
+  if (!description || !description.trim()) missing.push("Description");
+  if (!sanction || !sanction.trim()) missing.push("Sanction");
+
+  return missing;
+};
 const CASES_PER_PAGE = 20;
 const ELLIPSIS = "...";
 const MODAL_EXIT_MS = 200;
@@ -178,11 +196,10 @@ const formatRelativeFiled = (dateStr: string) => {
 const isResolved = (progress: string) => progress.toLowerCase() === "resolved";
 const isClosed = (progress: string) => progress.toLowerCase() === "closed";
 const isReprimand = (caseRecord: CaseRecord) =>
-  caseRecord.sanction.toLowerCase().includes("reprimand") ||
-  caseRecord.progress.toLowerCase().includes("reprimand");
-const isPending = (progress: string, sanction: string = "") => {
-  const normProgress = progress.toLowerCase();
-  const isRep = normProgress.includes("reprimand") || sanction.toLowerCase().includes("reprimand");
+  (caseRecord.progress || "").toLowerCase().includes("reprimand");
+const isPending = (progress: string) => {
+  const normProgress = (progress || "").toLowerCase();
+  const isRep = normProgress.includes("reprimand");
   return normProgress !== "resolved" && normProgress !== "closed" && !isRep;
 };
 
@@ -281,7 +298,7 @@ export default function CaseCatalog() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState(() => sessionStorage.getItem("case_catalog_search") || "");
-  const [sortBy, setSortBy] = useState<"date_filed" | "date">("date");
+  const [sortBy, setSortBy] = useState<"date_filed" | "date">("date_filed");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [statusFilter, setStatusFilter] = useState(() => sessionStorage.getItem("case_catalog_status") || "All Statuses");
 
@@ -304,10 +321,82 @@ export default function CaseCatalog() {
     }
   });
   const [collapsingGroups, setCollapsingGroups] = useState<Set<string>>(new Set());
+  const [warningPopover, setWarningPopover] = useState<{
+    id: number;
+    fields: string[];
+    top: number;
+    left: number;
+    placeAbove: boolean;
+    isExiting: boolean;
+  } | null>(null);
+  const warningCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
   const isRestoredRef = useRef(false);
   const isFirstRender = useRef(true);
+
+  const handleWarningMouseEnter = (e: React.MouseEvent<HTMLDivElement>, caseRecord: CaseRecord, missingFields: string[]) => {
+    if (warningCloseTimerRef.current) {
+      clearTimeout(warningCloseTimerRef.current);
+      warningCloseTimerRef.current = null;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const modalHeight = 135;
+    const modalWidth = 240;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placeAbove = spaceBelow < modalHeight + 16 && rect.top > modalHeight;
+
+    const top = placeAbove
+      ? rect.top - modalHeight - 6
+      : rect.bottom + 6;
+
+    const left = Math.max(12, Math.min(rect.left - 20, window.innerWidth - modalWidth - 12));
+
+    setWarningPopover({
+      id: caseRecord.id,
+      fields: missingFields,
+      top,
+      left,
+      placeAbove,
+      isExiting: false,
+    });
+  };
+
+  const handleWarningMouseLeave = () => {
+    if (warningCloseTimerRef.current) {
+      clearTimeout(warningCloseTimerRef.current);
+    }
+    setWarningPopover((prev) => (prev ? { ...prev, isExiting: true } : null));
+    warningCloseTimerRef.current = setTimeout(() => {
+      setWarningPopover(null);
+    }, 150);
+  };
+
+  const renderCaseIdWithWarning = (caseRecord: CaseRecord) => {
+    const missingFields = getMissingFields(caseRecord);
+    const formattedId = formatCaseId(caseRecord.id);
+
+    if (missingFields.length === 0) {
+      return <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formattedId}</span>;
+    }
+
+    return (
+      <div className="inline-flex items-center gap-1.5 align-middle">
+        <div
+          className="inline-flex items-center justify-center cursor-pointer text-amber-500 hover:text-amber-600 transition-colors shrink-0"
+          onMouseEnter={(e) => handleWarningMouseEnter(e, caseRecord, missingFields)}
+          onMouseLeave={handleWarningMouseLeave}
+          title="Incomplete Record - Hover to view missing fields"
+        >
+          <span className="material-symbols-outlined text-[16px] leading-none text-amber-500 hover:scale-110 transition-transform">
+            warning
+          </span>
+        </div>
+        <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formattedId}</span>
+      </div>
+    );
+  };
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeleteConfirmClosing, setIsDeleteConfirmClosing] = useState(false);
@@ -462,8 +551,9 @@ export default function CaseCatalog() {
     if (isYearsLoading || selectedSchoolYear === null) return;
     try {
       setIsLoading(true);
+      const queryYear = (selectedSchoolYear === 'all' || (startDate && endDate)) ? null : selectedSchoolYear;
       const loadedCases = await invoke<CaseRecord[]>("get_cases", { 
-        schoolYear: selectedSchoolYear === 'all' ? null : selectedSchoolYear 
+        schoolYear: queryYear 
       });
       setCases(loadedCases);
       setError(null);
@@ -473,7 +563,7 @@ export default function CaseCatalog() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedSchoolYear, isYearsLoading]);
+  }, [selectedSchoolYear, isYearsLoading, startDate, endDate]);
 
   useEffect(() => {
     loadCases();
@@ -549,6 +639,19 @@ export default function CaseCatalog() {
     }
   };
 
+  const handleViewGroupCase = (group: CaseGroup) => {
+    if (!group.groupId) return;
+    const tableScroll = tableContainerRef.current ? tableContainerRef.current.scrollTop : 0;
+    const windowScroll = window.scrollY || document.documentElement.scrollTop || 0;
+    const mainScroll = document.querySelector("main")?.scrollTop || 0;
+
+    sessionStorage.setItem("case_catalog_table_scroll_top", String(tableScroll));
+    sessionStorage.setItem("case_catalog_window_scroll_y", String(windowScroll));
+    sessionStorage.setItem("case_catalog_main_scroll_top", String(mainScroll));
+
+    navigate(`/group-case/${group.groupId}`);
+  };
+
   const displayCases = useMemo(
     () => cases.filter((caseRecord) => !isComplainantSubjectCaseRecord(caseRecord)),
     [cases]
@@ -557,7 +660,7 @@ export default function CaseCatalog() {
   const stats = useMemo(() => {
     return {
       totalCases: displayCases.length,
-      pendingReview: displayCases.filter((caseRecord) => isPending(caseRecord.progress, caseRecord.sanction)).length,
+      pendingReview: displayCases.filter((caseRecord) => isPending(caseRecord.progress)).length,
       resolvedAllTime: displayCases.filter((caseRecord) => isResolved(caseRecord.progress)).length,
       reprimandedCases: displayCases.filter(isReprimand).length,
     };
@@ -663,7 +766,7 @@ export default function CaseCatalog() {
     }));
 
     const matchesStatusFilter = (caseRecord: CaseRecord) => {
-      if (statusFilter === "Pending") return isPending(caseRecord.progress, caseRecord.sanction);
+      if (statusFilter === "Pending") return isPending(caseRecord.progress);
       if (statusFilter === "Resolved") return isResolved(caseRecord.progress);
       if (statusFilter === "Closed") return isClosed(caseRecord.progress);
       if (statusFilter === "Reprimand") return isReprimand(caseRecord);
@@ -934,11 +1037,11 @@ export default function CaseCatalog() {
       // Additional case details fields (Default = false)
       { key: "caseId", header: "Case ID", width: 14, getValue: (c: CaseRecord) => `#${c.id.toString().padStart(4, "0")}` },
       { key: "title", header: "Case Title", width: 28, getValue: (c: CaseRecord) => c.title || "—" },
-      { key: "dateFiled", header: "Date Filed", width: 22, getValue: (c: CaseRecord) => formatDateFiled(c.date_filed) },
+      { key: "dateFiled", header: "Date", width: 22, getValue: (c: CaseRecord) => formatDateFiled(c.date_filed) },
       { key: "description", header: "Description", width: 35, getValue: (c: CaseRecord) => c.description || "—" },
       { key: "role", header: "Student Roles", width: 26, getValue: getStudentRoles },
       { key: "reportingStudent", header: "Reporting Student", width: 24, getValue: (c: CaseRecord) => c.reporting_student || "—" },
-      { key: "schoolYear", header: "School Year", width: 18, getValue: (c: CaseRecord) => c.school_year || "—" },
+      { key: "schoolYear", header: "Year", width: 18, getValue: (c: CaseRecord) => c.school_year || (c.date ? c.date.slice(0, 4) : "—") },
       { key: "groupId", header: "Group ID", width: 26, getValue: (c: CaseRecord) => c.group_id || "—" },
       { key: "proofsCount", header: "Attached Proofs", width: 18, getValue: getProofsCount },
       { key: "updateHistory", header: "Update History", width: 20, getValue: getUpdateHistorySummary },
@@ -1138,8 +1241,8 @@ export default function CaseCatalog() {
                 logTxt += `Case Type  : ${c.case || "—"}\n`;
                 logTxt += `Sanction   : ${c.sanction || "—"}\n`;
                 logTxt += `Progress   : ${c.progress || "—"}\n`;
-                logTxt += `Date Filed : ${c.date_filed || "—"}\n`;
-                logTxt += `School Year: ${c.school_year || "—"}\n`;
+                logTxt += `Date       : ${c.date_filed || "—"}\n`;
+                logTxt += `Year       : ${c.school_year || (c.date ? c.date.slice(0, 4) : "—")}\n`;
                 logTxt += `==================================================\n\n`;
 
                 if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
@@ -1322,7 +1425,7 @@ export default function CaseCatalog() {
               isLoadingYears={isYearsLoading}
               startDate={startDate}
               endDate={endDate}
-              placeholder="Pick range"
+              placeholder="All Records"
               onRangeChange={(start, end) => setDateRange(start, end)}
             />
           </div>
@@ -1379,12 +1482,12 @@ export default function CaseCatalog() {
                 <th className="p-table-cell-padding micro-label border-b border-outline-variant">ID</th>
                 <th
                   className="p-table-cell-padding micro-label cursor-pointer select-none group border-b border-outline-variant hover:bg-surface-variant transition-colors"
-                  onClick={() => handleSort("date")}
+                  onClick={() => handleSort("date_filed")}
                 >
                   <div className="flex items-center gap-1">
-                    Incident Date
-                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${sortBy === "date" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
-                      } ${sortBy === "date" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
+                    Date
+                    <span className={`material-symbols-outlined text-[16px] transition-[color,opacity,transform] duration-300 ease-out ${sortBy === "date_filed" ? "text-primary" : "text-secondary opacity-30 group-hover:opacity-100"
+                      } ${sortBy === "date_filed" && sortOrder === "desc" ? "rotate-180" : "rotate-0"}`}>
                       arrow_upward
                     </span>
                   </div>
@@ -1452,7 +1555,7 @@ export default function CaseCatalog() {
                         </span>
                       </td>
                       <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
-                        {formatIncidentDateWithRelative(rep.date)}
+                        {formatIncidentDateWithRelative(rep.date_filed || rep.date)}
                       </td>
                        <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
                         <div className="flex items-center">
@@ -1487,7 +1590,23 @@ export default function CaseCatalog() {
                         </span>
                       </td>
                       <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}></td>
-                      <td className={`py-1 px-4 transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}></td>
+                      <td className={`py-1 px-4 transition-colors duration-300 text-right bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewGroupCase(group);
+                            }}
+                            className="text-secondary hover:text-primary transition-all duration-300 p-1.5 rounded-full hover:bg-primary/10 inline-flex items-center justify-center align-middle"
+                            title="View Group Case Details"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">groups</span>
+                          </button>
+                          {/* Placeholder spacer for delete button slot so the group button aligns with other rows */}
+                          <div className="w-[30px] h-[30px] shrink-0" aria-hidden="true" />
+                        </div>
+                      </td>
                     </tr>
                     {showSubRows && group.cases.map((caseRecord, subIndex) => {
                       const subBorderClass = "border-b border-outline-variant";
@@ -1504,7 +1623,7 @@ export default function CaseCatalog() {
                         >
                           <td className={`p-table-cell-padding transition-colors duration-300 border-l-[3px] border-l-outline-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
                             <div className="td-inner">
-                              <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
+                              {renderCaseIdWithWarning(caseRecord)}
                             </div>
                           </td>
                           <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${subBorderClass}`}>
@@ -1593,11 +1712,11 @@ export default function CaseCatalog() {
                       onClick={() => handleRowClick(caseRecord.id)}
                     >
                       <td className={`p-table-cell-padding transition-colors duration-300 ${isGrouped ? "border-l-[3px] border-l-outline-variant bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
-                        <span className="case-id px-2 py-0.5 rounded text-data-mono font-data-mono inline-block">{formatCaseId(caseRecord.id)}</span>
+                        {renderCaseIdWithWarning(caseRecord)}
                       </td>
                       {isFirstInGroup && (
                         <td className={`p-table-cell-padding transition-colors duration-300 ${isGrouped ? "bg-surface-container-highest/20 group-hover/body:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${groupBorderClass}`} rowSpan={groupLength}>
-                          {formatIncidentDateWithRelative(caseRecord.date)}
+                          {formatIncidentDateWithRelative(caseRecord.date_filed || caseRecord.date)}
                         </td>
                       )}
                       <td className={`p-table-cell-padding transition-colors duration-300 font-medium ${isGrouped ? "bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
@@ -1650,18 +1769,33 @@ export default function CaseCatalog() {
                         })()}
                       </td>
                       <td className={`py-1 px-4 transition-colors duration-300 text-right ${isGrouped ? "bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsDeleteConfirmClosing(false);
-                            setDeleteConfirmText("");
-                            setDeleteConfirmId(caseRecord.id);
-                          }}
-                          className="text-secondary hover:text-error transition-all duration-500 p-1.5 rounded-full hover:bg-error-container/60 inline-flex items-center justify-center align-middle"
-                          title="Delete Record"
-                        >
-                          <span className="material-symbols-outlined text-[18px] transition-colors duration-500">delete</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          {isGrouped && isFirstInGroup && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewGroupCase(group);
+                              }}
+                              className="text-secondary hover:text-primary transition-all duration-300 p-1.5 rounded-full hover:bg-primary/10 inline-flex items-center justify-center align-middle"
+                              title="View Group Case Details"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">groups</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsDeleteConfirmClosing(false);
+                              setDeleteConfirmText("");
+                              setDeleteConfirmId(caseRecord.id);
+                            }}
+                            className="text-secondary hover:text-error transition-all duration-500 p-1.5 rounded-full hover:bg-error-container/60 inline-flex items-center justify-center align-middle"
+                            title="Delete Record"
+                          >
+                            <span className="material-symbols-outlined text-[18px] transition-colors duration-500">delete</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1817,6 +1951,40 @@ export default function CaseCatalog() {
           showToast("Case filed successfully.");
         }}
       />
+
+      {warningPopover && createPortal(
+        <div
+          className={`fixed z-[9999] w-60 p-3 bg-surface dark:bg-surface-container-high border border-amber-400/80 dark:border-amber-600/70 rounded-xl shadow-2xl backdrop-blur-md pointer-events-none transform ${
+            warningPopover.placeAbove ? "origin-bottom-left" : "origin-top-left"
+          } ${
+            warningPopover.isExiting
+              ? "opacity-0 scale-95 transition-all duration-150 ease-in"
+              : "opacity-100 scale-100 transition-all duration-200 ease-out"
+          }`}
+          style={{
+            top: warningPopover.top,
+            left: warningPopover.left,
+          }}
+        >
+          <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-outline-variant">
+            <span className="material-symbols-outlined text-amber-500 text-base">warning</span>
+            <span className="text-xs font-bold text-on-surface">Incomplete Record</span>
+          </div>
+          <p className="text-[11px] text-on-surface-variant mb-2 font-medium">The following fields are empty:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {warningPopover.fields.map((field) => (
+              <span
+                key={field}
+                className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                {field}
+              </span>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }

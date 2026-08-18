@@ -6,13 +6,12 @@ import SummaryReports from "./pages/SummaryReports";
 import Dashboard from "./pages/Dashboard";
 import CaseCatalog from "./pages/CaseCatalog";
 import CaseDetails from "./pages/CaseDetails";
+import GroupCaseDetails from "./pages/GroupCaseDetails";
 import PendingCases from "./pages/PendingCases";
 import AccountSettings from "./pages/AccountSettings";
 import ImportReview from "./pages/ImportReview";
 import SignIn from "./pages/SignIn";
 import GuidanceAI from "./pages/GuidanceAI";
-import SchoolYearSetupModal from "./components/SchoolYearSetupModal";
-import { useSchoolYears } from "./hooks/useSchoolYears";
 import { AcademicYearFilterProvider } from "./context/AcademicYearFilterContext";
 import { UpdateProvider } from "./context/UpdateContext";
 import "./App.css";
@@ -21,7 +20,7 @@ function AppRoutes() {
   const location = useLocation();
 
   const getTitle = () => {
-    if (location.pathname.startsWith("/case/")) return "Case Catalog";
+    if (location.pathname.startsWith("/case/") || location.pathname.startsWith("/group-case/")) return "Case Catalog";
     if (location.pathname === "/catalog") return "Case Catalog";
     if (location.pathname === "/pending") return "Pending Cases";
     if (location.pathname === "/backup") return "Settings";
@@ -41,6 +40,7 @@ function AppRoutes() {
           <Route path="/catalog" element={<CaseCatalog />} />
           <Route path="/pending" element={<PendingCases />} />
           <Route path="/case/:id" element={<CaseDetails />} />
+          <Route path="/group-case/:groupId" element={<GroupCaseDetails />} />
           <Route path="/backup" element={<Navigate to="/account?tab=backup" replace />} />
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/import-review" element={<ImportReview />} />
@@ -54,8 +54,6 @@ function AppRoutes() {
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
-  
-  const { currentYear, isLoading: isYearLoading, setYear } = useSchoolYears();
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -72,7 +70,7 @@ function App() {
       .catch(() => setIsSetupComplete(false));
   }, []);
 
-  if (isSetupComplete === null || isYearLoading) {
+  if (isSetupComplete === null) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background text-on-surface">
         <div className="flex items-center gap-3 text-sm font-bold text-secondary">
@@ -90,12 +88,6 @@ function App() {
         onSetupComplete={() => setIsSetupComplete(true)}
         onSignIn={() => setIsAuthenticated(true)}
       />
-    );
-  }
-
-  if (isAuthenticated && !currentYear) {
-    return (
-      <SchoolYearSetupModal onComplete={async (y) => { await setYear(y); }} />
     );
   }
 

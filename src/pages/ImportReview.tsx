@@ -2,6 +2,7 @@ import { useState, useMemo, Fragment, useEffect, useRef } from "react";
 import { useLocation, useNavigate, Navigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { ImportRow, ParseFileResult } from "../types";
 
 const collapseSpaces = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -25,7 +26,6 @@ const autoCapitalize = (val: string) => {
 };
 
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
-const SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F", "G", "STEM", "ABM", "HUMSS", "GAS"];
 const PROGRESS_OPTIONS = ["Pending", "Resolved", "Closed", "Reprimand"];
 
 const normalizeGradeLevel = (value: string) => {
@@ -36,13 +36,6 @@ const normalizeGradeLevel = (value: string) => {
     if (grade >= 7 && grade <= 12) return `Grade ${grade}`;
   }
   return capitalizeWords(cleaned).slice(0, 8);
-};
-
-const normalizeSection = (value: string) => {
-  const cleaned = collapseSpaces(value);
-  const upper = cleaned.toUpperCase();
-  if (SECTION_OPTIONS.includes(upper)) return upper.slice(0, 10);
-  return capitalizeWords(cleaned).slice(0, 10);
 };
 
 export default function ImportReview() {
@@ -74,7 +67,7 @@ export default function ImportReview() {
     return [];
   });
   
-  const [filename] = useState(() => {
+  const [filename, setFilename] = useState(() => {
     if (state) return state.filename;
     if (fallbackFilename) return fallbackFilename;
     return "";
@@ -140,14 +133,35 @@ export default function ImportReview() {
 
   const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
 
-  const handleDisregard = (index: number) => {
-    if (window.confirm("Are you sure you want to disregard and remove this row from the import list?")) {
-      const newRows = rows.filter((_, i) => i !== index);
+  const [disregardConfirmIndex, setDisregardConfirmIndex] = useState<number | null>(null);
+  const [isDisregardConfirmClosing, setIsDisregardConfirmClosing] = useState(false);
+
+  const handleDisregardClick = (index: number) => {
+    setIsDisregardConfirmClosing(false);
+    setDisregardConfirmIndex(index);
+  };
+
+  const closeDisregardConfirm = () => {
+    setIsDisregardConfirmClosing(true);
+    setTimeout(() => {
+      setDisregardConfirmIndex(null);
+      setIsDisregardConfirmClosing(false);
+    }, 200);
+  };
+
+  const executeDisregard = () => {
+    if (disregardConfirmIndex === null) return;
+    const indexToDisregard = disregardConfirmIndex;
+    setIsDisregardConfirmClosing(true);
+    setTimeout(() => {
+      const newRows = rows.filter((_, i) => i !== indexToDisregard);
       setRows(newRows);
       setExpandedDuplicateIndex(null);
       setEditingRowIndex(null);
+      setDisregardConfirmIndex(null);
+      setIsDisregardConfirmClosing(false);
       showToast("success", "Row removed from import list.");
-    }
+    }, 200);
   };
 
   const executeDeleteAll = () => {
@@ -192,7 +206,10 @@ export default function ImportReview() {
     }, 2800);
   };
 
+  const [isEditModalClosing, setIsEditModalClosing] = useState(false);
+
   const handleEditStart = (index: number, row: ImportRow) => {
+    setIsEditModalClosing(false);
     setEditingRowIndex(index);
     setEditData({
       ...row,
@@ -258,8 +275,12 @@ export default function ImportReview() {
       newRows[index] = updatedRow;
       setRows(newRows);
       
-      setEditingRowIndex(null);
-      setEditData(null);
+      setIsEditModalClosing(true);
+      setTimeout(() => {
+        setEditingRowIndex(null);
+        setEditData(null);
+        setIsEditModalClosing(false);
+      }, 200);
     } catch (e) {
       showToast("error", `Validation failed: ${e}`);
     } finally {
@@ -268,8 +289,35 @@ export default function ImportReview() {
   };
 
   const handleEditCancel = () => {
-    setEditingRowIndex(null);
-    setEditData(null);
+    setIsEditModalClosing(true);
+    setTimeout(() => {
+      setEditingRowIndex(null);
+      setEditData(null);
+      setIsEditModalClosing(false);
+    }, 200);
+  };
+
+  const [importSuccessData, setImportSuccessData] = useState<{
+    count: number;
+    remainingCount: number;
+  } | null>(null);
+  const [isSuccessModalClosing, setIsSuccessModalClosing] = useState(false);
+
+  const closeSuccessModal = () => {
+    setIsSuccessModalClosing(true);
+    setTimeout(() => {
+      setImportSuccessData(null);
+      setIsSuccessModalClosing(false);
+    }, 200);
+  };
+
+  const handleGoToCatalog = () => {
+    setIsSuccessModalClosing(true);
+    setTimeout(() => {
+      setImportSuccessData(null);
+      setIsSuccessModalClosing(false);
+      navigate("/catalog");
+    }, 200);
   };
 
   const handleImportReady = async () => {
@@ -290,12 +338,60 @@ export default function ImportReview() {
           localStorage.removeItem("lc_pending_import_rows");
           localStorage.removeItem("lc_pending_import_filename");
         }
-        navigate("/catalog", { state: { toastMessage: `Successfully imported ${result.inserted_count} records.` } });
+        setIsSuccessModalClosing(false);
+        setImportSuccessData({
+          count: result.inserted_count,
+          remainingCount: remainingRows.length,
+        });
       } else {
         showToast("error", `Import failed. ${result.failed_count} errors. ${result.errors.join(" ")}`);
       }
     } catch (e) {
       showToast("error", `Batch import failed: ${e}`);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleAddMoreFiles = async () => {
+    try {
+      const selected = await open({
+        multiple: true,
+        filters: [{ name: "Excel", extensions: ["xlsx"] }]
+      });
+
+      if (!selected) return;
+
+      const filePaths: string[] = Array.isArray(selected) ? selected : [selected];
+      if (filePaths.length === 0) return;
+
+      setIsImporting(true);
+
+      const newRows: ImportRow[] = [];
+      const newFilenames: string[] = [];
+
+      for (const filePath of filePaths) {
+        const fname = filePath.replace(/^.*[\\\/]/, '');
+        newFilenames.push(fname);
+        const result = await invoke<ParseFileResult>("parse_import_file", { filePath });
+        if (result && Array.isArray(result.rows)) {
+          newRows.push(...result.rows);
+        }
+      }
+
+      if (newRows.length > 0) {
+        const mergedRows = [...rows, ...newRows];
+        setRows(mergedRows);
+
+        const existingNames = filename.split(", ").map(s => s.trim()).filter(Boolean);
+        const addedNames = newFilenames.filter(f => !existingNames.includes(f));
+        const mergedFilename = [...existingNames, ...addedNames].join(", ");
+        setFilename(mergedFilename);
+
+        showToast("success", `Added ${newRows.length} rows from ${newFilenames.join(", ")}`);
+      }
+    } catch (e) {
+      showToast("error", `Failed to add files: ${e}`);
     } finally {
       setIsImporting(false);
     }
@@ -342,6 +438,16 @@ export default function ImportReview() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleAddMoreFiles}
+            disabled={isImporting}
+            className="btn-secondary"
+            title="Import additional Excel spreadsheet files into this review list"
+          >
+            <span className="material-symbols-outlined text-[20px]">add</span>
+            <span>Add More Files</span>
+          </button>
           <button
             onClick={handleImportReady}
             disabled={readyRows.length === 0 || isImporting}
@@ -446,7 +552,7 @@ export default function ImportReview() {
                 <tr className="bg-surface-container border-b border-outline-variant micro-label text-on-surface-variant">
                   <th className="py-3 px-4 w-16 text-center bg-surface-container-low/70">Row</th>
                   <th className="py-3 px-4 min-w-[150px] text-left">Student Name</th>
-                  <th className="py-3 px-4 min-w-[120px] text-left">Incident Date</th>
+                  <th className="py-3 px-4 min-w-[120px] text-left">Date</th>
                   <th className="py-3 px-4 min-w-[150px] text-center">Case Type</th>
                   
                   {activeTab === "issues" && <th className="py-3 px-4 min-w-[220px] text-left">Issues</th>}
@@ -468,17 +574,29 @@ export default function ImportReview() {
 
                         {/* Student Name */}
                         <td className="py-2.5 px-4 font-semibold text-on-surface text-sm">
-                          {row.full_name || `${row.last_name}, ${row.first_name} ${row.middle_initial}`.trim()}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{row.full_name || (row.last_name ? `${row.last_name}, ${row.first_name} ${row.middle_initial}`.trim() : <span className="text-on-surface-variant font-normal italic">—</span>)}</span>
+                            {row.group_id && (
+                              <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5" title="Grouped Incident">
+                                <span className="material-symbols-outlined text-[11px]">group</span>
+                                Grouped
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Incident Date */}
                         <td className="py-2.5 px-4 font-data-mono text-sm">
-                          {row.date}
+                          {row.date || <span className="text-on-surface-variant font-normal italic">—</span>}
                         </td>
 
                         {/* Case Type */}
                         <td className="py-2.5 px-4 text-sm text-center">
-                          <span className="bg-surface-variant/40 px-2 py-0.5 rounded font-medium text-on-surface-variant border border-outline-variant">{row.case}</span>
+                          {row.case && row.case.trim() ? (
+                            <span className="bg-surface-variant/40 px-2 py-0.5 rounded font-medium text-on-surface-variant border border-outline-variant">{row.case}</span>
+                          ) : (
+                            <span className="text-on-surface-variant font-normal italic">—</span>
+                          )}
                         </td>
 
                         {/* Tab-specific Columns */}
@@ -532,7 +650,7 @@ export default function ImportReview() {
                               {activeTab === "issues" ? "Fix Issues" : activeTab === "duplicates" ? "Edit Details" : "Edit Row"}
                             </button>
                             <button
-                              onClick={() => handleDisregard(index)}
+                              onClick={() => handleDisregardClick(index)}
                               className="px-3 py-1.5 text-xs font-bold text-error bg-error/10 hover:bg-error/20 active:scale-95 rounded-xl transition-all flex items-center justify-center gap-1 whitespace-nowrap"
                               title="Disregard and remove row"
                             >
@@ -632,8 +750,22 @@ export default function ImportReview() {
 
       {/* Edit Form Modal */}
       {editingRowIndex !== null && editData && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface rounded-3xl w-full max-w-2xl shadow-xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className={`absolute inset-0 bg-black/40 backdrop-blur-sm ${
+              isEditModalClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={handleEditCancel}
+          />
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleEditSave(editingRowIndex);
+            }}
+            className={`relative z-10 bg-surface rounded-3xl w-full max-w-2xl shadow-xl flex flex-col overflow-hidden min-h-[580px] ${
+              isEditModalClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}
+          >
             {/* Header */}
             <div className="flex justify-between items-center px-6 py-5 border-b border-outline-variant bg-surface-container-low shrink-0">
               <div>
@@ -652,7 +784,7 @@ export default function ImportReview() {
             </div>
 
             {/* Body */}
-            <div className="p-6 overflow-y-auto flex flex-col gap-5 text-sm">
+            <div className="p-6 pb-16 overflow-y-auto flex flex-col gap-5 text-sm flex-1">
               {/* Error messages if any */}
               {rows[editingRowIndex].has_errors && (
                 <div className="text-xs text-[#C5221F] bg-[#FCE8E6]/60 dark:text-[#ffdad6] dark:bg-[#93000a]/20 p-4 rounded-xl border border-[#FAD2CF] dark:border-[#ffb4ab]/30 flex flex-col gap-1.5 animate-in fade-in duration-200">
@@ -671,17 +803,23 @@ export default function ImportReview() {
               {/* Form grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">full name (Lastname, Firstname M.I.)</label>
+                  <label className="flex items-center gap-1.5 font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">
+                    FULL NAME
+                    <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                  </label>
                   <input
                     type="text"
                     value={editData.full_name || ""}
                     onChange={e => handleEditChange("full_name", e.target.value)}
-                    placeholder="e.g. Smith, Jane A."
+                    placeholder="Smith, Jane A."
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">DATE (mm/dd/yyyy)</label>
+                  <label className="flex items-center gap-1.5 font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">
+                    DATE (mm/dd/yyyy)
+                    <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                  </label>
                   <input
                     type="text"
                     value={editData.date}
@@ -690,7 +828,10 @@ export default function ImportReview() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">case type</label>
+                  <label className="flex items-center gap-1.5 font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">
+                    case type
+                    <span className="material-symbols-outlined text-error" style={{ fontSize: 10 }}>emergency</span>
+                  </label>
                   <input
                     type="text"
                     value={editData.case}
@@ -783,40 +924,26 @@ export default function ImportReview() {
                   </datalist>
                 </div>
                 <div>
-                  <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">section</label>
-                  <input
-                    type="text"
-                    list="section-options"
-                    value={editData.section}
-                    onChange={e => handleEditChange("section", e.target.value)}
-                    onBlur={() => handleEditChange("section", normalizeSection(editData.section))}
-                    className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted"
-                  />
-                  <datalist id="section-options">
-                    {SECTION_OPTIONS.map(opt => <option key={opt} value={opt} />)}
-                  </datalist>
-                </div>
-                <div className="md:col-span-2">
                   <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">adviser</label>
                   <input
                     type="text"
                     value={editData.adviser}
-                    maxLength={20}
-                    onChange={e => handleEditChange("adviser", autoCapitalize(e.target.value).slice(0, 20))}
+                    maxLength={50}
+                    onChange={e => handleEditChange("adviser", autoCapitalize(e.target.value).slice(0, 50))}
                     onBlur={() => handleEditChange("adviser", capitalizeWords(editData.adviser))}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted"
                   />
                   <p className="mt-0.5 text-right text-[9px] font-medium text-secondary">
-                    {(editData.adviser || "").length}/20
+                    {(editData.adviser || "").length}/50
                   </p>
                 </div>
-
               </div>
             </div>
 
             {/* Footer */}
             <div className="px-6 py-4 bg-surface-container-low border-t border-outline-variant flex justify-end gap-3 shrink-0">
               <button
+                type="button"
                 onClick={handleEditCancel}
                 disabled={isSavingRow}
                 className="btn-secondary"
@@ -825,7 +952,7 @@ export default function ImportReview() {
                 <span>Cancel</span>
               </button>
               <button
-                onClick={() => handleEditSave(editingRowIndex)}
+                type="submit"
                 disabled={isSavingRow}
                 className="btn-primary"
               >
@@ -842,7 +969,7 @@ export default function ImportReview() {
                 )}
               </button>
             </div>
-          </div>
+          </form>
         </div>,
         document.body
       )}
@@ -882,6 +1009,104 @@ export default function ImportReview() {
               >
                 <span className="material-symbols-outlined text-[16px]">delete</span>
                 <span>Yes, Delete All</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {disregardConfirmIndex !== null && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className={`absolute inset-0 bg-black/40 backdrop-blur-sm ${
+              isDisregardConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={closeDisregardConfirm}
+          />
+          <div
+            className={`relative z-10 bg-surface border border-outline-variant p-6 rounded-2xl shadow-xl max-w-sm w-full text-center ${
+              isDisregardConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-error/15 text-error flex items-center justify-center mb-3 mx-auto">
+              <span className="material-symbols-outlined text-[26px]">delete</span>
+            </div>
+            <h3 className="text-base font-bold text-on-surface mb-2">
+              Disregard Row {disregardConfirmIndex + 2}?
+            </h3>
+            <p className="text-on-surface-variant text-xs mb-6 leading-relaxed">
+              Are you sure you want to disregard and remove this row from the import list? This action cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={closeDisregardConfirm}
+                className="btn-secondary flex-1 text-xs py-2 justify-center"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeDisregard}
+                className="btn-primary bg-error hover:bg-error/90 text-white flex-1 text-xs py-2 justify-center"
+              >
+                Disregard Row
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {importSuccessData !== null && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className={`absolute inset-0 bg-black/40 backdrop-blur-sm ${
+              isSuccessModalClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={closeSuccessModal}
+          />
+          <div
+            className={`relative z-10 bg-surface border border-outline-variant p-6 sm:p-7 rounded-3xl shadow-2xl max-w-md w-full text-center ${
+              isSuccessModalClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 rounded-full bg-green-500/15 text-green-600 dark:text-green-400 flex items-center justify-center mb-4 mx-auto border border-green-500/30">
+              <span className="material-symbols-outlined text-[36px]">check_circle</span>
+            </div>
+            
+            <h3 className="text-xl font-bold text-on-surface mb-2">
+              Cases Successfully Imported!
+            </h3>
+            
+            <p className="text-on-surface-variant text-xs sm:text-sm mb-6 leading-relaxed">
+              Successfully imported <strong className="text-on-surface font-bold text-sm sm:text-base">{importSuccessData.count}</strong> case record(s) into the system database.
+              {importSuccessData.remainingCount > 0 && (
+                <span className="block mt-2 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  You still have {importSuccessData.remainingCount} remaining row(s) to review in the import list.
+                </span>
+              )}
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={closeSuccessModal}
+                className="btn-secondary w-full sm:flex-1 py-2.5 justify-center text-xs"
+              >
+                {importSuccessData.remainingCount > 0 ? "Review Remaining Rows" : "Close"}
+              </button>
+              <button
+                type="button"
+                onClick={handleGoToCatalog}
+                className="btn-primary w-full sm:flex-1 py-2.5 justify-center text-xs gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm">folder_open</span>
+                <span>Go to Case Catalog</span>
               </button>
             </div>
           </div>

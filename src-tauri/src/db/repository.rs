@@ -83,6 +83,14 @@ impl CaseRepository {
             payload.date_filed
         );
 
+        let case_year = if payload.date.len() >= 4 {
+            payload.date[0..4].to_string()
+        } else if payload.date_filed.len() >= 4 {
+            payload.date_filed[0..4].to_string()
+        } else {
+            chrono::Utc::now().format("%Y").to_string()
+        };
+
         let students_json = serde_json::to_string(&payload.students)
             .map_err(|e| format!("Failed to serialize students: {}", e))?;
 
@@ -91,7 +99,7 @@ impl CaseRepository {
                 r#"
 INSERT INTO cases (
   students, date, date_filed, "case", description, sanction, progress, proofs, title, reporting_student, group_id, first_name, last_name, middle_initial, level, section, adviser, update_history, school_year
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, COALESCE((SELECT value FROM app_config WHERE key = 'current_school_year'), ''))
+) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
 "#,
                 params![
                     students_json,
@@ -111,7 +119,8 @@ INSERT INTO cases (
                     primary_student.level,
                     primary_student.section,
                     primary_student.adviser,
-                    initial_history
+                    initial_history,
+                    case_year
                 ],
             )
             .map_err(|e| e.to_string())?;
@@ -197,19 +206,33 @@ WHERE id = ?20
         connection: &rusqlite::Connection,
         school_year: &str,
     ) -> Result<Vec<String>, String> {
-        let mut stmt = connection
-            .prepare("SELECT DISTINCT strftime('%Y-%m', date) FROM cases WHERE school_year = ?1 ORDER BY date ASC")
-            .map_err(|e| format!("Failed to prepare query: {}", e))?;
-
-        let rows = stmt
-            .query_map(params![school_year], |row| row.get::<_, String>(0))
-            .map_err(|e| format!("Query execution failed: {}", e))?;
-
         let mut months = Vec::new();
-        for row in rows {
-            if let Ok(month) = row {
-                if !month.is_empty() && month != "null" {
-                    months.push(month);
+        if school_year == "all" || school_year.is_empty() {
+            let mut stmt = connection
+                .prepare("SELECT DISTINCT strftime('%Y-%m', date) FROM cases WHERE date IS NOT NULL AND date != '' ORDER BY date ASC")
+                .map_err(|e| format!("Failed to prepare query: {}", e))?;
+            let rows = stmt
+                .query_map([], |row| row.get::<_, String>(0))
+                .map_err(|e| format!("Query execution failed: {}", e))?;
+            for row in rows {
+                if let Ok(month) = row {
+                    if !month.is_empty() && month != "null" {
+                        months.push(month);
+                    }
+                }
+            }
+        } else {
+            let mut stmt = connection
+                .prepare("SELECT DISTINCT strftime('%Y-%m', date) FROM cases WHERE (strftime('%Y', date) = ?1 OR school_year = ?1) AND date != '' ORDER BY date ASC")
+                .map_err(|e| format!("Failed to prepare query: {}", e))?;
+            let rows = stmt
+                .query_map(params![school_year], |row| row.get::<_, String>(0))
+                .map_err(|e| format!("Query execution failed: {}", e))?;
+            for row in rows {
+                if let Ok(month) = row {
+                    if !month.is_empty() && month != "null" {
+                        months.push(month);
+                    }
                 }
             }
         }
