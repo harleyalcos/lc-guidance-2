@@ -25,16 +25,16 @@ export default function Layout({ children, title, pageKey }: LayoutProps) {
         <Sidebar isCollapsed={isSidebarCollapsed} onCollapsedChange={setIsSidebarCollapsed} />
       </div>
       <div className="print:hidden sticky top-0 z-20">
-        {!isImportReview && (
+        {!isImportReview && !isAiPage && (
           <TopAppBar title={title} isSidebarCollapsed={isSidebarCollapsed} />
         )}
         <UpdateBanner isSidebarCollapsed={isSidebarCollapsed} />
       </div>
       <UpdateModal />
       <main className={`print:ml-0 print:min-h-0 print:p-0 transition-[margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
-        } ${isImportReview
+        } ${(isImportReview || isAiPage)
           ? "h-screen flex flex-col overflow-hidden"
-          : (isPendingPage || isAiPage)
+          : isPendingPage
             ? "h-[calc(100vh-64px)] flex flex-col overflow-hidden"
             : "min-h-[calc(100vh-64px)] p-margin-page gap-gutter pb-12"
         }`}>
