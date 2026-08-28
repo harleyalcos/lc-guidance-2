@@ -288,6 +288,37 @@
     cursor: not-allowed;
   }
 
+  .data-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-outline-variant);
+    border-radius: 12px;
+  }
+
+  /* Scoped rules for AI white document sheets to isolate from dark mode */
+  .ai-document-sheet {
+    color-scheme: light !important;
+  }
+  .ai-document-sheet input,
+  .ai-document-sheet textarea,
+  .ai-document-sheet select {
+    color-scheme: light !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border-color: #d1d5db !important;
+  }
+  .ai-document-sheet input:focus,
+  .ai-document-sheet textarea:focus {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border-color: #002f87 !important;
+    outline: none !important;
+  }
+  .ai-document-sheet input:disabled {
+    background-color: #f3f4f6 !important;
+    color: #6b7280 !important;
+    border-color: #e5e7eb !important;
+  }
+
   .btn-secondary {
     background-color: var(--color-surface);
     color: var(--color-on-surface);

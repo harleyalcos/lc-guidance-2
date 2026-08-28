@@ -41,6 +41,26 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
   used       INTEGER NOT NULL DEFAULT 0,
   purpose    TEXT NOT NULL DEFAULT 'pin_reset'
 );
+
+CREATE TABLE IF NOT EXISTS ai_sessions (
+  id         TEXT PRIMARY KEY,
+  title      TEXT NOT NULL,
+  tag        TEXT NOT NULL DEFAULT 'Queries',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ai_messages (
+  id         TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  role       TEXT NOT NULL,
+  content    TEXT NOT NULL,
+  metadata   TEXT,
+  timestamp  TEXT NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES ai_sessions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_messages_session_id ON ai_messages(session_id);
 "#,
     )?;
 

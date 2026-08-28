@@ -24,7 +24,10 @@ export const parseStudents = (studentsStr: string): StudentInfo[] => {
 export const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return dateString;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
 };
 
 export const formatReportDateRange = (
@@ -82,7 +85,8 @@ export const formatReportDateRange = (
   ) {
     const lastDay = new Date(endDateObj.getFullYear(), endDateObj.getMonth() + 1, 0).getDate();
     if (endDateObj.getDate() === lastDay) {
-      return startDateObj.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      const mm = String(startDateObj.getMonth() + 1).padStart(2, "0");
+      return `${mm}/${startDateObj.getFullYear()}`;
     }
   }
 
