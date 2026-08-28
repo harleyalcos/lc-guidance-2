@@ -67,7 +67,8 @@ fn main() {
             commands::get_current_school_year,
             commands::set_current_school_year,
             commands::get_all_school_years,
-            commands::get_active_months
+            commands::get_active_months,
+            commands::reset_application_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

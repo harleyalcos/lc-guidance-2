@@ -115,8 +115,8 @@ const formatIncidentDateWithRelative = (dateStr: string) => {
 
 
 
-const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
-  const bytes = new Uint8Array(buffer);
+const arrayBufferToBase64 = (buffer: ArrayBuffer | Uint8Array) => {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   let binary = "";
   const chunkSize = 0x8000;
 
@@ -1385,7 +1385,7 @@ export default function CaseCatalog() {
               </button>
 
               {isStatusDropdownOpen && (
-                <div className="absolute left-0 top-full z-30 mt-2 w-[205px] overflow-hidden rounded-xl border border-outline-variant bg-surface p-1.5 shadow-lg filter-dropdown-enter">
+                <div className="absolute left-0 top-full z-30 mt-2 w-[205px] overflow-hidden rounded-xl border border-outline-variant bg-surface dark:bg-surface-container p-1.5 shadow-lg filter-dropdown-enter">
                   {STATUS_FILTER_OPTIONS.map((status) => {
                     const isSelected = statusFilter === status;
                     return (
@@ -1397,7 +1397,7 @@ export default function CaseCatalog() {
                           setIsStatusDropdownOpen(false);
                         }}
                         className={`group/status flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-300 ${isSelected
-                            ? "bg-[#EEEDFE] text-[#3C3489]"
+                            ? "bg-[#EEEDFE] dark:bg-[#1A233D] text-[#3C3489] dark:text-[#b4c5ff]"
                             : "text-on-surface hover:bg-surface-container"
                           }`}
                       >
@@ -1405,11 +1405,11 @@ export default function CaseCatalog() {
                             status === "Resolved" ? "bg-[#22c55e]" :
                               status === "Closed" ? "bg-[#9ca3af]" :
                                 status === "Reprimand" ? "bg-[#ef4444]" :
-                                  "bg-[#7B6FE8]"
+                                  "bg-[#7B6FE8] dark:bg-[#94AAF0]"
                           }`} />
                         <span className="flex-1 font-medium">{status === "All Statuses" ? "All" : status}</span>
                         {isSelected && (
-                          <span className="material-symbols-outlined text-[#7B6FE8]" style={{ fontSize: 16 }}>check</span>
+                          <span className="material-symbols-outlined text-[#7B6FE8] dark:text-[#b4c5ff]" style={{ fontSize: 16 }}>check</span>
                         )}
                       </button>
                     );

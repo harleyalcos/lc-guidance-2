@@ -830,14 +830,14 @@ export default function Dashboard() {
   return (
     <div ref={dashboardRef} className="flex flex-col gap-6 w-full max-w-7xl mx-auto pb-10 h-full p-4 md:p-6 animate-fade-in">
       {/* Header - exactly identical to the reports page's Institutional Overview header layout */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-end print:hidden">
-        <div>
+      <div className="flex flex-col gap-4 xl:flex-row xl:justify-between xl:items-end print:hidden">
+        <div className="min-w-0 flex-1">
           <h1 className="page-header-h1 m-0">Dashboard</h1>
-          <p className="text-sm text-secondary mt-1">
+          <p className="text-sm text-secondary mt-1 max-w-2xl">
             A statistical summary of guidance office activity for {formatDashboardDateRange(dashStartDate, dashEndDate, cases)}.
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+        <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
           <AcademicMonthRangePicker
             allYears={allYears}
             schoolYear={selectedSchoolYear}
@@ -845,7 +845,7 @@ export default function Dashboard() {
             isLoadingYears={isYearsLoading}
             startDate={dashStartDate}
             endDate={dashEndDate}
-            className="w-[290px] sm:w-[310px]"
+            className="w-[260px] sm:w-[290px]"
             placeholder="All Records"
             onRangeChange={(start, end) => setDateRange(start, end)}
           />
@@ -853,9 +853,9 @@ export default function Dashboard() {
           <button 
             onClick={handleExportPDF}
             disabled={isExporting}
-            className="btn-primary"
+            className="btn-primary shrink-0 whitespace-nowrap h-[38px] !py-0 !px-4"
           >
-            <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+            <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
             <span>{isExporting ? "Exporting..." : "Export PDF"}</span>
           </button>
         </div>

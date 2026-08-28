@@ -439,30 +439,31 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
       }
 
       const allRows = parsedData.rows;
-      const page1Budget = contentBudget - firstHeaderH - tableHeaderH;
+      const page1BudgetNoClosing = contentBudget - firstHeaderH - tableHeaderH;
+      const page1BudgetWithClosing = page1BudgetNoClosing - closingH;
       const contBudgetNoClosing = contentBudget - contHeaderH - tableHeaderH;
       const contBudgetWithClosing = contBudgetNoClosing - closingH;
 
       const getRowHeight = (index: number) => rowHeights[index] || 40;
 
-      // Check if everything fits on a single page
+      // Check if everything fits on a single page WITH closing block
       let totalAllHeight = 0;
       for (let i = 0; i < allRows.length; i++) {
         totalAllHeight += getRowHeight(i);
       }
 
-      if (totalAllHeight + closingH <= page1Budget) {
+      if (totalAllHeight <= page1BudgetWithClosing) {
         setPaginatedPages([{ rows: allRows, isFirstPage: true, hasClosing: true }]);
         return;
       }
 
-      // Step 1: Allocate cases to Page 1 up to page1Budget
+      // Step 1: Pack Page 1
       const page1Rows: string[][] = [];
       let page1Height = 0;
 
       for (let i = 0; i < allRows.length; i++) {
         const h = getRowHeight(i);
-        if (page1Height + h <= page1Budget) {
+        if (page1Height + h <= page1BudgetNoClosing) {
           page1Rows.push(allRows[i]);
           page1Height += h;
         } else {
@@ -476,12 +477,27 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
 
       const remainingRows = allRows.slice(page1Rows.length);
 
+      // If all rows fit on Page 1 without closing block, but closing block doesn't fit:
       if (remainingRows.length === 0) {
-        const shiftCount = Math.min(Math.floor(page1Rows.length / 2), 3);
-        if (shiftCount > 0) {
+        let shiftedCount = 0;
+        let shiftedHeight = 0;
+        for (let i = page1Rows.length - 1; i > 0; i--) {
+          const h = getRowHeight(i);
+          if (shiftedHeight + h <= contBudgetWithClosing && (page1Rows.length - (shiftedCount + 1)) >= 1) {
+            shiftedHeight += h;
+            shiftedCount++;
+            if (shiftedCount >= Math.min(Math.floor(page1Rows.length / 2), 5)) break;
+          } else {
+            break;
+          }
+        }
+
+        if (shiftedCount > 0) {
+          const p1 = page1Rows.slice(0, page1Rows.length - shiftedCount);
+          const p2 = page1Rows.slice(page1Rows.length - shiftedCount);
           setPaginatedPages([
-            { rows: page1Rows.slice(0, page1Rows.length - shiftCount), isFirstPage: true, hasClosing: false },
-            { rows: page1Rows.slice(page1Rows.length - shiftCount), isFirstPage: false, hasClosing: true },
+            { rows: p1, isFirstPage: true, hasClosing: false },
+            { rows: p2, isFirstPage: false, hasClosing: true },
           ]);
         } else {
           setPaginatedPages([
@@ -492,90 +508,106 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
         return;
       }
 
-      // Step 2: Check if all remaining rows fit on Page 2 WITH closing block
-      let totalRemainingHeight = 0;
-      for (let i = 0; i < remainingRows.length; i++) {
-        totalRemainingHeight += getRowHeight(page1Rows.length + i);
-      }
+      // Step 2: Pack Continuation Pages dynamically
+      const pages: { rows: string[][]; isFirstPage: boolean; hasClosing: boolean }[] = [
+        { rows: page1Rows, isFirstPage: true, hasClosing: false },
+      ];
 
-      if (totalRemainingHeight <= contBudgetWithClosing) {
-        setPaginatedPages([
-          { rows: page1Rows, isFirstPage: true, hasClosing: false },
-          { rows: remainingRows, isFirstPage: false, hasClosing: true },
-        ]);
-        return;
-      }
+      let currentRemainingIdx = 0;
+      while (currentRemainingIdx < remainingRows.length) {
+        const remainingItems = remainingRows.slice(currentRemainingIdx);
+        const remainingHeight = remainingItems.reduce((acc, _, idx) => acc + getRowHeight(page1Rows.length + currentRemainingIdx + idx), 0);
 
-      // Step 3: Balanced distribution across K continuation pages
-      const avgRowHeight = totalRemainingHeight / remainingRows.length || 40;
-      const maxRowsPerCont = Math.max(1, Math.floor(contBudgetNoClosing / avgRowHeight));
-      const maxRowsLast = Math.max(1, Math.floor(contBudgetWithClosing / avgRowHeight));
-
-      let contPageCount = 1;
-      while (true) {
-        contPageCount++;
-        const totalCapacity = (contPageCount - 1) * maxRowsPerCont + maxRowsLast;
-        if (totalCapacity >= remainingRows.length || contPageCount > 50) {
+        // If all remaining items fit on this page WITH closing block:
+        if (remainingHeight <= contBudgetWithClosing) {
+          pages.push({
+            rows: remainingItems,
+            isFirstPage: false,
+            hasClosing: true,
+          });
           break;
         }
-      }
 
-      const contBuckets: string[][][] = [];
-      let currentIndex = 0;
+        // Otherwise pack as many rows as fit in contBudgetNoClosing
+        const contRows: string[][] = [];
+        let contHeight = 0;
 
-      for (let p = 0; p < contPageCount; p++) {
-        const isLastContPage = p === contPageCount - 1;
-        const currentMaxBudget = isLastContPage ? contBudgetWithClosing : contBudgetNoClosing;
+        while (currentRemainingIdx < remainingRows.length) {
+          const nextRow = remainingRows[currentRemainingIdx];
+          const nextH = getRowHeight(page1Rows.length + currentRemainingIdx);
 
-        const pageBucket: string[][] = [];
-        let bucketHeight = 0;
-
-        const itemsLeft = remainingRows.length - currentIndex;
-        const pagesLeft = contPageCount - p;
-        const targetForThisPage = Math.ceil(itemsLeft / pagesLeft);
-
-        while (currentIndex < remainingRows.length) {
-          const nextRow = remainingRows[currentIndex];
-          const nextH = getRowHeight(page1Rows.length + currentIndex);
-
-          if (bucketHeight + nextH <= currentMaxBudget) {
-            pageBucket.push(nextRow);
-            bucketHeight += nextH;
-            currentIndex++;
-            if (pageBucket.length >= targetForThisPage && !isLastContPage) {
-              break;
-            }
+          if (contHeight + nextH <= contBudgetNoClosing) {
+            contRows.push(nextRow);
+            contHeight += nextH;
+            currentRemainingIdx++;
           } else {
-            if (pageBucket.length === 0) {
-              pageBucket.push(nextRow);
-              currentIndex++;
+            if (contRows.length === 0) {
+              contRows.push(nextRow);
+              currentRemainingIdx++;
             }
             break;
           }
         }
 
-        contBuckets.push(pageBucket);
+        // Check if this was the last batch of rows:
+        if (currentRemainingIdx === remainingRows.length) {
+          if (contHeight <= contBudgetWithClosing) {
+            pages.push({
+              rows: contRows,
+              isFirstPage: false,
+              hasClosing: true,
+            });
+          } else {
+            let shiftedCount = 0;
+            let shiftedHeight = 0;
+            for (let i = contRows.length - 1; i > 0; i--) {
+              const rowGlobalIdx = page1Rows.length + (currentRemainingIdx - contRows.length + i);
+              const h = getRowHeight(rowGlobalIdx);
+              if (shiftedHeight + h <= contBudgetWithClosing && (contRows.length - (shiftedCount + 1)) >= 1) {
+                shiftedHeight += h;
+                shiftedCount++;
+                if (shiftedCount >= Math.min(Math.floor(contRows.length / 2), 5)) break;
+              } else {
+                break;
+              }
+            }
+
+            if (shiftedCount > 0) {
+              const thisPageRows = contRows.slice(0, contRows.length - shiftedCount);
+              const finalPageRows = contRows.slice(contRows.length - shiftedCount);
+              pages.push({
+                rows: thisPageRows,
+                isFirstPage: false,
+                hasClosing: false,
+              });
+              pages.push({
+                rows: finalPageRows,
+                isFirstPage: false,
+                hasClosing: true,
+              });
+            } else {
+              pages.push({
+                rows: contRows,
+                isFirstPage: false,
+                hasClosing: false,
+              });
+              pages.push({
+                rows: [],
+                isFirstPage: false,
+                hasClosing: true,
+              });
+            }
+          }
+        } else {
+          pages.push({
+            rows: contRows,
+            isFirstPage: false,
+            hasClosing: false,
+          });
+        }
       }
 
-      while (currentIndex < remainingRows.length) {
-        const lastBucket = contBuckets[contBuckets.length - 1];
-        lastBucket.push(remainingRows[currentIndex]);
-        currentIndex++;
-      }
-
-      const newPages: { rows: string[][]; isFirstPage: boolean; hasClosing: boolean }[] = [
-        { rows: page1Rows, isFirstPage: true, hasClosing: false },
-      ];
-
-      contBuckets.forEach((bucket, idx) => {
-        newPages.push({
-          rows: bucket,
-          isFirstPage: false,
-          hasClosing: idx === contBuckets.length - 1,
-        });
-      });
-
-      setPaginatedPages(newPages);
+      setPaginatedPages(pages);
     }, [parsedData, metadata, signatureConfig, bodyMarkdown]);
 
     useImperativeHandle(ref, () => ({
@@ -608,11 +640,29 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
             useCORS: true,
             logging: false,
             backgroundColor: "#FFFFFF",
+            windowWidth: 1123,
             onclone: (clonedDocument: Document) => {
               clonedDocument.documentElement.classList.remove("dark");
+              const paper = clonedDocument.querySelector('.report-preview-paper') as HTMLElement | null;
+              if (paper) {
+                paper.style.zoom = '1';
+                paper.style.transform = 'none';
+              }
+              const sheets = clonedDocument.querySelectorAll('.report-page-sheet');
+              sheets.forEach((sheet) => {
+                const el = sheet as HTMLElement;
+                el.style.boxShadow = 'none';
+                el.style.width = '297mm';
+                el.style.height = '210mm';
+                el.style.minHeight = '210mm';
+                el.style.maxHeight = '210mm';
+                el.style.boxSizing = 'border-box';
+                el.style.margin = '0';
+              });
             },
           },
           jsPDF: { unit: "mm", format: [297, 210] as [number, number], orientation: "landscape" as const },
+          pagebreak: { mode: ["css", "legacy"] },
         };
 
         try {
@@ -690,12 +740,15 @@ const AiReportPdfGenerator = forwardRef<AiReportPdfGeneratorRef, AiReportPdfGene
               return (
                 <div
                   key={index}
-                  className={`bg-white ${isExporting ? "shadow-none" : "shadow-md"} print:shadow-none w-[297mm] h-[210mm] box-border px-12 py-8 text-gray-800 font-serif relative overflow-hidden`}
+                  className={`report-page-sheet bg-white ${isExporting ? "shadow-none" : "shadow-md"} print:shadow-none w-[297mm] h-[210mm] min-h-[210mm] max-h-[210mm] box-border px-12 py-8 text-gray-800 font-serif relative overflow-hidden`}
                 >
                   {page.rows.length === 0 && !page.isFirstPage ? (
-                    // Orphaned closing-only page
-                    <div className="h-full flex flex-col justify-center">
-                      {renderClosingBlock()}
+                    // Orphaned closing-only page: continuation header + closing block
+                    <div className="w-full flex flex-col">
+                      {renderSmallHeader()}
+                      <div className="mt-8">
+                        {renderClosingBlock()}
+                      </div>
                     </div>
                   ) : (
                     <>

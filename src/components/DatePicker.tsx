@@ -8,6 +8,7 @@ interface DatePickerProps {
   placeholder?: string;
   min?: string;
   max?: string;
+  className?: string;
 }
 
 const MONTHS = [
@@ -17,7 +18,7 @@ const MONTHS = [
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-export default function DatePicker({ value, onChange, prefix, placeholder = "Pick a date", min, max }: DatePickerProps) {
+export default function DatePicker({ value, onChange, prefix, placeholder = "Pick a date", min, max, className }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const [currentDate, setCurrentDate] = useState(() => {
@@ -126,7 +127,9 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center h-[38px] rounded-lg border text-sm transition-all duration-500 ease-in-out text-left select-none relative overflow-hidden w-[260px] pl-3.5 pr-8 ${
+        className={`flex items-center h-[38px] rounded-lg border text-sm transition-all duration-500 ease-in-out text-left select-none relative overflow-hidden ${
+          className || "w-[260px]"
+        } pl-3.5 pr-8 ${
           isOpen 
             ? "bg-surface-container border-primary ring-2 ring-primary/20 shadow-sm" 
             : "bg-surface border-outline-variant hover:bg-surface-container"
