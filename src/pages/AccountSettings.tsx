@@ -8,6 +8,7 @@ import Backup from "./Backup";
 import { useAppUpdate } from "../context/UpdateContext";
 
 const cleanPin = (value: string) => value.replace(/\D/g, "").slice(0, 6);
+const validatePin = (value: string) => /^\d{6}$/.test(value);
 type ToastType = "success" | "error";
 const RECOVERY_EMAIL_UNLOCK_KEY = "recovery_email_unlocked";
 
@@ -76,6 +77,14 @@ export default function AccountSettings() {
   const [verificationBusy, setVerificationBusy] = useState(false);
   const [isVerificationModalClosing, setIsVerificationModalClosing] = useState(false);
 
+  // Reset Application Data State
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isResetModalClosing, setIsResetModalClosing] = useState(false);
+  const [resetPin, setResetPin] = useState("");
+  const [showResetPin, setShowResetPin] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
+
   // Gemini AI State
   const [geminiKey, setGeminiKey] = useState("");
   const [showGeminiKey, setShowGeminiKey] = useState(false);
@@ -95,6 +104,47 @@ export default function AccountSettings() {
       setPinVerificationAction(null);
       setIsVerificationModalClosing(false);
     }, 200);
+  };
+
+  const handleOpenResetModal = () => {
+    setResetPin("");
+    setShowResetPin(false);
+    setResetConfirmText("");
+    setIsResetModalClosing(false);
+    setIsResetModalOpen(true);
+  };
+
+  const handleCloseResetModal = () => {
+    setIsResetModalClosing(true);
+    window.setTimeout(() => {
+      setIsResetModalOpen(false);
+      setIsResetModalClosing(false);
+      setResetPin("");
+      setResetConfirmText("");
+    }, 200);
+  };
+
+  const handleExecuteReset = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!validatePin(resetPin)) {
+      showToast("error", "PIN must be exactly 6 digits.");
+      return;
+    }
+    if (resetConfirmText.trim().toUpperCase() !== "RESET") {
+      showToast("error", "Please type RESET to confirm data deletion.");
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      await invoke("reset_application_data", { pin: resetPin });
+      handleCloseResetModal();
+      showToast("success", "Application records successfully deleted. Emails and PIN preserved.");
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsResetting(false);
+    }
   };
 
 
@@ -286,8 +336,6 @@ export default function AccountSettings() {
       setIsTestingGemini(false);
     }
   };
-
-  const validatePin = (value: string) => /^\d{6}$/.test(value);
 
   const handleChangePin = async (e: FormEvent) => {
     e.preventDefault();
@@ -907,6 +955,44 @@ export default function AccountSettings() {
         </div>
       </section>
 
+      {/* Danger Zone Section */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <h2 className="micro-label !text-error font-bold flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[16px] text-error">warning</span>
+            <span>Danger Zone</span>
+          </h2>
+          <div className="h-px flex-1 bg-outline-variant" />
+        </div>
+        <div className="bg-surface dark:bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-outline-variant bg-surface-container-low dark:bg-surface-container-high/40">
+            <h3 className="section-header-h2 !text-error mb-0 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[20px]">delete_forever</span>
+              <span>Reset Application Data</span>
+            </h3>
+            <p className="text-xs text-secondary mt-1">
+              Permanently delete all incident records, student profiles, case histories, and attached proofs from the database.
+            </p>
+          </div>
+          <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-on-surface">Delete All Records</p>
+              <p className="text-xs text-secondary">
+                Clears all case records and incident history from the database. Counselor credentials, configured emails, and security PINs will be safely preserved.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenResetModal}
+              className="px-4 py-2.5 bg-error/10 hover:bg-error hover:text-white text-error border border-error/30 hover:border-error rounded-lg text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 shrink-0 cursor-pointer shadow-xs"
+            >
+              <span className="material-symbols-outlined text-[18px]">delete_forever</span>
+              <span>Delete All Records</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
           <h2 className="micro-label">System & Updates</h2>
@@ -1130,6 +1216,99 @@ export default function AccountSettings() {
         document.body
       )}
 
+
+      {isResetModalOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className={`absolute inset-0 bg-black/60 backdrop-blur-sm ${
+              isResetModalClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={handleCloseResetModal}
+          />
+          <div 
+            className={`relative bg-surface dark:bg-surface-container p-6 sm:p-7 rounded-2xl shadow-2xl max-w-md w-full border border-outline-variant ${
+              isResetModalClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}
+          >
+            <div className="flex items-center gap-3 text-error mb-3">
+              <div className="w-11 h-11 rounded-full bg-error/10 flex items-center justify-center text-error shrink-0">
+                <span className="material-symbols-outlined text-[26px]">warning</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-on-surface">Reset Application Data</h3>
+                <span className="text-[11px] font-bold text-error uppercase tracking-wider">Irreversible Action</span>
+              </div>
+            </div>
+
+            <p className="text-secondary text-xs sm:text-sm mb-4 leading-relaxed">
+              This action will <strong className="text-error font-semibold">permanently delete all incident records</strong> from the system database.
+            </p>
+
+            <div className="rounded-xl border border-outline-variant bg-surface-container-low p-3.5 mb-4 text-xs space-y-2">
+              <div className="flex items-start gap-2 text-error">
+                <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">close</span>
+                <span>All student incident cases, history logs, and proofs will be wiped.</span>
+              </div>
+              <div className="flex items-start gap-2 text-green-600 dark:text-green-400">
+                <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">check</span>
+                <span>Counselor Login PIN & Configured Emails will NOT be removed.</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleExecuteReset} className="space-y-3.5">
+              <div>
+                <label className="text-[11px] font-bold text-secondary uppercase tracking-wider block mb-1.5">
+                  1. Enter 6-Digit Counselor PIN
+                </label>
+                {renderSecretInput(resetPin, setResetPin, showResetPin, () => setShowResetPin((value) => !value), {
+                  className: secretPinClass,
+                  inputMode: "numeric",
+                  placeholder: "000000",
+                  cleanValue: cleanPin,
+                })}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-secondary uppercase tracking-wider block mb-1.5">
+                  2. Type <span className="text-error font-bold">RESET</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirmText}
+                  onChange={(e) => setResetConfirmText(e.target.value)}
+                  placeholder="RESET"
+                  className="w-full h-10 bg-surface dark:bg-surface-container-high border border-outline-variant rounded-lg px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-error focus:border-transparent font-medium"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseResetModal}
+                  disabled={isResetting}
+                  className="btn-secondary"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                  <span>Cancel</span>
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResetting || resetPin.length !== 6 || resetConfirmText.trim().toUpperCase() !== "RESET"}
+                  className="px-4 py-2 bg-error hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+                >
+                  {isResetting ? (
+                    <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[18px]">delete_forever</span>
+                  )}
+                  <span>Delete All Records</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
 
     </div>
   );

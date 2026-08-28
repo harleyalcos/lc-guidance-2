@@ -877,7 +877,7 @@ export default function ImportReview() {
                   </button>
 
                   {isProgressDropdownOpen && (
-                    <div className="absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-xl border border-outline-variant bg-surface p-1.5 shadow-lg filter-dropdown-enter">
+                    <div className="absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-xl border border-outline-variant bg-surface dark:bg-surface-container p-1.5 shadow-lg filter-dropdown-enter">
                       {PROGRESS_OPTIONS.map((status) => {
                         const isSelected = editData.progress === status;
                         return (
@@ -889,7 +889,7 @@ export default function ImportReview() {
                               setIsProgressDropdownOpen(false);
                             }}
                             className={`group/status flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-all duration-300 ${isSelected
-                                ? "bg-[#EEEDFE] dark:bg-primary/20 text-[#3C3489] dark:text-primary"
+                                ? "bg-[#EEEDFE] dark:bg-[#1A233D] text-[#3C3489] dark:text-[#b4c5ff]"
                                 : "text-gray-700 dark:text-on-surface hover:bg-gray-100 dark:hover:bg-surface-container-high"
                               }`}
                           >
@@ -897,11 +897,11 @@ export default function ImportReview() {
                                 status === "Resolved" ? "bg-[#22c55e]" :
                                   status === "Closed" ? "bg-[#9ca3af]" :
                                     status === "Reprimand" ? "bg-[#ef4444]" :
-                                      "bg-[#7B6FE8]"
+                                      "bg-[#7B6FE8] dark:bg-[#94AAF0]"
                               }`} />
                             <span className="flex-1 font-medium">{status}</span>
                             {isSelected && (
-                              <span className="material-symbols-outlined text-[#7B6FE8] dark:text-primary" style={{ fontSize: 16 }}>check</span>
+                              <span className="material-symbols-outlined text-[#7B6FE8] dark:text-[#b4c5ff]" style={{ fontSize: 16 }}>check</span>
                             )}
                           </button>
                         );

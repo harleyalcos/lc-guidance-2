@@ -681,3 +681,19 @@ pub fn get_active_months(state: State<'_, DbState>, school_year: String) -> Resu
     CaseRepository::get_active_months(&connection, &school_year)
 }
 
+#[tauri::command]
+pub fn reset_application_data(state: State<'_, DbState>, pin: String) -> Result<(), String> {
+    crate::auth::validate_pin(&pin)?;
+    let connection = state.connection.lock().map_err(db_error)?;
+    let hash = require_config(&connection, "app_pin_hash")?;
+    if !crate::auth::verify_secret(&pin, &hash)? {
+        return Err("Incorrect PIN. Cannot reset application data.".to_string());
+    }
+
+    connection.execute("DELETE FROM cases;", []).map_err(db_error)?;
+    connection.execute("DELETE FROM otp_tokens;", []).map_err(db_error)?;
+    let _ = connection.execute("DELETE FROM sqlite_sequence WHERE name = 'cases';", []);
+
+    Ok(())
+}
+

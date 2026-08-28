@@ -9,6 +9,7 @@ import guidanceLogo from "../assets/guidance-logo.png";
 
 import { CaseRecord, StudentInfo } from "../types";
 import { RoleDropdown } from "../components/RoleDropdown";
+import DatePicker from "../components/DatePicker";
 
 const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
@@ -179,19 +180,6 @@ const parseProofs = (value: string): ProofItem[] => {
   } catch {
     return [];
   }
-};
-
-const formatDate = (dateString: string) => {
-  if (!dateString) return "";
-  const parsed = new Date(dateString);
-  if (Number.isNaN(parsed.getTime())) {
-    return dateString;
-  }
-  return parsed.toLocaleDateString(undefined, {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
 };
 
 const formatDateTime = (dateStr: string) => {
@@ -412,7 +400,7 @@ export default function CaseDetails() {
   const resetEditForm = useCallback((record: CaseRecord) => {
     setEditForm({
       students: parseStudents(record.students),
-      date: record.date,
+      date: record.date || record.date_filed || "",
       date_filed: record.date_filed,
       case: record.case,
       description: record.description,
@@ -489,8 +477,7 @@ export default function CaseDetails() {
     }
 
     if (
-      editForm.date !== caseRecord.date ||
-      editForm.date_filed !== caseRecord.date_filed ||
+      editForm.date !== (caseRecord.date || caseRecord.date_filed || "") ||
       editForm.case !== caseRecord.case ||
       editForm.description !== caseRecord.description ||
       editForm.sanction !== caseRecord.sanction ||
@@ -654,7 +641,7 @@ export default function CaseDetails() {
     if (!caseRecord) return;
     const parsedDate = new Date(editForm.date);
     const isFuture = !Number.isNaN(parsedDate.getTime()) && parsedDate > new Date();
-    const date = isFuture ? getTodayDateString() : editForm.date;
+    const date = isFuture ? getTodayDateString() : (editForm.date || caseRecord.date || caseRecord.date_filed || getTodayDateString());
     const normalizedStudents = editForm.students.map(normalizeStudent);
     const normalizedTitle = caseRecord.group_id ? capitalizeWords(editForm.title).slice(0, CASE_TITLE_LIMIT) : "";
     const diffs: Array<{ label: string; oldVal: string; newVal: string }> = [];
@@ -672,8 +659,9 @@ export default function CaseDetails() {
     if (editForm.sanction.trim() !== caseRecord.sanction) {
       diffs.push({ label: "Sanction", oldVal: caseRecord.sanction || "None", newVal: editForm.sanction.trim() || "None" });
     }
-    if (date !== caseRecord.date) {
-      diffs.push({ label: "Incident Date", oldVal: formatDate(caseRecord.date), newVal: formatDate(date) });
+    const currentCaseDate = caseRecord.date || caseRecord.date_filed || "";
+    if (date !== currentCaseDate) {
+      diffs.push({ label: "Case Date", oldVal: formatDateTime(currentCaseDate), newVal: formatDateTime(date) });
     }
     if (editForm.description.trim() !== caseRecord.description) {
       diffs.push({ label: "Description", oldVal: "Previous description", newVal: "Updated description" });
@@ -1482,9 +1470,61 @@ export default function CaseDetails() {
                 )}
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1">Date</label>
-                <p className="text-sm font-medium text-on-surface">{formatDateTime(caseRecord.date_filed)}</p>
+                {isEditing ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <DatePicker
+                        value={editForm.date ? editForm.date.split("T")[0] : ""}
+                        onChange={(val) => {
+                          if (!val) {
+                            setEditForm({ ...editForm, date: "" });
+                            return;
+                          }
+                          const timePart = editForm.date.includes("T") ? editForm.date.split("T")[1] : "";
+                          setEditForm({ ...editForm, date: val ? `${val}${timePart ? "T" + timePart : ""}` : "" });
+                        }}
+                        placeholder="Select Date"
+                        max={getTodayDateString()}
+                        className="w-full max-w-[200px]"
+                      />
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-secondary uppercase tracking-wider cursor-pointer select-none whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          className="w-3.5 h-3.5 rounded border-outline-variant text-primary focus:ring-primary"
+                          checked={editForm.date.includes("T")}
+                          onChange={(e) => {
+                            const datePart = editForm.date.split("T")[0] || getTodayDateString();
+                            if (e.target.checked) {
+                              const now = new Date();
+                              const timeStr = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+                              setEditForm({ ...editForm, date: `${datePart}T${timeStr}` });
+                            } else {
+                              setEditForm({ ...editForm, date: datePart });
+                            }
+                          }}
+                        />
+                        Add Time
+                      </label>
+                    </div>
+                    {editForm.date.includes("T") && (
+                      <input
+                        type="time"
+                        value={editForm.date.split("T")[1]?.slice(0, 5) || ""}
+                        onChange={(e) => {
+                          const datePart = editForm.date.split("T")[0] || getTodayDateString();
+                          setEditForm({ ...editForm, date: `${datePart}T${e.target.value}` });
+                        }}
+                        className="w-[140px] bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm font-medium text-on-surface leading-relaxed">
+                    {formatDateTime(caseRecord.date || caseRecord.date_filed)}
+                  </p>
+                )}
               </div>
 
               {!isEditing && (
@@ -1898,7 +1938,7 @@ export default function CaseDetails() {
                 </div>
                 <div style={{ display: "flex" }}>
                   <span style={{ width: 120, flexShrink: 0, color: "#6b7280", fontWeight: 700, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>Date</span>
-                  <span style={{ color: "#111827" }}>{formatDateTime(caseRecord.date_filed)}</span>
+                  <span style={{ color: "#111827" }}>{formatDateTime(caseRecord.date || caseRecord.date_filed)}</span>
                 </div>
                 <div style={{ display: "flex" }}>
                   <span style={{ width: 120, flexShrink: 0, color: "#6b7280", fontWeight: 700, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</span>

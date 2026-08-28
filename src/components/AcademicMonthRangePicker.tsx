@@ -300,7 +300,7 @@ export default function AcademicMonthRangePicker({
         className={`flex items-center h-[38px] rounded-lg border text-sm transition-all duration-300 ease-in-out text-left select-none relative overflow-hidden pl-3.5 pr-8 ${
           open
             ? "bg-surface-container border-primary ring-2 ring-primary/20 shadow-sm"
-            : "bg-surface border-outline-variant hover:border-primary/60 hover:bg-surface-container"
+            : "bg-surface border-outline-variant hover:border-outline hover:bg-surface-container"
         } ${className}`}
       >
         <div className="flex items-center gap-1.5 min-w-0 w-full">
@@ -438,10 +438,10 @@ export default function AcademicMonthRangePicker({
                   ref={(el) => {
                     yearSectionRefs.current[yr] = el;
                   }}
-                  className="rounded-xl border border-outline-variant/70 bg-surface-container-lowest/50 overflow-hidden shrink-0"
+                  className="rounded-xl border border-outline-variant bg-surface-container-low overflow-hidden shrink-0"
                 >
                   {/* Sticky Section Header */}
-                  <div className="sticky top-0 bg-surface/95 backdrop-blur-sm z-10 py-1.5 px-3 flex items-center justify-between border-b border-outline-variant/60">
+                  <div className="sticky top-0 bg-surface/95 backdrop-blur-sm z-10 py-1.5 px-3 flex items-center justify-between border-b border-outline-variant">
                     <span className="text-xs font-bold text-on-surface flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[15px] text-primary">
                         calendar_today
@@ -485,8 +485,8 @@ export default function AcademicMonthRangePicker({
                             isEdge
                               ? "bg-primary text-white border-primary font-bold shadow-sm"
                               : selected
-                              ? "bg-primary/15 text-primary border-primary/20 font-semibold"
-                              : "text-on-surface border-transparent hover:bg-surface-container hover:border-outline-variant/60"
+                              ? "bg-primary/15 text-primary border-primary font-semibold"
+                              : "text-on-surface border-transparent hover:bg-surface-container hover:border-outline-variant"
                           } ${isStart ? "ring-1 ring-primary ring-offset-1" : ""} ${
                             isEnd ? "ring-1 ring-primary ring-offset-1" : ""
                           }`}
