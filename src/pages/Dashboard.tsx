@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import html2pdf from "html2pdf.js";
@@ -32,51 +33,7 @@ const parseStudents = (studentsStr: string): StudentInfo[] => {
 
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 
-const PRESET_CASE_TYPES: string[] = [
-  "Poor academic performance",
-  "Learning difficulties",
-  "Study skills & habits",
-  "Absenteeism / tardiness",
-  "Course selection",
-  "Dropout prevention",
-  "Peer relationship issues",
-  "Family problems",
-  "Self-esteem & identity",
-  "Adjustment difficulties",
-  "Grief & loss",
-  "Gender & sexuality",
-  "Substance use",
-  "Social media issues",
-  "Defiance / non-compliance",
-  "Classroom disruption",
-  "Bullying",
-  "Truancy / skipping",
-  "Vandalism / property damage",
-  "Theft & dishonesty",
-  "Inappropriate language",
-  "Gang-related behaviour",
-  "Substance possession",
-  "Physical fighting",
-  "Assault on staff",
-  "Weapons possession",
-  "Threats & intimidation",
-  "Self-harm & suicide risk",
-  "Sexual harassment",
-  "Anxiety & depression",
-  "Trauma & abuse",
-  "Crisis intervention",
-  "Tardiness",
-  "Vaping",
-  "Cutting Classes",
-  "Vandalism",
-  "Gambling",
-  "Insubordination",
-  "Dress Code Violation",
-  "Cheating",
-  "Academic Dishonesty",
-  "Unauthorized Phone Usage",
-  "Loitering During Class Hours",
-];
+import { smartCategorizeCase } from "../utils/caseCategorization";
 
 const TYPE_COLORS = [
   "#7C96E8", // Blue
@@ -86,32 +43,24 @@ const TYPE_COLORS = [
   "#94A3B8", // Slate/Others
 ];
 
-const matchPresetCaseType = (rawCase: string): string => {
-  const trimmed = (rawCase || "").trim();
-  if (!trimmed) return "Others";
+const matchPresetCaseType = (rawCase: string, description?: string): string => {
+  return smartCategorizeCase(rawCase, description);
+};
 
-  const lower = trimmed.toLowerCase();
-
-  for (const preset of PRESET_CASE_TYPES) {
-    if (preset.toLowerCase() === lower) {
-      return preset;
-    }
+const isReprimandCase = (caseRecord: CaseRecord) => {
+  if ((caseRecord.sanction || "").toLowerCase().includes("reprimand")) {
+    return true;
   }
-
-  for (const preset of PRESET_CASE_TYPES) {
-    const parts = preset.toLowerCase().split("/").map((p) => p.trim());
-    if (parts.includes(lower)) {
-      return preset;
-    }
+  if ((caseRecord.progress || "").toLowerCase().includes("reprimand")) {
+    return true;
   }
-
-  return "Others";
+  const students = parseStudents(caseRecord.students);
+  return students.some((s) => (s.sanction || "").toLowerCase().includes("reprimand"));
 };
 
 const STATUS_CHART_SEGMENTS = [
   { label: "Resolved", color: "#7C96E8" },
   { label: "Pending", color: "#F0B94D" },
-  { label: "Reprimand", color: "#4FD1C5" },
   { label: "Closed", color: "#F17272" },
 ];
 
@@ -189,6 +138,7 @@ const isComplainantSubjectCaseRecord = (caseRecord: CaseRecord) => {
 
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const dashboardRef = useRef<HTMLDivElement>(null);
@@ -253,8 +203,8 @@ export default function Dashboard() {
     const total = filteredCases.length;
     const resolved = filteredCases.filter(c => (c.progress || "").toLowerCase() === "resolved").length;
     const closed = filteredCases.filter(c => (c.progress || "").toLowerCase() === "closed").length;
-    const reprimand = filteredCases.filter(c => (c.progress || "").toLowerCase().includes("reprimand")).length;
-    const pending = total - resolved - closed - reprimand;
+    const reprimand = filteredCases.filter(isReprimandCase).length;
+    const pending = total - resolved - closed;
 
     return { total, pending, resolved, closed, reprimand };
   }, [filteredCases]);
@@ -336,15 +286,13 @@ export default function Dashboard() {
   const statusDistribution = useMemo(() => {
     const resolved = filteredCases.filter(c => (c.progress || "").toLowerCase() === "resolved").length;
     const closed = filteredCases.filter(c => (c.progress || "").toLowerCase() === "closed").length;
-    const reprimand = filteredCases.filter(c => (c.progress || "").toLowerCase().includes("reprimand")).length;
-    const pending = filteredCases.length - resolved - closed - reprimand;
+    const pending = filteredCases.length - resolved - closed;
 
     return STATUS_CHART_SEGMENTS.map((segment) => {
       const label = segment.label.toLowerCase();
       let value = 0;
       if (label === "resolved") value = resolved;
       else if (label === "closed") value = closed;
-      else if (label === "reprimand") value = reprimand;
       else if (label === "pending") value = pending;
 
       return {
@@ -369,7 +317,7 @@ export default function Dashboard() {
     let othersCount = 0;
 
     for (const c of filteredCases) {
-      const matched = matchPresetCaseType(c.case || "");
+      const matched = matchPresetCaseType(c.case || "", c.description || "");
       if (matched === "Others") {
         othersCount++;
       } else {
@@ -416,7 +364,7 @@ export default function Dashboard() {
       const segments = typeDistribution.map((t) => {
         let count = 0;
         for (const c of gradeCases) {
-          const matched = matchPresetCaseType(c.case || "");
+          const matched = matchPresetCaseType(c.case || "", c.description || "");
           if (t.label === "Others") {
             if (matched === "Others" || !activeTopLabels.includes(matched)) {
               count++;
@@ -581,10 +529,22 @@ export default function Dashboard() {
     return () => { isMounted = false; };
   }, [isExporting, dashStartDate, dashEndDate]);
 
-  const renderDashboardPanel = (title: string, children: React.ReactNode, className = "") => (
-    <section className={`bg-surface border border-outline-variant rounded-lg shadow-sm overflow-hidden min-w-0 flex flex-col ${className}`}>
-      <div className="px-5 pt-5 pb-3 border-b border-outline-variant">
-        <h3 className="section-header-h2 m-0 mb-0">{title}</h3>
+  const renderDashboardPanel = (
+    title: string,
+    children: React.ReactNode,
+    className = "",
+    actionButton?: React.ReactNode,
+    onClick?: () => void
+  ) => (
+    <section
+      onClick={onClick}
+      className={`bg-surface border border-outline-variant rounded-lg shadow-sm overflow-hidden min-w-0 flex flex-col transition-all duration-200 ${
+        onClick ? "cursor-pointer hover:border-primary/70 hover:shadow-md group" : ""
+      } ${className}`}
+    >
+      <div className="px-5 py-3.5 border-b border-outline-variant flex items-center justify-between gap-3">
+        <h3 className="section-header-h2 m-0 mb-0 truncate text-sm sm:text-base font-bold">{title}</h3>
+        {actionButton}
       </div>
       <div className="p-5 flex-1 flex flex-col justify-center">
         {children}
@@ -716,7 +676,7 @@ export default function Dashboard() {
             Cases
           </text>
         </svg>
-        <div className={`grid grid-cols-2 gap-x-5 gap-y-2 mt-3 text-xs ${isForPdf ? "text-slate-600" : "text-secondary"}`}>
+        <div className={`grid grid-cols-3 gap-x-3 gap-y-2 mt-3 text-xs ${isForPdf ? "text-slate-600" : "text-secondary"}`}>
           {statusDistribution.map((segment) => (
             <div key={segment.label} className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: segment.color }} />
@@ -737,12 +697,27 @@ export default function Dashboard() {
         {typeDistribution.map((item) => {
           const widthPercent = item.value === 0 ? 0 : Math.max(8, (item.value / maxValue) * 100);
           return (
-            <div key={item.label} className="grid grid-cols-[130px_minmax(0,1fr)_32px] items-center gap-3">
-              <span className={`text-xs font-bold truncate ${isForPdf ? "text-slate-600" : "text-secondary"}`} title={item.label}>
+            <div
+              key={item.label}
+              onClick={(e) => {
+                if (isForPdf) return;
+                e.stopPropagation();
+                if (item.label === "Others") {
+                  navigate("/distribution");
+                } else {
+                  navigate(`/distribution?category=${encodeURIComponent(item.label)}`);
+                }
+              }}
+              className={`grid grid-cols-[130px_minmax(0,1fr)_32px] items-center gap-3 ${
+                isForPdf ? "" : "cursor-pointer group/bar hover:opacity-90 transition-opacity"
+              }`}
+              title={isForPdf ? item.label : `Click to view all ${item.label} cases in depth`}
+            >
+              <span className={`text-xs font-bold truncate ${isForPdf ? "text-slate-600" : "text-secondary group-hover/bar:text-primary transition-colors"}`} title={item.label}>
                 {item.label}
               </span>
               <div
-                className={`h-8 border rounded overflow-hidden ${isForPdf ? "bg-[#f1f5f9] border-[#e5e7eb]" : "bg-surface-container border-outline-variant"}`}
+                className={`h-8 border rounded overflow-hidden ${isForPdf ? "bg-[#f1f5f9] border-[#e5e7eb]" : "bg-surface-container border-outline-variant group-hover/bar:border-primary/50 group-hover/bar:ring-1 group-hover/bar:ring-primary/20 transition-all"}`}
               >
                 <div
                   className="h-full rounded-r transition-[width] duration-500"
@@ -815,11 +790,11 @@ export default function Dashboard() {
             </text>
           )}
         </svg>
-        <div className={`flex flex-wrap justify-center gap-x-5 gap-y-2 mt-4 text-xs ${isForPdf ? "text-slate-600" : "text-secondary"}`}>
+        <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 mt-3 text-xs ${isForPdf ? "text-slate-600" : "text-secondary"}`}>
           {typeDistribution.map((group) => (
-            <div key={group.label} className="flex items-center gap-2">
+            <div key={group.label} className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
-              <span>{group.label}</span>
+              <span className="truncate">{group.label}</span>
             </div>
           ))}
         </div>
@@ -867,7 +842,7 @@ export default function Dashboard() {
           { label: "Total Cases", value: stats.total, icon: "analytics", colorClass: "text-primary bg-surface-container" },
           { label: "Pending", value: stats.pending, icon: "pending_actions", colorClass: "text-[var(--badge-pending-text)] bg-[var(--badge-pending-bg)]" },
           { label: "Resolved", value: stats.resolved, icon: "task_alt", colorClass: "text-[var(--badge-resolved-text)] bg-[var(--badge-resolved-bg)]" },
-          { label: "Reprimand", value: stats.reprimand, icon: "gavel", colorClass: "text-[var(--badge-reprimand-text)] bg-[var(--badge-reprimand-bg)]" },
+          { label: "Sanctioned Cases", value: stats.reprimand, icon: "gavel", colorClass: "text-[var(--badge-reprimand-text)] bg-[var(--badge-reprimand-bg)]" },
           { label: "Closed", value: stats.closed, icon: "cancel", colorClass: "text-[var(--badge-closed-text)] bg-[var(--badge-closed-bg)]" },
         ].map((kpi) => (
           <StatCard
@@ -888,8 +863,25 @@ export default function Dashboard() {
             {renderDashboardPanel("Resolution Status", renderResolutionStatusChart(), "min-h-[360px]")}
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,0.95fr)_minmax(0,2fr)] gap-6 mt-6">
-            {renderDashboardPanel("Distribution by Type", renderTypeDistributionChart(), "min-h-[310px]")}
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,1fr)_minmax(0,1.8fr)] gap-6 mt-6">
+            {renderDashboardPanel(
+              "Distribution by Type",
+              renderTypeDistributionChart(),
+              "min-h-[310px]",
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate("/distribution");
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold text-primary dark:text-[#8ba2ff] bg-primary/10 hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/30 transition-all shrink-0 cursor-pointer"
+                title="View in-depth distribution analysis"
+              >
+                <span>In-Depth</span>
+                <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+              </button>,
+              () => navigate("/distribution")
+            )}
             {renderDashboardPanel("Caseload by Grade Level", renderGradeCaseloadChart(), "min-h-[310px]")}
           </div>
         </section>
@@ -923,7 +915,7 @@ export default function Dashboard() {
                 { label: "Total Cases", value: stats.total, color: "#002F87" },
                 { label: "Pending", value: stats.pending, color: "#D9A23B" },
                 { label: "Resolved", value: stats.resolved, color: "#15803D" },
-                { label: "Reprimand", value: stats.reprimand, color: "#6B7280" },
+                { label: "Sanctioned Cases", value: stats.reprimand, color: "#6B7280" },
                 { label: "Closed", value: stats.closed, color: "#4b5563" },
               ].map((kpi) => (
                 <div

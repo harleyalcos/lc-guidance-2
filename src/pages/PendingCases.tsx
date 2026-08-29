@@ -673,37 +673,39 @@ export default function PendingCases() {
                 </div>
 
                 {/* ── Resolve / Action bar ── */}
-                <div className="px-8 py-4 border-t border-outline-variant bg-surface shrink-0 flex items-center">
+                <div className="px-4 sm:px-8 py-3 sm:py-4 border-t border-outline-variant bg-surface shrink-0 flex items-center">
                   {confirmState === "idle" && (
-                    <div className="flex items-center gap-4 w-full">
-                      <p className="text-xs font-bold text-secondary dark:text-slate-400 flex-1">Update the status of this case:</p>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmState("reprimanding")}
-                        disabled={resolvingId !== null}
-                        className="btn-secondary text-error border-error hover:bg-error/5 font-bold text-xs flex items-center gap-1.5 shadow-sm px-5 py-2.5 bg-surface cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">gavel</span>
-                        <span>Mark reprimand</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmState("closing")}
-                        disabled={resolvingId !== null}
-                        className="btn-secondary text-secondary dark:text-slate-400 border-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high/40 bg-surface font-bold text-xs flex items-center gap-1.5 shadow-sm px-5 py-2.5 cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">inventory_2</span>
-                        <span>Mark closed</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmState("resolving")}
-                        disabled={resolvingId !== null}
-                        className="btn-primary flex items-center gap-1.5 text-xs font-bold px-6 py-2.5 bg-[#0B1E43] hover:bg-[#0F2451]"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                        <span>Resolve case</span>
-                      </button>
+                    <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+                      <p className="text-xs font-bold text-secondary dark:text-slate-400 min-w-fit">Update the status of this case:</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmState("reprimanding")}
+                          disabled={resolvingId !== null}
+                          className="btn-secondary text-error border-error hover:bg-error/5 font-bold text-xs flex items-center gap-1.5 shadow-sm px-4 py-2 bg-surface cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">gavel</span>
+                          <span>Mark reprimand</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmState("closing")}
+                          disabled={resolvingId !== null}
+                          className="btn-secondary text-secondary dark:text-slate-400 border-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high/40 bg-surface font-bold text-xs flex items-center gap-1.5 shadow-sm px-4 py-2 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+                          <span>Mark closed</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmState("resolving")}
+                          disabled={resolvingId !== null}
+                          className="btn-primary flex items-center gap-1.5 text-xs font-bold px-5 py-2 bg-[#0B1E43] hover:bg-[#0F2451]"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                          <span>Resolve case</span>
+                        </button>
+                      </div>
                     </div>
                   )}
 

@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ImportRow, ParseFileResult } from "../types";
+import { batchCategorizeRowsWithAi, PRESET_CASE_TYPES } from "../utils/caseCategorization";
 
 const collapseSpaces = (value: string) => value.replace(/\s+/g, " ").trim();
 
@@ -73,6 +74,8 @@ export default function ImportReview() {
     return "";
   });
   const [isImporting, setIsImporting] = useState(false);
+  const [isAiCategorizing, setIsAiCategorizing] = useState(false);
+  const [aiProgress, setAiProgress] = useState(0);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
@@ -331,6 +334,7 @@ export default function ImportReview() {
       });
 
       if (result.success || result.inserted_count > 0) {
+        window.dispatchEvent(new Event("cases:changed"));
         const readyIndices = new Set(readyRows.map(item => item.index));
         const remainingRows = rows.filter((_, idx) => !readyIndices.has(idx));
         setRows(remainingRows);
@@ -350,6 +354,41 @@ export default function ImportReview() {
       showToast("error", `Batch import failed: ${e}`);
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const handleAiCategorize = async () => {
+    if (rows.length === 0 || isAiCategorizing || isImporting) return;
+
+    try {
+      setIsAiCategorizing(true);
+      setAiProgress(0);
+
+      let apiKey = "";
+      try {
+        apiKey = await invoke<string>("get_gemini_api_key");
+      } catch (err) {
+        console.warn("Could not retrieve Gemini API key, using offline heuristics", err);
+      }
+
+      const { updatedRows, modifiedCount } = await batchCategorizeRowsWithAi(
+        rows,
+        apiKey,
+        (progressPercent) => setAiProgress(progressPercent)
+      );
+
+      if (modifiedCount > 0) {
+        setRows(updatedRows);
+        localStorage.setItem("lc_pending_import_rows", JSON.stringify(updatedRows));
+        showToast("success", `Standardized and mapped ${modifiedCount} case category(ies) using ${apiKey ? "Gemini AI" : "intelligent guidance classification"}.`);
+      } else {
+        showToast("success", "All imported rows are already mapped to standard distribution types.");
+      }
+    } catch (err) {
+      showToast("error", `AI categorization failed: ${err}`);
+    } finally {
+      setIsAiCategorizing(false);
+      setAiProgress(0);
     }
   };
 
@@ -437,11 +476,30 @@ export default function ImportReview() {
           </h2>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={handleAiCategorize}
+            disabled={isImporting || isAiCategorizing || rows.length === 0}
+            className="btn-secondary flex items-center gap-1.5 font-bold"
+            title="Automatically standardize and map case categories using AI and guidance classification"
+          >
+            {isAiCategorizing ? (
+              <>
+                <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                <span>Categorizing ({aiProgress}%)...</span>
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[18px] text-primary">auto_fix_high</span>
+                <span>AI Categorize</span>
+              </>
+            )}
+          </button>
           <button
             type="button"
             onClick={handleAddMoreFiles}
-            disabled={isImporting}
+            disabled={isImporting || isAiCategorizing}
             className="btn-secondary"
             title="Import additional Excel spreadsheet files into this review list"
           >
@@ -450,7 +508,7 @@ export default function ImportReview() {
           </button>
           <button
             onClick={handleImportReady}
-            disabled={readyRows.length === 0 || isImporting}
+            disabled={readyRows.length === 0 || isImporting || isAiCategorizing}
             className="btn-primary"
           >
             {isImporting ? (
@@ -834,11 +892,15 @@ export default function ImportReview() {
                   </label>
                   <input
                     type="text"
+                    list="import-review-case-type-options"
                     value={editData.case}
                     onChange={e => handleEditChange("case", autoCapitalize(e.target.value))}
                     onBlur={() => handleEditChange("case", capitalizeWords(editData.case))}
                     className="w-full border border-outline-variant rounded-lg p-2.5 text-sm bg-surface text-on-surface focus:border-primary focus:outline-none placeholder:text-muted"
                   />
+                  <datalist id="import-review-case-type-options">
+                    {PRESET_CASE_TYPES.map(opt => <option key={opt} value={opt} />)}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider text-[10px]">sanction</label>

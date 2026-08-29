@@ -701,11 +701,11 @@ export default function GroupCaseDetails() {
       </datalist>
 
       {/* Sub-header / Actions matching the design layout */}
-      <div className="flex justify-between items-center mb-4 mt-2 print:hidden">
-        <span className="font-data-mono text-xs font-semibold bg-surface border border-outline-variant px-3 py-1.5 rounded-lg text-secondary">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 mt-2 print:hidden">
+        <span className="font-data-mono text-xs font-semibold bg-surface border border-outline-variant px-3 py-1.5 rounded-lg text-secondary self-start sm:self-auto">
           ID: GC-2026-{repCase.id.toString().padStart(4, "0")}
         </span>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {isEditing ? (
             <>
               <button
