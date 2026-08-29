@@ -31,8 +31,10 @@ const getDynamicSystemPrompt = (): string => {
   const currentMonthIso = `${year}-${mm}`;
   const academicYear = now.getMonth() >= 7 ? `AY ${year}–${year + 1}` : `AY ${year - 1}–${year}`;
 
-  return `You are the Laguna College Guidance AI Assistant. Your purpose is to help guidance counselors analyze student case records, identify behavioral trends, and generate official guidance reports.
-Use the \`query_database_for_ai\` tool to get context from the SQLite database. The table is named 'cases'.
+  return `You are the Laguna College Guidance AI Assistant and Interactive User Manual.
+Your dual purpose is:
+1. DATA & COUNSELING ASSISTANT: Help guidance counselors analyze student case records, identify behavioral trends, suggest restorative interventions, and generate official institutional guidance reports.
+2. INTERACTIVE USER MANUAL & SYSTEM GUIDE: Serve as an on-demand, expert guide for counselors and staff on how to use every feature and workflow in the Laguna College Guidance Information System (LCGO).
 
 CALENDAR & REAL-TIME TEMPORAL CONTEXT (MANDATORY):
 - Current Real-World Date: ${dayOfWeek}, ${monthName} ${day}, ${year} (${isoDate})
@@ -46,18 +48,20 @@ CALENDAR & REAL-TIME TEMPORAL CONTEXT (MANDATORY):
 - When the user asks "what is the date today" or "what is the month today", state: "${currentMonthYear}" or "${monthName} ${day}, ${year}".
 - NEVER assume or default to past years like 2024 or 2025 unless the user explicitly asks for historical data from those specific years.
 
-Schema for 'cases' table:
+======================================================================
+SCHEMA FOR 'cases' TABLE (FOR DATABASE QUERIES):
+======================================================================
 - id (INTEGER): Unique case ID.
 - title (TEXT): Title of the case or incident.
 - case (TEXT): The type/category of the incident or offense (e.g. 'Bullying', 'Vaping', 'Tardiness', 'Academic Dishonesty', 'Peer relationship issues').
 - description (TEXT): Detailed description or narrative of the incident.
 - progress (TEXT): THE CASE STATUS! Values include: 'Pending', 'Reprimand' (or 'Reprimanded'), 'Resolved', 'Closed'.
   *CRITICAL STATUS RULE*: In this database, 'progress' is the column that stores the status of the case. When users ask for status counts, reprimand cases, pending cases, resolved cases, or closed cases, you MUST query the 'progress' column (e.g., LOWER(progress) LIKE '%reprimand%').
-- sanction (TEXT): The action taken, disciplinary penalty, or consequence assigned (e.g. 'Verbal Warning', 'Written Reprimand', 'Suspension', 'Community Service').
+- sanction (TEXT): The action taken, disciplinary penalty, or consequence assigned (e.g. 'Verbal Warning', 'Written Reprimand', 'Suspension', 'Community Service', 'Parent Conference').
 - date (TEXT, format YYYY-MM-DD): Date when the incident occurred.
 - date_filed (TEXT, format YYYY-MM-DD): Date when the case was filed.
 - first_name, last_name, middle_initial (TEXT): Respondent student's primary name details.
-- level (TEXT): Grade level (e.g. 'Grade 7', 'Grade 11').
+- level (TEXT): Grade level (e.g. 'Grade 7', 'Grade 11', 'College').
 - section (TEXT): Section name.
 - adviser (TEXT): Adviser's name.
 - reporting_student (TEXT): Student who reported the incident.
@@ -67,41 +71,139 @@ Schema for 'cases' table:
 - group_id (TEXT): Unique ID linking group incidents involving multiple students.
 - update_history (TEXT, JSON array): History log of status and case updates.
 
-IMPORTANT RULES & RESPONSE FORMATTING:
-1. ALWAYS use the \`query_database_for_ai\` tool if you need information about cases.
-2. Understanding Status vs. Sanction:
-   - CASE STATUS is stored in the 'progress' column ('Pending', 'Reprimand', 'Resolved', 'Closed').
-   - CASE SANCTION is stored in the 'sanction' column and is purely a descriptive text field (e.g. 'Written Reprimand', 'Verbal Warning', 'Suspension'). It has no impact on case status counts.
-   - When asked for case statuses, status counts, or reprimand cases, always query the 'progress' column (e.g., LOWER(progress) LIKE '%reprimand%').
-3. NEVER fabricate statistics, names, or case details. If information is unavailable or the query returns no results, clearly state that.
-4. Keep queries efficient (e.g. use COUNT, GROUP BY). Use case-insensitive matching like LOWER(...) or LIKE '%...%' for text comparisons.
-5. CONVERSATIONAL DEFAULT (PLAIN TEXT):
-   - When the user asks a question, requests numbers/counts, inquires about specific students, or asks for advice/explanations: respond in clear, helpful, and concise standard Markdown text (with bullet points or short tables as appropriate). DO NOT generate a formal report sheet.
-6. CONTEXT-DRIVEN FORMAL REPORTS (ONLY WHEN EXPLICITLY REQUESTED):
-   - ONLY generate a formal printable report document if the user EXPLICITLY asks to generate or create a report (e.g., "generate a report", "create a weekly/monthly report", "export a report", "give me a report sheet", or when selecting a report suggestion).
-   - **CRITICAL CONTEXT RULE (DO NOT DUMP RAW STUDENT ROWS UNLESS EXPLICITLY ASKED)**:
-     - Do NOT pull or dump individual student names/case records when the user asks for aggregate trends, common offenses, statistics, grade comparisons, or guidance insights. Pull ONLY what is relevant to the question!
-     - Tailor the table and analysis to the specific intent of the request:
-       * **A. Most Common Offenses / Top Cases Report**:
-         - Use SQL \`GROUP BY case ORDER BY count DESC\`.
-         - Summary Table:
-           | # | Offense / Case Type | Incident Count | % Share | Most Affected Grades | Primary Interventions Assigned |
-         - Narrative: Behavioral root causes, hotspot areas, and counselor intervention strategies.
-       * **B. Grade Level Breakdown & Trends Report**:
-         - Use SQL \`GROUP BY level\`.
-         - Summary Table:
-           | Grade Level | Total Cases | Primary Offense | Pending | Resolved | Reprimand | Closed |
-         - Narrative: Developmental dynamics across grade levels and tailored guidance plans.
-       * **C. General / Periodic Summary Report (e.g. Monthly / Annual Overview)**:
-         - Provide high-level volume metrics, a focused breakdown table of major case categories, and counselor observations.
-       * **D. Individual Case List / Audit (ONLY when user explicitly asks to "list all cases" or "show student records")**:
-         - Use the full case roster table:
-           | # | Date | Student | Grade | Adviser | Type | Description | Sanction | Status |
-   - Formal report response structure:
-     1. **Executive Overview**: 1-2 concise paragraphs summarizing the findings, patterns, and context.
-     2. **Focused Data Table**: Relevant summary or roster table matching the prompt's context.
-     3. **Counselor Insights & Recommendations**: 2-3 actionable guidance strategies and preventive interventions.
-     4. **Metadata JSON Block**: You MUST append the following JSON block at the very end of your response:
+======================================================================
+APP USER MANUAL & WORKFLOW KNOWLEDGE BASE:
+======================================================================
+When the user asks "How do I...", "Where is...", "Help me with...", "I forgot how to...", "Guide me on...", "What is the difference between...", or asks about any app feature or troubleshooting steps, use this official knowledge base. Provide concise, numbered, step-by-step guidance referencing exact UI buttons and page sections. DO NOT call \`query_database_for_ai\` for how-to/manual questions.
+
+1. APPLICATION NAVIGATION & FEATURE DIRECTORY:
+- **Sign In & Security Access (\`/login\`)**:
+  * PIN Authentication: Access requires a 6-digit or 4-digit security PIN.
+  * First-Time Setup: Prompts the user to set their master PIN and configure 3 security questions (e.g. Mother's maiden name, First pet, Childhood school).
+  * 'Forgot PIN?': If the user forgets their PIN, click 'Forgot PIN?' on the sign-in screen, answer the configured security questions, and set a new PIN.
+  * Sign Out: Click the 'Sign Out' icon/button at the bottom of the left sidebar to lock the session.
+- **Dashboard (\`/\`)**:
+  * Real-time metrics cards: Total Cases, Pending Cases, Reprimand Cases, Resolved Cases.
+  * Academic Year (AY) Selector: Select an academic year (e.g. AY 2025–2026, AY 2026–2027) in the top header to filter dashboard metrics, charts, and tables.
+  * Visual Charts: Grade Level Breakdown bar chart, Monthly Incident Trend chart, and Recent Cases table.
+  * Quick Actions: '+ New Case', 'Export', 'Import', 'Guidance AI'.
+- **Case Catalog (\`/catalog\`)**:
+  * Master searchable database of all student disciplinary and guidance records.
+  * Search Bar: Real-time search across student names, case titles, case numbers, sections, advisers, and offense types.
+  * Filter Chips: Filter by Status ('All', 'Pending', 'Reprimand', 'Resolved', 'Closed'), Grade Levels (Grade 7 to 12, College), and Academic Year.
+  * '+ New Case' Button: Launches modal to file an Individual Case or Group Incident.
+  * 'Export' Button: Export table records as CSV or Excel (.xlsx) file, or open a printable catalog table.
+  * Table Actions: Click any row or 'View Details' to open the case workspace.
+- **Pending Cases (\`/pending\`)**:
+  * Dedicated queue for cases requiring immediate counselor action or monitoring (specifically 'Pending' and 'Reprimand' cases).
+  * Fast-track status updating and ongoing case tracking without wading through resolved records.
+- **Case Details (\`/case/:id\`) & Group Case Details (\`/group-case/:groupId\`)**:
+  * Comprehensive case workspace for individual or multi-student incidents.
+  * Student Profiles: Lists all involved students with their assigned roles (Respondent, Complainant/Subject, Witness), Grade Level, Section, and Adviser.
+  * Case Status Dropdown: Update lifecycle status ('Pending', 'Reprimand', 'Resolved', 'Closed').
+  * Case Sanction Field: Record disciplinary action or guidance intervention (e.g., 'Verbal Warning', 'Written Reprimand', 'Parent Conference', 'Suspension', 'Community Service', 'Referral').
+  * Case Update History / Progress Notes: Add timestamped counselor notes, follow-up logs, and meeting records.
+  * Proof Documents & Attachments: Upload, view, and download evidence files (PDFs, PNG, JPG images). Delete obsolete proofs.
+  * 'Print / Export PDF' Button: Generates and prints an official Laguna College Case Incident Sheet formatted with institutional header, student details, case narrative, counselor notes, and signature line.
+  * Delete / Archive Case: Permanent deletion with safety confirmation modal.
+- **Summary Reports (\`/reports\`)**:
+  * Institutional analytics and formal report generation suite.
+  * Report Scope Filters: Filter by Period (Monthly, Quarterly, Semester, Annual), Academic Year, Grade Level, and Case Category.
+  * Visual Charts: Offense distribution, status breakdown, and monthly incident trends.
+  * Official Printable PDF Generator: Export formal summary reports with official Laguna College letterhead, statistical data tables, counselor observations, and authorized signature fields.
+- **Import Review (\`/import-review\`)**:
+  * Spreadsheet batch importer for onboarding case records from \`.xlsx\` or \`.csv\` files.
+  * Data Mapping: Automatically maps spreadsheet headers to system columns (Student Name, Grade, Section, Adviser, Case Type, Date, Description, Status, Sanction).
+  * Interactive Validation Grid: Inspect uploaded rows before saving. The system flags errors (missing required fields, invalid date formats) in red/amber and allows inline editing directly in the grid to correct values.
+  * 'Confirm & Import' Button: Inserts all validated rows directly into the SQLite database.
+- **Account & System Settings (\`/account\`)**:
+  * 'Profile & Security' Tab: Change current security PIN, update security recovery questions and answers.
+  * 'AI Configuration' Tab: Enter and save the Google Gemini API Key required for Guidance AI.
+  * 'System Backup & Recovery' Tab (\`/account?tab=backup\`):
+    - Create instant database backup (downloads SQLite \`.db\` file).
+    - Restore system database from a previous backup file (replaces current records with backup data).
+    - Factory reset / database purge option (requires confirmation).
+  * 'Appearance' Tab: Toggle between Light Mode and Dark Mode.
+  * 'System Updates' Tab: Check software version, release notes, and update status.
+- **Guidance AI (\`/ai\`)**:
+  * Natural language AI assistant for data analysis, trend identification, counselor intervention strategies, printable PDF report generation, and interactive app help.
+  * History Drawer (top right): Save conversation sessions, switch between chats, rename session titles, delete single sessions, or clear all history.
+  * Suggested Request Tabs: Toggle between '📊 Report Templates' and '📖 App Guide & Manual'.
+
+2. STEP-BY-STEP WORKFLOW PROCEDURES:
+- **How to File an Individual Case**:
+  1. Click **Case Catalog** in the sidebar (or **+ New Case** on Dashboard).
+  2. Click the **+ New Case** button at the top right.
+  3. Select **Individual Case**.
+  4. Enter the student's First Name, Last Name, Middle Initial, Grade Level, Section, and Adviser.
+  5. Select the **Case / Offense Type** (e.g. Bullying, Vaping, Tardiness, Academic Dishonesty) and the **Incident Date**.
+  6. Write the **Description / Narrative** detailing what occurred.
+  7. (Optional) Upload initial proof files (images or PDFs).
+  8. Click **Save Case** to record the incident.
+- **How to File a Group Incident (Multiple Students)**:
+  1. Click **+ New Case** and select **Group Incident**.
+  2. Enter the Incident Title, Date, and Description.
+  3. Add each involved student, specifying their role:
+     * **Respondent**: Student(s) facing the complaint or disciplinary concern.
+     * **Complainant / Subject**: Student(s) who reported or were affected by the incident.
+  4. Set grade level, section, and adviser for each student.
+  5. Click **Create Group Case**.
+- **How to Update Case Status vs. Sanctions**:
+  * **Case Status (progress)** tracks the case lifecycle:
+    - *Pending*: Newly filed; awaiting counselor review or parent meeting.
+    - *Reprimand / Reprimanded*: Action or formal warning issued; student is under behavioral monitoring.
+    - *Resolved*: Counseling session or amicable resolution completed.
+    - *Closed*: Final case disposition; no further action needed.
+  * **Case Sanction (sanction)** describes the specific disciplinary measure or guidance intervention (e.g., 'Verbal Warning', 'Written Reprimand', 'Parent Conference', 'Suspension', 'Community Service').
+  * *To update:* Open the case from Case Catalog or Pending Cases > Change Status in the dropdown > Select or type the Sanction > Add a note in Update History > Click Save.
+- **How to Batch Import Cases from Excel / CSV**:
+  1. Navigate to **Import Review** in the sidebar (or click **Import** on the Dashboard).
+  2. Upload your \`.xlsx\` or \`.csv\` file via drag-and-drop or file picker.
+  3. Review the parsed table:
+     * Ensure columns (Student Name, Grade, Case Type, Date) align properly.
+     * Look for highlighted red/amber rows. You can click on cells to edit and fix errors directly in the table.
+  4. Click **Confirm & Import Cases** to commit all valid records into the database.
+- **How to Create a System Backup & Restore**:
+  1. Go to **Settings** in the sidebar, then select **System Backup & Recovery** (or navigate to \`/account?tab=backup\`).
+  2. *To Backup:* Click **Create Backup** to download the latest SQLite database file (.db) to your device.
+  3. *To Restore:* Click **Restore from Backup**, select your previously saved .db file, and confirm. (Note: Restoring replaces current database records with the backup data).
+- **How to Recover a Forgotten PIN**:
+  1. On the Sign In screen, click **Forgot PIN?**.
+  2. Answer your preset security recovery questions correctly.
+  3. Enter and confirm your new security PIN.
+- **How to Configure the Gemini API Key**:
+  1. Open **Settings** > **AI Configuration**.
+  2. Paste your Google Gemini API key into the input field.
+  3. Click **Save API Key**. The Guidance AI assistant will now be fully active.
+- **How to Generate and Print Official Reports**:
+  * *Institutional Summary Report:* Go to **Reports** > Choose Period and filters > Click **Print / Export PDF**.
+  * *Individual Case Incident Sheet:* Open the case in **Case Catalog** > Click **Print Incident Report**.
+  * *AI Custom Analysis Report:* Ask Guidance AI to *"Generate a [Weekly/Monthly/Annual] Report"* > Preview the formatted report > Click **Download / Print PDF**.
+
+======================================================================
+RESPONSE FORMATTING & ROUTING RULES:
+======================================================================
+1. **HOW-TO / MANUAL INQUIRIES (NO DATABASE QUERY NEEDED)**:
+   - When the user asks how to perform actions in the app, where features are, or how to navigate:
+   - Provide direct, clear, numbered steps using bold text for UI buttons and page names.
+   - DO NOT call \`query_database_for_ai\` for user manual questions.
+
+2. **DATABASE INQUIRIES (ALWAYS QUERY SQLITE)**:
+   - When the user asks for case statistics, student histories, offense counts, or trends:
+   - ALWAYS call the \`query_database_for_ai\` tool.
+   - Use efficient SQL with LOWER() and LIKE for case-insensitive matching.
+   - NEVER fabricate statistics, student names, or dates.
+
+3. **CONVERSATIONAL DEFAULT (PLAIN TEXT MARKDOWN)**:
+   - For regular questions, counts, or app guidance, respond in clean Markdown with clear headings and bullet points. DO NOT generate the JSON metadata block.
+
+4. **FORMAL PDF REPORTS (ONLY WHEN EXPLICITLY REQUESTED)**:
+   - ONLY generate a formal printable report document when the user explicitly requests to "generate a report", "create a weekly/monthly/annual report", "export a report", or clicks a report template chip.
+   - Structure:
+     1. Executive Overview
+     2. Focused Data Table
+     3. Counselor Insights & Recommendations
+     4. Metadata JSON Block:
 \`\`\`json report_metadata
 {
   "title": "Descriptive Report Title (e.g. Monthly Case Summary Report)",
@@ -110,7 +212,6 @@ IMPORTANT RULES & RESPONSE FORMATTING:
   "status_filter": "e.g., All statuses or Resolved Only"
 }
 \`\`\`
-   - For all ordinary questions, inquiries, and conversations, NEVER include this JSON block.
 `;
 };
 
@@ -212,6 +313,59 @@ const getSuggestions = (): SuggestionItem[] => {
   ];
 };
 
+const getManualSuggestions = (): SuggestionItem[] => {
+  return [
+    {
+      ref: "MAN-FILE",
+      title: "Filing Cases & Incidents",
+      sub: "Individual vs. Group cases step-by-step",
+      prompt: "How do I file a new individual or group case in the system?",
+    },
+    {
+      ref: "MAN-IMP",
+      title: "Excel & CSV Batch Import",
+      sub: "Uploading spreadsheets & Import Review",
+      prompt: "Guide me on how to import multiple case records from an Excel or CSV file.",
+    },
+    {
+      ref: "MAN-STS",
+      title: "Case Status vs. Sanctions",
+      sub: "Lifecycle: Pending, Reprimand, Resolved",
+      prompt: "What is the difference between Case Status and Case Sanction, and how do I update them?",
+    },
+    {
+      ref: "MAN-BAK",
+      title: "System Backup & Recovery",
+      sub: "Creating backups & restoring database",
+      prompt: "How do I create a database backup and restore it if needed?",
+    },
+    {
+      ref: "MAN-RPT",
+      title: "Printing Official Reports",
+      sub: "PDF exports, case sheets & summaries",
+      prompt: "How do I generate and print official case sheets and summary reports?",
+    },
+    {
+      ref: "MAN-SEC",
+      title: "PIN & Security Management",
+      sub: "Updating PIN, security questions & API key",
+      prompt: "How do I change my security PIN and configure my Gemini AI API key?",
+    },
+    {
+      ref: "MAN-CAT",
+      title: "Searching & Filtering Cases",
+      sub: "Using search filters, academic years & tags",
+      prompt: "How can I search and filter cases by student, grade level, and academic year in the Case Catalog?",
+    },
+    {
+      ref: "MAN-ATT",
+      title: "Attaching Proofs & Notes",
+      sub: "Uploading evidence files & update history",
+      prompt: "How do I upload proof documents and record case update logs for an ongoing case?",
+    },
+  ];
+};
+
 const MessageBubble = ({
   isUser,
   cleanText,
@@ -265,6 +419,7 @@ export default function GuidanceAI() {
   const [inputValue, setInputValue] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
+  const [suggestionTab, setSuggestionTab] = useState<"reports" | "manual">("reports");
 
   // History Drawer State
   const [sessions, setSessions] = useState<AiSession[]>([]);
@@ -773,35 +928,72 @@ export default function GuidanceAI() {
           <div className="h-full flex flex-col justify-center max-w-3xl mx-auto">
             <div className="w-full max-w-3xl mx-auto flex flex-col">
               <div className="w-full border border-outline-variant rounded-xl overflow-hidden bg-surface shadow-xs">
-                {/* Table Header */}
-                <div className="flex items-center px-6 py-3 border-b border-outline-variant bg-surface-container-low micro-label text-left">
-                  <span className="flex-1">SUGGESTED REQUESTS</span>
+                {/* Table Header with Tabs */}
+                <div className="flex items-center justify-between px-4 py-2 border-b border-outline-variant bg-surface-container-low">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSuggestionTab("reports");
+                        setShowAllSuggestions(false);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        suggestionTab === "reports"
+                          ? "bg-primary text-on-primary shadow-xs"
+                          : "text-secondary hover:text-on-surface hover:bg-surface-container"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[15px]">analytics</span>
+                      <span>Report Templates</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSuggestionTab("manual");
+                        setShowAllSuggestions(false);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        suggestionTab === "manual"
+                          ? "bg-primary text-on-primary shadow-xs"
+                          : "text-secondary hover:text-on-surface hover:bg-surface-container"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[15px]">menu_book</span>
+                      <span>App Guide &amp; Manual</span>
+                    </button>
+                  </div>
+                  <span className="micro-label hidden sm:inline-block text-secondary">
+                    {suggestionTab === "reports" ? "ANALYTICS & REPORTS" : "HOW-TO & TUTORIALS"}
+                  </span>
                 </div>
 
                 {/* Rows */}
                 <div className="grid grid-cols-1 md:grid-cols-2 bg-outline-variant gap-[1px]">
-                  {(showAllSuggestions ? getSuggestions() : getSuggestions().slice(0, 4)).map(
-                    (suggestion) => (
-                      <button
-                        key={suggestion.ref}
-                        type="button"
-                        onClick={() => handleSelectSuggestion(suggestion.prompt)}
-                        className="w-full h-full flex items-center px-6 py-4 bg-surface hover:bg-surface-container transition-colors text-left group cursor-pointer"
-                      >
-                        <div className="flex-1 min-w-0 pr-4">
-                          <div className="font-serif text-sm font-bold text-gray-900 dark:text-on-surface group-hover:text-primary transition-colors">
-                            {suggestion.title}
-                          </div>
-                          <div className="font-data-mono text-xs text-gray-500 dark:text-secondary mt-0.5">
-                            {suggestion.sub}
-                          </div>
+                  {(showAllSuggestions
+                    ? suggestionTab === "reports"
+                      ? getSuggestions()
+                      : getManualSuggestions()
+                    : (suggestionTab === "reports" ? getSuggestions() : getManualSuggestions()).slice(0, 4)
+                  ).map((suggestion) => (
+                    <button
+                      key={suggestion.ref}
+                      type="button"
+                      onClick={() => handleSelectSuggestion(suggestion.prompt)}
+                      className="w-full h-full flex items-center px-6 py-4 bg-surface hover:bg-surface-container transition-colors text-left group cursor-pointer"
+                    >
+                      <div className="flex-1 min-w-0 pr-4">
+                        <div className="font-serif text-sm font-bold text-gray-900 dark:text-on-surface group-hover:text-primary transition-colors">
+                          {suggestion.title}
                         </div>
-                        <span className="material-symbols-outlined text-gray-400 dark:text-secondary opacity-80 group-hover:opacity-100 group-hover:translate-x-1 group-hover:text-primary transition-all text-[18px]">
-                          arrow_forward
-                        </span>
-                      </button>
-                    )
-                  )}
+                        <div className="font-data-mono text-xs text-gray-500 dark:text-secondary mt-0.5">
+                          {suggestion.sub}
+                        </div>
+                      </div>
+                      <span className="material-symbols-outlined text-gray-400 dark:text-secondary opacity-80 group-hover:opacity-100 group-hover:translate-x-1 group-hover:text-primary transition-all text-[18px]">
+                        arrow_forward
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -811,7 +1003,11 @@ export default function GuidanceAI() {
                 className="mt-4 text-xs font-serif font-medium text-gray-600 dark:text-secondary hover:text-primary dark:hover:text-primary flex items-center gap-1 cursor-pointer transition-colors"
               >
                 <span>
-                  {showAllSuggestions ? "Show fewer templates" : "View all report templates"}
+                  {showAllSuggestions
+                    ? "Show fewer"
+                    : suggestionTab === "reports"
+                    ? "View all report templates"
+                    : "View all guide topics"}
                 </span>
                 <span className="material-symbols-outlined text-[16px]">
                   {showAllSuggestions ? "expand_less" : "expand_more"}
@@ -888,10 +1084,9 @@ export default function GuidanceAI() {
       <div className="flex-none p-4 md:p-6 bg-surface dark:bg-surface-container-lowest relative z-20">
         <div className="max-w-4xl mx-auto mb-2 flex items-center justify-between text-xs text-secondary px-1">
           <div className="flex items-center gap-1.5 font-medium text-[11px] text-primary/80 dark:text-[#7f9cf8]">
-            <span className="material-symbols-outlined text-[14px]">tune</span>
+            <span className="material-symbols-outlined text-[14px]">help_outline</span>
             <span>
-              <strong>Tip:</strong> Include <strong>Date Range / AY</strong> &amp;{" "}
-              <strong>Scope</strong> (e.g. <em>AY 2026-2027, Grade 10</em>) in your prompt for precise records context.
+              <strong>Tip:</strong> Ask for case trends, generate formal reports, or ask <em>"How do I...?"</em> for step-by-step app guides.
             </span>
           </div>
         </div>
@@ -902,7 +1097,7 @@ export default function GuidanceAI() {
             value={inputValue}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about case trends or generate reports"
+            placeholder="Ask about case trends, generate reports, or ask how to use the app..."
             className="w-full bg-surface border border-outline-variant rounded-2xl pl-5 pr-14 py-3.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none overflow-y-auto shadow-sm"
             style={{ minHeight: "52px", maxHeight: "200px" }}
             rows={1}
