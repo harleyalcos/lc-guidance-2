@@ -195,12 +195,19 @@ const formatRelativeFiled = (dateStr: string) => {
 
 const isResolved = (progress: string) => progress.toLowerCase() === "resolved";
 const isClosed = (progress: string) => progress.toLowerCase() === "closed";
-const isReprimand = (caseRecord: CaseRecord) =>
-  (caseRecord.progress || "").toLowerCase().includes("reprimand");
+const isReprimand = (caseRecord: CaseRecord) => {
+  if ((caseRecord.sanction || "").toLowerCase().includes("reprimand")) {
+    return true;
+  }
+  if ((caseRecord.progress || "").toLowerCase().includes("reprimand")) {
+    return true;
+  }
+  const students = parseStudents(caseRecord.students);
+  return students.some((s) => (s.sanction || "").toLowerCase().includes("reprimand"));
+};
 const isPending = (progress: string) => {
   const normProgress = (progress || "").toLowerCase();
-  const isRep = normProgress.includes("reprimand");
-  return normProgress !== "resolved" && normProgress !== "closed" && !isRep;
+  return normProgress !== "resolved" && normProgress !== "closed";
 };
 
 const getBadgeClass = (progress: string) => {
@@ -1296,9 +1303,9 @@ export default function CaseCatalog() {
         document.body
       )}
 
-      <div className="flex justify-between items-end mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <h1 className="page-header-h1 m-0">Case Catalog</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="btn-secondary"
@@ -1334,7 +1341,7 @@ export default function CaseCatalog() {
         <StatCard label="Total Cases" value={isLoading ? "..." : stats.totalCases} icon="analytics" colorClass="text-primary bg-primary/5" />
         <StatCard label="Pending Cases" value={isLoading ? "..." : stats.pendingReview} icon="pending_actions" colorClass="text-[#D9A23B] bg-[#D9A23B]/5" />
         <StatCard label="Resolved Cases" value={isLoading ? "..." : stats.resolvedAllTime} icon="task_alt" colorClass="text-[#15803D] bg-[#15803D]/5" />
-        <StatCard label="Reprimanded Cases" value={isLoading ? "..." : stats.reprimandedCases} icon="gavel" colorClass="text-[#6B7280] bg-[#6B7280]/5" />
+        <StatCard label="Sanctioned Cases" value={isLoading ? "..." : stats.reprimandedCases} icon="gavel" colorClass="text-[#6B7280] bg-[#6B7280]/5" />
       </div>
 
       {/* Search & Filters System */}

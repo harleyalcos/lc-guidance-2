@@ -55,9 +55,9 @@ SCHEMA FOR 'cases' TABLE (FOR DATABASE QUERIES):
 - title (TEXT): Title of the case or incident.
 - case (TEXT): The type/category of the incident or offense (e.g. 'Bullying', 'Vaping', 'Tardiness', 'Academic Dishonesty', 'Peer relationship issues').
 - description (TEXT): Detailed description or narrative of the incident.
-- progress (TEXT): THE CASE STATUS! Values include: 'Pending', 'Reprimand' (or 'Reprimanded'), 'Resolved', 'Closed'.
-  *CRITICAL STATUS RULE*: In this database, 'progress' is the column that stores the status of the case. When users ask for status counts, reprimand cases, pending cases, resolved cases, or closed cases, you MUST query the 'progress' column (e.g., LOWER(progress) LIKE '%reprimand%').
-- sanction (TEXT): The action taken, disciplinary penalty, or consequence assigned (e.g. 'Verbal Warning', 'Written Reprimand', 'Suspension', 'Community Service', 'Parent Conference').
+- progress (TEXT): THE CASE STATUS! Values include: 'Pending', 'Resolved', 'Closed' (or legacy 'Reprimand').
+  *CRITICAL STATUS RULE*: 'progress' stores the lifecycle status (Pending, Resolved, Closed). When users ask for status counts (e.g. pending, resolved, closed), query the 'progress' column. When users ask for reprimand, sanctioned cases, or disciplinary action counts, query both 'sanction' (e.g., LOWER(sanction) LIKE '%reprimand%') and 'progress' (e.g., LOWER(progress) LIKE '%reprimand%').
+- sanction (TEXT): The action taken, disciplinary penalty, or consequence assigned (e.g. 'Verbal Warning', 'Written Reprimand', 'Reprimand', 'Suspension', 'Community Service', 'Parent Conference').
 - date (TEXT, format YYYY-MM-DD): Date when the incident occurred.
 - date_filed (TEXT, format YYYY-MM-DD): Date when the case was filed.
 - first_name, last_name, middle_initial (TEXT): Respondent student's primary name details.

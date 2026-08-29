@@ -12,6 +12,7 @@ import AccountSettings from "./pages/AccountSettings";
 import ImportReview from "./pages/ImportReview";
 import SignIn from "./pages/SignIn";
 import GuidanceAI from "./pages/GuidanceAI";
+import CaseDistribution from "./pages/CaseDistribution";
 import { AcademicYearFilterProvider } from "./context/AcademicYearFilterContext";
 import { UpdateProvider } from "./context/UpdateContext";
 import "./App.css";
@@ -22,6 +23,7 @@ function AppRoutes() {
   const getTitle = () => {
     if (location.pathname.startsWith("/case/") || location.pathname.startsWith("/group-case/")) return "Case Catalog";
     if (location.pathname === "/catalog") return "Case Catalog";
+    if (location.pathname === "/distribution") return "Case Distribution";
     if (location.pathname === "/pending") return "Pending Cases";
     if (location.pathname === "/backup") return "Settings";
     if (location.pathname === "/account") return "Settings";
@@ -36,6 +38,7 @@ function AppRoutes() {
       <Layout title={getTitle()} pageKey={location.pathname}>
         <Routes location={location}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/distribution" element={<CaseDistribution />} />
           <Route path="/reports" element={<SummaryReports />} />
           <Route path="/catalog" element={<CaseCatalog />} />
           <Route path="/pending" element={<PendingCases />} />

@@ -682,22 +682,22 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
   const displayCat = formData.case.trim() ? activeCat ?? OTHER_CASE_CATEGORY : null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200 ease-out ${isOpen ? "opacity-100 new-case-modal-backdrop-enter" : "opacity-0 pointer-events-none modal-backdrop-exit"}`}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 transition-opacity duration-200 ease-out ${isOpen ? "opacity-100 new-case-modal-backdrop-enter" : "opacity-0 pointer-events-none modal-backdrop-exit"}`}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseAttempt} />
 
       {/* Panel */}
-      <div className={`relative w-full max-w-[960px] bg-surface-container-low rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden transition-all duration-200 ease-out ${isOpen ? "translate-y-0 scale-100 opacity-100 new-case-modal-panel-enter" : "translate-y-4 scale-[0.98] opacity-0 modal-panel-exit"}`}>
+      <div className={`relative w-full max-w-[960px] bg-surface-container-low rounded-2xl shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[92vh] overflow-hidden transition-all duration-200 ease-out ${isOpen ? "translate-y-0 scale-100 opacity-100 new-case-modal-panel-enter" : "translate-y-4 scale-[0.98] opacity-0 modal-panel-exit"}`}>
 
         {/* ── Header ── */}
-        <div className="px-7 py-4 bg-surface flex items-center justify-between border-b border-outline-variant shrink-0">
+        <div className="px-4 sm:px-7 py-3 sm:py-4 bg-surface flex items-center justify-between border-b border-outline-variant shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-primary text-on-primary flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-white" style={{ fontSize: 18 }}>folder_open</span>
             </div>
             <div>
               <p className="text-[10px] font-bold tracking-widest uppercase text-secondary">Guidance Office</p>
-              <h2 className="text-[19px] font-extrabold text-on-surface leading-tight">File New Case</h2>
+              <h2 className="text-[17px] sm:text-[19px] font-extrabold text-on-surface leading-tight">File New Case</h2>
             </div>
           </div>
           <button onClick={handleCloseAttempt} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-secondary hover:text-on-surface transition-colors duration-500">
@@ -706,8 +706,8 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         </div>
 
         {/* ── Step Progress Bar ── */}
-        <div className="px-7 py-2.5 bg-surface border-b border-outline-variant shrink-0">
-          <div className="flex items-center w-full max-w-2xl mx-auto px-4">
+        <div className="px-4 sm:px-7 py-2.5 bg-surface border-b border-outline-variant shrink-0 overflow-x-auto">
+          <div className="flex items-center w-full max-w-2xl mx-auto px-2 min-w-max">
             {STEPS.map((label, idx) => {
               const n = idx + 1;
               const isActive = currentStep === n;
@@ -729,7 +729,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     </span>
                   </div>
                   {idx < STEPS.length - 1 && (
-                    <div className={`h-px flex-grow mx-2 sm:mx-4 transition-colors ${isDone ? "bg-[#0B1E43]/40" : "bg-outline-variant"}`} />
+                    <div className={`h-px flex-grow min-w-4 mx-2 sm:mx-4 transition-colors ${isDone ? "bg-[#0B1E43]/40" : "bg-outline-variant"}`} />
                   )}
                 </Fragment>
               );
