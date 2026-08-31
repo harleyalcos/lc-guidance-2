@@ -670,6 +670,7 @@ export default function CaseCatalog() {
       pendingReview: displayCases.filter((caseRecord) => isPending(caseRecord.progress)).length,
       resolvedAllTime: displayCases.filter((caseRecord) => isResolved(caseRecord.progress)).length,
       reprimandedCases: displayCases.filter(isReprimand).length,
+      closedCases: displayCases.filter((caseRecord) => isClosed(caseRecord.progress)).length,
     };
   }, [displayCases]);
 
@@ -1337,11 +1338,12 @@ export default function CaseCatalog() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <StatCard label="Total Cases" value={isLoading ? "..." : stats.totalCases} icon="analytics" colorClass="text-primary bg-primary/5" />
         <StatCard label="Pending Cases" value={isLoading ? "..." : stats.pendingReview} icon="pending_actions" colorClass="text-[#D9A23B] bg-[#D9A23B]/5" />
         <StatCard label="Resolved Cases" value={isLoading ? "..." : stats.resolvedAllTime} icon="task_alt" colorClass="text-[#15803D] bg-[#15803D]/5" />
-        <StatCard label="Sanctioned Cases" value={isLoading ? "..." : stats.reprimandedCases} icon="gavel" colorClass="text-[#6B7280] bg-[#6B7280]/5" />
+        <StatCard label="Closed Cases" value={isLoading ? "..." : stats.closedCases} icon="cancel" colorClass="text-[#4B5563] bg-[#4B5563]/5" />
+        <StatCard label="Reprimanded" value={isLoading ? "..." : stats.reprimandedCases} icon="gavel" colorClass="text-[#6B7280] bg-[#6B7280]/5" />
       </div>
 
       {/* Search & Filters System */}

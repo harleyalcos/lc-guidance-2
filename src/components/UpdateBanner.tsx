@@ -15,7 +15,7 @@ export default function UpdateBanner({ isSidebarCollapsed }: UpdateBannerProps) 
     <aside
       aria-label="Software update notification"
       className={`border-b border-primary/25 bg-[#EEF2FC] dark:bg-[#151D33] text-[#002F87] dark:text-[#b4c5ff] px-margin-page py-2.5 flex items-center justify-between gap-4 transition-[margin-left] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        isSidebarCollapsed ? "ml-[84px]" : "ml-[280px]"
+        isSidebarCollapsed ? "ml-[64px]" : "ml-[240px]"
       } print:hidden animate-fade-in shadow-xs z-10`}
     >
       <div className="flex items-center gap-3 min-w-0">

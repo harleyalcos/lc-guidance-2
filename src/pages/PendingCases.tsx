@@ -134,7 +134,7 @@ export default function PendingCases() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
-  const [confirmState, setConfirmState] = useState<"idle" | "resolving" | "reprimanding" | "closing">("idle");
+  const [confirmState, setConfirmState] = useState<"idle" | "resolving" | "closing">("idle");
   const [resolvedIds, setResolvedIds] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [dateSort] = useState<"desc" | "asc">("desc");
@@ -371,7 +371,7 @@ export default function PendingCases() {
             <div className="px-5 py-4 flex items-center justify-between bg-surface shrink-0">
               <span className="text-xs font-bold tracking-widest uppercase text-secondary dark:text-slate-400">Active Queue</span>
               {cases.length > 0 && (
-                <span className="bg-[#fee2e2] text-[#b91c1c] text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                <span className="bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200/60 dark:border-red-800/40 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
                   {cases.length} PENDING
                 </span>
               )}
@@ -523,10 +523,10 @@ export default function PendingCases() {
 
                   {/* Case Title Section */}
                   <div className="flex flex-col gap-1">
-                    <p className="text-xs text-muted dark:text-slate-400">
+                    <p className="text-xs text-secondary">
                       Case no. {selectedCase.group_id || `2026-${selectedCase.id.toString().padStart(4, "0")}`}
                     </p>
-                    <h3 className="text-2xl font-bold text-primary dark:text-[#7f9cf8] leading-tight">
+                    <h3 className="text-2xl font-bold text-primary leading-tight">
                       {(() => {
                         const students = parseStudents(selectedCase.students);
                         if (students.length === 0) return "—";
@@ -539,7 +539,7 @@ export default function PendingCases() {
                         return name;
                       })()}
                     </h3>
-                    <p className="text-xs text-muted dark:text-slate-400 mt-0.5">
+                    <p className="text-xs text-secondary mt-0.5">
                       {(() => {
                         const students = parseStudents(selectedCase.students);
                         if (students.length === 0) return "";
@@ -557,23 +557,23 @@ export default function PendingCases() {
                   {/* Case information */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                     <div>
-                      <p className="text-[11px] text-muted dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Case type</p>
-                      <p className="text-sm font-bold text-on-surface dark:text-slate-200">{selectedCase.case || "—"}</p>
+                      <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Case type</p>
+                      <p className="text-sm font-bold text-on-surface">{selectedCase.case || "—"}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-muted dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Date</p>
-                      <p className="text-sm font-medium text-on-surface dark:text-slate-200">{formatDateTime(selectedCase.date_filed || selectedCase.date)}</p>
+                      <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Date</p>
+                      <p className="text-sm font-medium text-on-surface">{formatDateTime(selectedCase.date_filed || selectedCase.date)}</p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-[11px] text-muted font-bold uppercase tracking-wider mb-1">Description</p>
-                      <p className="text-sm text-on-surface dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
-                        {selectedCase.description || <span className="italic text-muted">No description recorded.</span>}
+                      <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Description</p>
+                      <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
+                        {selectedCase.description || <span className="italic text-secondary">No description recorded.</span>}
                       </p>
                     </div>
                     <div className="col-span-2">
-                      <p className="text-[11px] text-muted font-bold uppercase tracking-wider mb-1">Sanction / action taken</p>
-                      <p className="text-sm text-on-surface dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
-                        {selectedCase.sanction || <span className="italic text-muted">No sanction recorded.</span>}
+                      <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Sanction / action taken</p>
+                      <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
+                        {selectedCase.sanction || <span className="italic text-secondary">No sanction recorded.</span>}
                       </p>
                     </div>
                   </div>
@@ -582,7 +582,7 @@ export default function PendingCases() {
 
                   {/* Students Involved section */}
                   <div className="flex flex-col gap-3">
-                    <h4 className="text-sm font-bold text-on-surface dark:text-slate-200">Students Involved</h4>
+                    <h4 className="text-sm font-bold text-on-surface">Students Involved</h4>
                     {(() => {
                       const students = parseStudents(selectedCase.students);
                       if (students.length === 0) return <p className="text-xs text-muted italic">No students recorded.</p>;
@@ -680,27 +680,18 @@ export default function PendingCases() {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setConfirmState("reprimanding")}
-                          disabled={resolvingId !== null}
-                          className="btn-secondary text-error border-error hover:bg-error/5 font-bold text-xs flex items-center gap-1.5 shadow-sm px-4 py-2 bg-surface cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">gavel</span>
-                          <span>Mark reprimand</span>
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => setConfirmState("closing")}
                           disabled={resolvingId !== null}
-                          className="btn-secondary text-secondary dark:text-slate-400 border-outline-variant hover:bg-surface-container dark:hover:bg-surface-container-high/40 bg-surface font-bold text-xs flex items-center gap-1.5 shadow-sm px-4 py-2 cursor-pointer"
+                          className="btn-secondary text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-[#242B3A] hover:bg-slate-200 dark:hover:bg-[#2F374A] border border-slate-300 dark:border-slate-600 font-bold text-xs flex items-center gap-1.5 shadow-sm px-4 py-2 rounded-xl transition-all duration-200 cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+                          <span className="material-symbols-outlined text-[16px] text-slate-600 dark:text-slate-300">inventory_2</span>
                           <span>Mark closed</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setConfirmState("resolving")}
                           disabled={resolvingId !== null}
-                          className="btn-primary flex items-center gap-1.5 text-xs font-bold px-5 py-2 bg-[#0B1E43] hover:bg-[#0F2451]"
+                          className="btn-primary flex items-center gap-1.5 text-xs font-bold px-5 py-2"
                         >
                           <span className="material-symbols-outlined text-[16px]">check_circle</span>
                           <span>Resolve case</span>
@@ -741,14 +732,14 @@ export default function PendingCases() {
 
                   {confirmState === "closing" && (
                     <div className="flex items-center gap-3 bg-surface-container dark:bg-surface-container rounded-xl px-4 py-3 border border-outline-variant w-full">
-                      <span className="material-symbols-outlined text-[#4D5A66] dark:text-slate-400" style={{ fontSize: 18 }}>inventory_2</span>
-                      <p className="text-sm text-on-surface dark:text-slate-200 flex-1">
+                      <span className="material-symbols-outlined text-slate-600 dark:text-slate-300" style={{ fontSize: 18 }}>inventory_2</span>
+                      <p className="text-sm text-on-surface flex-1">
                         Mark case <span className="font-bold">#{selectedCase.id}</span> as <span className="font-bold">Closed</span>?
                       </p>
                       <button
                         type="button"
                         onClick={() => setConfirmState("idle")}
-                        className="btn-secondary py-1.5 px-4 text-xs font-bold bg-white dark:bg-surface-container"
+                        className="btn-secondary py-1.5 px-4 text-xs font-bold bg-surface"
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
                         <span>Cancel</span>
@@ -757,7 +748,7 @@ export default function PendingCases() {
                         type="button"
                         onClick={() => handleUpdateProgress(selectedCase.id, "Closed")}
                         disabled={resolvingId === selectedCase.id}
-                        className="btn-primary bg-[#4D5A66] hover:bg-slate-700 text-xs font-bold"
+                        className="btn-primary bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white text-xs font-bold"
                       >
                         {resolvingId === selectedCase.id ? (
                           <span className="material-symbols-outlined animate-spin" style={{ fontSize: 14 }}>progress_activity</span>
@@ -765,36 +756,6 @@ export default function PendingCases() {
                           <span className="material-symbols-outlined" style={{ fontSize: 14 }}>inventory_2</span>
                         )}
                         <span>Confirm closed</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {confirmState === "reprimanding" && (
-                    <div className="flex items-center gap-3 bg-surface-container dark:bg-surface-container rounded-xl px-4 py-3 border border-outline-variant w-full">
-                      <span className="material-symbols-outlined text-[#A32D2D] dark:text-red-400" style={{ fontSize: 18 }}>gavel</span>
-                      <p className="text-sm text-on-surface dark:text-slate-200 flex-1">
-                        Mark case <span className="font-bold">#{selectedCase.id}</span> as <span className="font-bold">Reprimand</span>?
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmState("idle")}
-                        className="btn-secondary py-1.5 px-4 text-xs font-bold bg-white dark:bg-surface-container"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
-                        <span>Cancel</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateProgress(selectedCase.id, "Reprimand")}
-                        disabled={resolvingId === selectedCase.id}
-                        className="btn-primary bg-[#A32D2D] hover:bg-red-800 text-xs font-bold"
-                      >
-                        {resolvingId === selectedCase.id ? (
-                          <span className="material-symbols-outlined animate-spin" style={{ fontSize: 14 }}>progress_activity</span>
-                        ) : (
-                          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>gavel</span>
-                        )}
-                        <span>{resolvingId === selectedCase.id ? "Saving…" : "Confirm reprimand"}</span>
                       </button>
                     </div>
                   )}

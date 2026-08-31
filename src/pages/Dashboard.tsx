@@ -842,8 +842,8 @@ export default function Dashboard() {
           { label: "Total Cases", value: stats.total, icon: "analytics", colorClass: "text-primary bg-surface-container" },
           { label: "Pending", value: stats.pending, icon: "pending_actions", colorClass: "text-[var(--badge-pending-text)] bg-[var(--badge-pending-bg)]" },
           { label: "Resolved", value: stats.resolved, icon: "task_alt", colorClass: "text-[var(--badge-resolved-text)] bg-[var(--badge-resolved-bg)]" },
-          { label: "Sanctioned Cases", value: stats.reprimand, icon: "gavel", colorClass: "text-[var(--badge-reprimand-text)] bg-[var(--badge-reprimand-bg)]" },
           { label: "Closed", value: stats.closed, icon: "cancel", colorClass: "text-[var(--badge-closed-text)] bg-[var(--badge-closed-bg)]" },
+          { label: "Reprimanded", value: stats.reprimand, icon: "gavel", colorClass: "text-[var(--badge-reprimand-text)] bg-[var(--badge-reprimand-bg)]" },
         ].map((kpi) => (
           <StatCard
             key={kpi.label}
@@ -915,8 +915,8 @@ export default function Dashboard() {
                 { label: "Total Cases", value: stats.total, color: "#002F87" },
                 { label: "Pending", value: stats.pending, color: "#D9A23B" },
                 { label: "Resolved", value: stats.resolved, color: "#15803D" },
-                { label: "Sanctioned Cases", value: stats.reprimand, color: "#6B7280" },
                 { label: "Closed", value: stats.closed, color: "#4b5563" },
+                { label: "Reprimanded", value: stats.reprimand, color: "#6B7280" },
               ].map((kpi) => (
                 <div
                   key={kpi.label}
