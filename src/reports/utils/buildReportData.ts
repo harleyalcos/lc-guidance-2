@@ -49,7 +49,7 @@ export const buildReportData = (config: ReportConfig, rawCases: CaseRecord[]): R
 
     return {
       index: index + 1,
-      date: formatDate(c.date_filed || c.date),
+      date: formatDate(c.date || c.date_filed),
       studentName,
       grade: studentGrade,
       adviser: studentAdviser,

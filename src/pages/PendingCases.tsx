@@ -360,8 +360,8 @@ export default function PendingCases() {
 
   const sortedCases = useMemo(() => {
     return [...filteredCases].sort((a, b) => {
-      const timeA = new Date(a.date_filed || a.date).getTime();
-      const timeB = new Date(b.date_filed || b.date).getTime();
+      const timeA = new Date(a.date || a.date_filed).getTime();
+      const timeB = new Date(b.date || b.date_filed).getTime();
       return dateSort === "desc" ? timeB - timeA : timeA - timeB;
     });
   }, [filteredCases, dateSort]);
@@ -476,7 +476,7 @@ export default function PendingCases() {
                 sortedCases.map((c) => {
                   const isSelected = selectedId === c.id;
                   const isExiting = resolvedIds.has(c.id);
-                  const indicator = getPendingIndicator(c.date_filed || c.date);
+                  const indicator = getPendingIndicator(c.date || c.date_filed);
                   return (
                     <button
                       key={c.id}
@@ -593,7 +593,7 @@ export default function PendingCases() {
                     </div>
                     <div>
                       <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Date</p>
-                      <p className="text-sm font-medium text-on-surface">{formatDateTime(selectedCase.date_filed || selectedCase.date)}</p>
+                      <p className="text-sm font-medium text-on-surface">{formatDateTime(selectedCase.date || selectedCase.date_filed)}</p>
                     </div>
                     <div className="col-span-2">
                       <p className="text-[11px] text-secondary font-bold uppercase tracking-wider mb-1">Description</p>

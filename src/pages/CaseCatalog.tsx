@@ -716,7 +716,7 @@ export default function CaseCatalog() {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
       result = result.filter((c) => {
-        const dateVal = new Date(c.date_filed || c.date);
+        const dateVal = new Date(c.date || c.date_filed);
         return dateVal >= start;
       });
     }
@@ -725,14 +725,14 @@ export default function CaseCatalog() {
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
       result = result.filter((c) => {
-        const dateVal = new Date(c.date_filed || c.date);
+        const dateVal = new Date(c.date || c.date_filed);
         return dateVal <= end;
       });
     }
 
     result = [...result].sort((a, b) => {
-      const dateA = new Date(sortBy === "date_filed" ? (a.date_filed || a.date) : a.date).getTime();
-      const dateB = new Date(sortBy === "date_filed" ? (b.date_filed || b.date) : b.date).getTime();
+      const dateA = new Date(a.date || a.date_filed).getTime();
+      const dateB = new Date(b.date || b.date_filed).getTime();
 
       if (dateA !== dateB) {
         if (sortOrder === "asc") return dateA - dateB;
@@ -786,8 +786,8 @@ export default function CaseCatalog() {
       .sort((a, b) => {
       const repA = a.cases[0];
       const repB = b.cases[0];
-      const dateA = new Date(sortBy === "date_filed" ? (repA.date_filed || repA.date) : repA.date).getTime();
-      const dateB = new Date(sortBy === "date_filed" ? (repB.date_filed || repB.date) : repB.date).getTime();
+      const dateA = new Date(repA.date || repA.date_filed).getTime();
+      const dateB = new Date(repB.date || repB.date_filed).getTime();
 
       if (dateA !== dateB) {
         if (sortOrder === "asc") return dateA - dateB;
@@ -1249,7 +1249,7 @@ export default function CaseCatalog() {
                 logTxt += `Case Type  : ${c.case || "—"}\n`;
                 logTxt += `Sanction   : ${c.sanction || "—"}\n`;
                 logTxt += `Progress   : ${c.progress || "—"}\n`;
-                logTxt += `Date       : ${c.date_filed || "—"}\n`;
+                logTxt += `Date       : ${c.date || c.date_filed || "—"}\n`;
                 logTxt += `Year       : ${c.school_year || (c.date ? c.date.slice(0, 4) : "—")}\n`;
                 logTxt += `==================================================\n\n`;
 
@@ -1564,7 +1564,7 @@ export default function CaseCatalog() {
                         </span>
                       </td>
                       <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
-                        {formatIncidentDateWithRelative(rep.date_filed || rep.date)}
+                        {formatIncidentDateWithRelative(rep.date || rep.date_filed)}
                       </td>
                        <td className={`p-table-cell-padding transition-colors duration-300 bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40 ${headerBorderB}`}>
                         <div className="flex items-center">
@@ -1725,7 +1725,7 @@ export default function CaseCatalog() {
                       </td>
                       {isFirstInGroup && (
                         <td className={`p-table-cell-padding transition-colors duration-300 ${isGrouped ? "bg-surface-container-highest/20 group-hover/body:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${groupBorderClass}`} rowSpan={groupLength}>
-                          {formatIncidentDateWithRelative(caseRecord.date_filed || caseRecord.date)}
+                          {formatIncidentDateWithRelative(caseRecord.date || caseRecord.date_filed)}
                         </td>
                       )}
                       <td className={`p-table-cell-padding transition-colors duration-300 font-medium ${isGrouped ? "bg-surface-container-highest/20 group-hover/row:bg-surface-container-highest/40" : "group-hover/row:bg-surface-container"} ${borderClass}`}>
