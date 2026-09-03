@@ -81,6 +81,38 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
     }
   };
 
+  const [existingPendingCount, setExistingPendingCount] = useState<number>(0);
+  const [existingPendingFilename, setExistingPendingFilename] = useState<string>("");
+
+  useEffect(() => {
+    if (isOpen) {
+      try {
+        const storedRowsStr = localStorage.getItem("lc_pending_import_rows");
+        const storedFilenameStr = localStorage.getItem("lc_pending_import_filename") || "";
+        if (storedRowsStr) {
+          const storedRows = JSON.parse(storedRowsStr);
+          if (Array.isArray(storedRows) && storedRows.length > 0) {
+            setExistingPendingCount(storedRows.length);
+            setExistingPendingFilename(storedFilenameStr);
+            return;
+          }
+        }
+      } catch {}
+      setExistingPendingCount(0);
+      setExistingPendingFilename("");
+    }
+  }, [isOpen]);
+
+  const handleDiscardExistingPending = () => {
+    localStorage.removeItem("lc_pending_import_rows");
+    localStorage.removeItem("lc_pending_import_filename");
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("pending:changed"));
+    setExistingPendingCount(0);
+    setExistingPendingFilename("");
+    showToast("success", "Previous pending session discarded.");
+  };
+
   const handleSelectFile = async () => {
     try {
       const selected = await open({
@@ -107,26 +139,9 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
         }
       }
 
-      let combinedRows = allNewRows;
-      let combinedFilename = newFilenames.join(", ");
-
-      try {
-        const storedRowsStr = localStorage.getItem("lc_pending_import_rows");
-        const storedFilenameStr = localStorage.getItem("lc_pending_import_filename");
-        if (storedRowsStr) {
-          const storedRows = JSON.parse(storedRowsStr);
-          if (Array.isArray(storedRows) && storedRows.length > 0) {
-            combinedRows = [...storedRows, ...allNewRows];
-            if (storedFilenameStr) {
-              const existingNames = storedFilenameStr.split(", ").map((s: string) => s.trim()).filter(Boolean);
-              const addedNames = newFilenames.filter((f) => !existingNames.includes(f));
-              combinedFilename = [...existingNames, ...addedNames].join(", ");
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Error reading existing pending imports:", e);
-      }
+      // Starting an import from the catalog always starts fresh with the selected file(s)
+      const combinedRows = allNewRows;
+      const combinedFilename = newFilenames.join(", ");
 
       closeWithAnimation(() => {
         navigate("/import-review", {
@@ -198,6 +213,40 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
           
           <div className="p-6">
             <div className="flex flex-col gap-4">
+              {existingPendingCount > 0 && (
+                <div className="bg-[#FEF7E0] dark:bg-[#B06000]/15 border border-[#FAC775] dark:border-[#B06000]/40 p-3.5 rounded-xl flex items-start gap-2.5">
+                  <span className="material-symbols-outlined text-[#B06000] shrink-0" style={{ fontSize: 18 }}>pending</span>
+                  <div className="flex-1 text-xs text-[#8F4E00] dark:text-[#ffd699] leading-relaxed">
+                    <p className="font-bold">
+                      You have {existingPendingCount} unimported row(s) from a previous session{existingPendingFilename ? ` (${existingPendingFilename})` : ""}.
+                    </p>
+                    <p className="mt-0.5 text-[11px] opacity-90">
+                      Selecting a new file starts a fresh import review.
+                    </p>
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleDiscardExistingPending}
+                        className="px-2.5 py-1 bg-white dark:bg-surface border border-[#FAC775] text-[#8F4E00] dark:text-[#ffd699] font-bold rounded-lg hover:bg-[#FEEFC3] transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">delete</span>
+                        Discard Previous
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeWithAnimation(() => navigate("/import-review"));
+                        }}
+                        className="px-2.5 py-1 bg-[#8F4E00] text-white font-bold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">visibility</span>
+                        Resume Review
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <p className="text-sm text-on-surface-variant">
                 Import cases using the exact database export Excel (.xlsx) format. Below is how the sheet should look like for seamless importing:
               </p>

@@ -32,9 +32,11 @@ export default function TopAppBar({ title, isSidebarCollapsed = false }: TopAppB
     checkPending();
     window.addEventListener("storage", checkPending);
     window.addEventListener("focus", checkPending);
+    window.addEventListener("pending:changed", checkPending);
     return () => {
       window.removeEventListener("storage", checkPending);
       window.removeEventListener("focus", checkPending);
+      window.removeEventListener("pending:changed", checkPending);
     };
   }, [location.pathname]);
 
