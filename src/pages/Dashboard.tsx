@@ -204,7 +204,7 @@ export default function Dashboard() {
     const resolved = filteredCases.filter(c => (c.progress || "").toLowerCase() === "resolved").length;
     const closed = filteredCases.filter(c => (c.progress || "").toLowerCase() === "closed").length;
     const reprimand = filteredCases.filter(isReprimandCase).length;
-    const pending = total - resolved - closed;
+    const pending = filteredCases.filter(c => (c.progress || "").toLowerCase() === "pending" && !isReprimandCase(c)).length;
 
     return { total, pending, resolved, closed, reprimand };
   }, [filteredCases]);
@@ -286,7 +286,7 @@ export default function Dashboard() {
   const statusDistribution = useMemo(() => {
     const resolved = filteredCases.filter(c => (c.progress || "").toLowerCase() === "resolved").length;
     const closed = filteredCases.filter(c => (c.progress || "").toLowerCase() === "closed").length;
-    const pending = filteredCases.length - resolved - closed;
+    const pending = filteredCases.filter(c => (c.progress || "").toLowerCase() === "pending" && !isReprimandCase(c)).length;
 
     return STATUS_CHART_SEGMENTS.map((segment) => {
       const label = segment.label.toLowerCase();

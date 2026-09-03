@@ -10,6 +10,7 @@ interface StudentInfo {
   section: string;
   adviser: string;
   role?: string;
+  sanction?: string;
 }
 
 interface Case {
@@ -33,12 +34,40 @@ interface ProofItem {
   created_at: string;
 }
 
+const normalizeRole = (value: string | undefined) => {
+  const normalized = (value ?? "").trim();
+  const lower = normalized.toLowerCase();
+  if (!normalized || lower === "reporter") return "Respondent";
+  if (lower === "accused" || lower === "respondent") return "Respondent";
+  if (lower === "complainant" || lower === "complainant / subject") return "Complainant / Subject";
+  return normalized;
+};
+
 const parseStudents = (studentsStr: string): StudentInfo[] => {
   try {
-    return JSON.parse(studentsStr) || [];
+    const parsed = JSON.parse(studentsStr) || [];
+    return Array.isArray(parsed)
+      ? parsed.map((student) => ({ ...student, role: normalizeRole(student.role) }))
+      : [];
   } catch (e) {
     return [];
   }
+};
+
+const isComplainantSubjectCaseRecord = (caseRecord: Case) => {
+  const firstStudent = parseStudents(caseRecord.students)[0];
+  return normalizeRole(firstStudent?.role) === "Complainant / Subject";
+};
+
+const isReprimandCase = (caseRecord: Case) => {
+  if ((caseRecord.sanction || "").toLowerCase().includes("reprimand")) {
+    return true;
+  }
+  if ((caseRecord.progress || "").toLowerCase().includes("reprimand")) {
+    return true;
+  }
+  const students = parseStudents(caseRecord.students);
+  return students.some((s) => (s.sanction || "").toLowerCase().includes("reprimand"));
 };
 
 const parseProofs = (value: string): ProofItem[] => {
@@ -213,7 +242,9 @@ export default function PendingCases() {
     setIsLoading(true);
     try {
       const all = await invoke<Case[]>("get_cases");
-      const pending = all.filter((c) => c.progress === "Pending");
+      const pending = all.filter(
+        (c) => (c.progress || "").toLowerCase() === "pending" && !isReprimandCase(c) && !isComplainantSubjectCaseRecord(c)
+      );
       pending.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setCases(pending);
       setSelectedId((prev) => {

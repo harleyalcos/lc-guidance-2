@@ -207,7 +207,7 @@ const isReprimand = (caseRecord: CaseRecord) => {
 };
 const isPending = (progress: string) => {
   const normProgress = (progress || "").toLowerCase();
-  return normProgress !== "resolved" && normProgress !== "closed";
+  return normProgress === "pending";
 };
 
 const getBadgeClass = (progress: string) => {
@@ -667,7 +667,7 @@ export default function CaseCatalog() {
   const stats = useMemo(() => {
     return {
       totalCases: displayCases.length,
-      pendingReview: displayCases.filter((caseRecord) => isPending(caseRecord.progress)).length,
+      pendingReview: displayCases.filter((caseRecord) => isPending(caseRecord.progress) && !isReprimand(caseRecord)).length,
       resolvedAllTime: displayCases.filter((caseRecord) => isResolved(caseRecord.progress)).length,
       reprimandedCases: displayCases.filter(isReprimand).length,
       closedCases: displayCases.filter((caseRecord) => isClosed(caseRecord.progress)).length,
@@ -774,7 +774,7 @@ export default function CaseCatalog() {
     }));
 
     const matchesStatusFilter = (caseRecord: CaseRecord) => {
-      if (statusFilter === "Pending") return isPending(caseRecord.progress);
+      if (statusFilter === "Pending") return isPending(caseRecord.progress) && !isReprimand(caseRecord);
       if (statusFilter === "Resolved") return isResolved(caseRecord.progress);
       if (statusFilter === "Closed") return isClosed(caseRecord.progress);
       if (statusFilter === "Reprimand") return isReprimand(caseRecord);
