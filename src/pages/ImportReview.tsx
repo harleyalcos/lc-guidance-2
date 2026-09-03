@@ -123,6 +123,15 @@ export default function ImportReview() {
   // Duplicate Comparison state (stores index of expanded duplicate row)
   const [expandedDuplicateIndex, setExpandedDuplicateIndex] = useState<number | null>(null);
 
+  // Clear history state on mount so reload/restore does not resurrect original parseResult
+  useEffect(() => {
+    try {
+      if (window.history.state?.usr?.parseResult || (window.history.state && (window.history.state as any).parseResult)) {
+        window.history.replaceState({}, document.title);
+      }
+    } catch {}
+  }, []);
+
   // Sync to localStorage
   useEffect(() => {
     if (rows.length > 0) {
@@ -132,9 +141,65 @@ export default function ImportReview() {
       localStorage.removeItem("lc_pending_import_rows");
       localStorage.removeItem("lc_pending_import_filename");
     }
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new Event("pending:changed"));
   }, [rows, filename]);
 
   const [isDeleteAllConfirmOpen, setIsDeleteAllConfirmOpen] = useState(false);
+
+  // Discard Entire Session confirmation
+  const [isDiscardSessionConfirmOpen, setIsDiscardSessionConfirmOpen] = useState(false);
+  const [isDiscardSessionClosing, setIsDiscardSessionClosing] = useState(false);
+
+  const handleDiscardSessionClick = () => {
+    setIsDiscardSessionClosing(false);
+    setIsDiscardSessionConfirmOpen(true);
+  };
+
+  const closeDiscardSessionConfirm = () => {
+    setIsDiscardSessionClosing(true);
+    setTimeout(() => {
+      setIsDiscardSessionConfirmOpen(false);
+      setIsDiscardSessionClosing(false);
+    }, 200);
+  };
+
+  const executeDiscardSession = () => {
+    setIsDiscardSessionClosing(true);
+    setIsBackConfirmClosing(true);
+    setTimeout(() => {
+      localStorage.removeItem("lc_pending_import_rows");
+      localStorage.removeItem("lc_pending_import_filename");
+      window.dispatchEvent(new Event("storage"));
+      window.dispatchEvent(new Event("pending:changed"));
+      setIsDiscardSessionConfirmOpen(false);
+      setIsDiscardSessionClosing(false);
+      setIsBackConfirmOpen(false);
+      setIsBackConfirmClosing(false);
+      navigate("/catalog");
+    }, 200);
+  };
+
+  // Back confirmation when unimported rows exist
+  const [isBackConfirmOpen, setIsBackConfirmOpen] = useState(false);
+  const [isBackConfirmClosing, setIsBackConfirmClosing] = useState(false);
+
+  const handleBackClick = () => {
+    if (rows.length > 0) {
+      setIsBackConfirmClosing(false);
+      setIsBackConfirmOpen(true);
+    } else {
+      navigate("/catalog");
+    }
+  };
+
+  const closeBackConfirm = () => {
+    setIsBackConfirmClosing(true);
+    setTimeout(() => {
+      setIsBackConfirmOpen(false);
+      setIsBackConfirmClosing(false);
+    }, 200);
+  };
 
   const [disregardConfirmIndex, setDisregardConfirmIndex] = useState<number | null>(null);
   const [isDisregardConfirmClosing, setIsDisregardConfirmClosing] = useState(false);
@@ -462,7 +527,7 @@ export default function ImportReview() {
       <div className="app-topbar-surface h-16 border-b border-outline-variant flex items-center justify-between px-margin-page sticky top-0 z-20 shrink-0">
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => navigate("/catalog")}
+            onClick={handleBackClick}
             className="text-secondary hover:text-primary transition-colors duration-500 flex items-center justify-center cursor-pointer"
             title="Go Back"
           >
@@ -477,6 +542,16 @@ export default function ImportReview() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={handleDiscardSessionClick}
+            disabled={isImporting || isAiCategorizing || rows.length === 0}
+            className="btn-secondary text-error border-error/30 hover:bg-error/10 flex items-center gap-1.5 font-bold cursor-pointer"
+            title="Discard all remaining rows and cancel this import session"
+          >
+            <span className="material-symbols-outlined text-[18px]">delete_sweep</span>
+            <span>Discard Session</span>
+          </button>
           <button
             type="button"
             onClick={handleAiCategorize}
@@ -1162,6 +1237,24 @@ export default function ImportReview() {
               >
                 {importSuccessData.remainingCount > 0 ? "Review Remaining Rows" : "Close"}
               </button>
+              {importSuccessData.remainingCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem("lc_pending_import_rows");
+                    localStorage.removeItem("lc_pending_import_filename");
+                    window.dispatchEvent(new Event("storage"));
+                    window.dispatchEvent(new Event("pending:changed"));
+                    closeSuccessModal();
+                    navigate("/catalog");
+                  }}
+                  className="btn-secondary text-error border-error/30 hover:bg-error/10 w-full sm:flex-1 py-2.5 justify-center text-xs gap-1.5 font-bold cursor-pointer"
+                  title="Discard remaining unresolved rows and finish importing"
+                >
+                  <span className="material-symbols-outlined text-sm">delete_sweep</span>
+                  <span>Discard Remaining & Finish</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleGoToCatalog}
@@ -1169,6 +1262,108 @@ export default function ImportReview() {
               >
                 <span className="material-symbols-outlined text-sm">folder_open</span>
                 <span>Go to Case Catalog</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Discard Session Modal */}
+      {isDiscardSessionConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className={`absolute inset-0 bg-black/40 backdrop-blur-sm ${
+              isDiscardSessionClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={closeDiscardSessionConfirm}
+          />
+          <div
+            className={`relative z-10 bg-surface border border-outline-variant p-6 rounded-2xl shadow-xl max-w-sm w-full text-center ${
+              isDiscardSessionClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-error/15 text-error flex items-center justify-center mb-3 mx-auto">
+              <span className="material-symbols-outlined text-[26px]">delete_sweep</span>
+            </div>
+            <h3 className="text-base font-bold text-on-surface mb-2">
+              Discard Pending Import Session?
+            </h3>
+            <p className="text-on-surface-variant text-xs mb-6 leading-relaxed">
+              Are you sure you want to discard all {rows.length} pending import row(s)? This will completely remove them and cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={closeDiscardSessionConfirm}
+                className="btn-secondary flex-1 text-xs py-2 justify-center"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeDiscardSession}
+                className="btn-primary bg-error hover:bg-error/90 text-white flex-1 text-xs py-2 justify-center"
+              >
+                Discard Session
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Leave Review Prompt Modal */}
+      {isBackConfirmOpen && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className={`absolute inset-0 bg-black/40 backdrop-blur-sm ${
+              isBackConfirmClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+            }`}
+            onClick={closeBackConfirm}
+          />
+          <div
+            className={`relative z-10 bg-surface border border-outline-variant p-6 rounded-2xl shadow-xl max-w-md w-full text-center ${
+              isBackConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-3 mx-auto">
+              <span className="material-symbols-outlined text-[26px]">save</span>
+            </div>
+            <h3 className="text-base font-bold text-on-surface mb-2">
+              Leave Import Review?
+            </h3>
+            <p className="text-on-surface-variant text-xs mb-6 leading-relaxed">
+              You still have <strong className="text-on-surface font-bold">{rows.length}</strong> unimported row(s). Would you like to keep them to review later, or discard this session?
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5">
+              <button
+                type="button"
+                onClick={closeBackConfirm}
+                className="btn-secondary w-full sm:flex-1 text-xs py-2 justify-center"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeDiscardSession}
+                className="btn-secondary text-error border-error/30 hover:bg-error/10 w-full sm:flex-1 text-xs py-2 justify-center font-bold"
+              >
+                Discard Session
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closeBackConfirm();
+                  navigate("/catalog");
+                }}
+                className="btn-primary w-full sm:flex-1 text-xs py-2 justify-center font-bold"
+              >
+                Keep for Later
               </button>
             </div>
           </div>

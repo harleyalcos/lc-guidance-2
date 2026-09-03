@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { HashRouter as Router, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import Layout from "./components/Layout";
 import SummaryReports from "./pages/SummaryReports";
 import Dashboard from "./pages/Dashboard";
@@ -65,6 +66,22 @@ function App() {
     } else {
       document.documentElement.classList.remove("dark");
     }
+  }, []);
+
+  // Check if app version was bumped/updated; clear stale pending imports from prior versions
+  useEffect(() => {
+    getVersion()
+      .then((currentVersion) => {
+        const lastVersion = localStorage.getItem("lc_app_version");
+        if (lastVersion && lastVersion !== currentVersion) {
+          localStorage.removeItem("lc_pending_import_rows");
+          localStorage.removeItem("lc_pending_import_filename");
+          window.dispatchEvent(new Event("storage"));
+          window.dispatchEvent(new Event("pending:changed"));
+        }
+        localStorage.setItem("lc_app_version", currentVersion);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
