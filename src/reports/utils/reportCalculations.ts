@@ -42,7 +42,7 @@ export const formatReportDateRange = (
     let oldest: Date | null = null;
     let latest: Date | null = null;
     for (const c of casesList) {
-      const d = new Date(c.date_filed || c.date);
+      const d = new Date(c.date || c.date_filed);
       if (!isNaN(d.getTime())) {
         if (!oldest || d.getTime() < oldest.getTime()) oldest = d;
         if (!latest || d.getTime() > latest.getTime()) latest = d;
@@ -94,7 +94,7 @@ export const formatReportDateRange = (
 };
 
 export const getCaseDate = (caseRecord: CaseRecord): Date | null => {
-  const parsed = new Date(caseRecord.date_filed || caseRecord.date);
+  const parsed = new Date(caseRecord.date || caseRecord.date_filed);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 

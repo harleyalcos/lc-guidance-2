@@ -128,13 +128,13 @@ const getStatusTextColor = (progress: string) => {
 
 const getEarliestDateString = (cases: CaseRecord[]): string => {
   const validDates = cases
-    .map((c) => c.date_filed || c.date)
+    .map((c) => c.date || c.date_filed)
     .filter(Boolean)
     .map((d) => ({ raw: d, time: new Date(d).getTime() }))
     .filter((d) => !isNaN(d.time))
     .sort((a, b) => a.time - b.time);
 
-  return validDates.length > 0 ? validDates[0].raw : (cases[0]?.date_filed || cases[0]?.date || "");
+  return validDates.length > 0 ? validDates[0].raw : (cases[0]?.date || cases[0]?.date_filed || "");
 };
 
 interface EditStudentRow {

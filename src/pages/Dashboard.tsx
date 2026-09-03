@@ -65,7 +65,7 @@ const STATUS_CHART_SEGMENTS = [
 ];
 
 const getCaseDate = (caseRecord: CaseRecord) => {
-  const parsed = new Date(caseRecord.date_filed || caseRecord.date);
+  const parsed = new Date(caseRecord.date || caseRecord.date_filed);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
