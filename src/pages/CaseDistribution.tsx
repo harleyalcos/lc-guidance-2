@@ -10,7 +10,7 @@ import {
   CASE_DOMAINS,
 } from "../utils/caseCategorization";
 
-const GRADE_LEVELS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
+const GRADE_LEVELS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12", "College"];
 
 const parseStudents = (json?: string): StudentInfo[] => {
   if (!json) return [];
@@ -23,16 +23,27 @@ const parseStudents = (json?: string): StudentInfo[] => {
 };
 
 const getCaseGradeLevel = (c: CaseRecord): string => {
-  if (c.level) {
-    const num = c.level.replace(/\D/g, "");
+  const checkLevel = (lvl?: string) => {
+    if (!lvl) return null;
+    const trimmed = lvl.trim();
+    if (/college|tertiary|bachelor|bs|ba|1st year|2nd year|3rd year|4th year/i.test(trimmed)) {
+      return "College";
+    }
+    const num = trimmed.replace(/\D/g, "");
     if (num && GRADE_LEVELS.includes(`Grade ${num}`)) return `Grade ${num}`;
-  }
+    return null;
+  };
+
+  const direct = checkLevel(c.level);
+  if (direct) return direct;
+
   const students = parseStudents(c.students);
-  if (students.length > 0 && students[0].level) {
-    const num = students[0].level.replace(/\D/g, "");
-    if (num && GRADE_LEVELS.includes(`Grade ${num}`)) return `Grade ${num}`;
+  if (students.length > 0) {
+    const studentLvl = checkLevel(students[0].level);
+    if (studentLvl) return studentLvl;
   }
-  return "Grade 7";
+
+  return "College";
 };
 
 const getStudentDisplayName = (c: CaseRecord): string => {

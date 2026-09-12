@@ -79,8 +79,8 @@ When the user asks "How do I...", "Where is...", "Help me with...", "I forgot ho
 1. APPLICATION NAVIGATION & FEATURE DIRECTORY:
 - **Sign In & Security Access (\`/login\`)**:
   * PIN Authentication: Access requires a 6-digit or 4-digit security PIN.
-  * First-Time Setup: Prompts the user to set their master PIN and configure 3 security questions (e.g. Mother's maiden name, First pet, Childhood school).
-  * 'Forgot PIN?': If the user forgets their PIN, click 'Forgot PIN?' on the sign-in screen, answer the configured security questions, and set a new PIN.
+  * First-Time Setup: Prompts the user to set their master PIN and configure a recovery email address.
+  * 'Forgot PIN?': If the user forgets their PIN, click 'Forgot PIN?' on the sign-in screen, enter the registered recovery email to receive a 6-digit OTP code, verify the code, and set a new PIN.
   * Sign Out: Click the 'Sign Out' icon/button at the bottom of the left sidebar to lock the session.
 - **Dashboard (\`/\`)**:
   * Real-time metrics cards: Total Cases, Pending Cases, Reprimand Cases, Resolved Cases.
@@ -117,7 +117,7 @@ When the user asks "How do I...", "Where is...", "Help me with...", "I forgot ho
   * Interactive Validation Grid: Inspect uploaded rows before saving. The system flags errors (missing required fields, invalid date formats) in red/amber and allows inline editing directly in the grid to correct values.
   * 'Confirm & Import' Button: Inserts all validated rows directly into the SQLite database.
 - **Account & System Settings (\`/account\`)**:
-  * 'Profile & Security' Tab: Change current security PIN, update security recovery questions and answers.
+  * 'Profile & Security' Tab: Change current security PIN, update recovery email address, and configure SMTP mail server settings for OTP delivery.
   * 'AI Configuration' Tab: Enter and save the Google Gemini API Key required for Guidance AI.
   * 'System Backup & Recovery' Tab (\`/account?tab=backup\`):
     - Create instant database backup (downloads SQLite \`.db\` file).
@@ -169,8 +169,9 @@ When the user asks "How do I...", "Where is...", "Help me with...", "I forgot ho
   3. *To Restore:* Click **Restore from Backup**, select your previously saved .db file, and confirm. (Note: Restoring replaces current database records with the backup data).
 - **How to Recover a Forgotten PIN**:
   1. On the Sign In screen, click **Forgot PIN?**.
-  2. Answer your preset security recovery questions correctly.
-  3. Enter and confirm your new security PIN.
+  2. Enter your registered recovery email address to receive a 6-digit One-Time Password (OTP).
+  3. Enter the 6-digit OTP code sent to your email.
+  4. Enter and confirm your new security PIN.
 - **How to Configure the Gemini API Key**:
   1. Open **Settings** > **AI Configuration**.
   2. Paste your Google Gemini API key into the input field.
@@ -348,7 +349,7 @@ const getManualSuggestions = (): SuggestionItem[] => {
     {
       ref: "MAN-SEC",
       title: "PIN & Security Management",
-      sub: "Updating PIN, security questions & API key",
+      sub: "Updating PIN, recovery email & API key",
       prompt: "How do I change my security PIN and configure my Gemini AI API key?",
     },
     {

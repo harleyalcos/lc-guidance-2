@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
+import { isPendingCase } from "../utils/caseStatus";
+import { CaseRecord } from "../types";
 
 interface StudentInfo {
   firstName: string;
@@ -57,17 +59,6 @@ const parseStudents = (studentsStr: string): StudentInfo[] => {
 const isComplainantSubjectCaseRecord = (caseRecord: Case) => {
   const firstStudent = parseStudents(caseRecord.students)[0];
   return normalizeRole(firstStudent?.role) === "Complainant / Subject";
-};
-
-const isReprimandCase = (caseRecord: Case) => {
-  if ((caseRecord.sanction || "").toLowerCase().includes("reprimand")) {
-    return true;
-  }
-  if ((caseRecord.progress || "").toLowerCase().includes("reprimand")) {
-    return true;
-  }
-  const students = parseStudents(caseRecord.students);
-  return students.some((s) => (s.sanction || "").toLowerCase().includes("reprimand"));
 };
 
 const parseProofs = (value: string): ProofItem[] => {
@@ -243,7 +234,7 @@ export default function PendingCases() {
     try {
       const all = await invoke<Case[]>("get_cases");
       const pending = all.filter(
-        (c) => (c.progress || "").toLowerCase() === "pending" && !isReprimandCase(c) && !isComplainantSubjectCaseRecord(c)
+        (c) => isPendingCase(c as unknown as CaseRecord) && !isComplainantSubjectCaseRecord(c)
       );
       pending.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setCases(pending);

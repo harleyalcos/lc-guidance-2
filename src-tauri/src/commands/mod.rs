@@ -24,18 +24,18 @@ fn db_error(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
 
-fn get_config(connection: &rusqlite::Connection, key: &str) -> Result<Option<String>, String> {
+pub(crate) fn get_config(connection: &rusqlite::Connection, key: &str) -> Result<Option<String>, String> {
     connection
         .query_row("SELECT value FROM app_config WHERE key = ?1", params![key], |row| row.get(0))
         .optional()
         .map_err(db_error)
 }
 
-fn require_config(connection: &rusqlite::Connection, key: &str) -> Result<String, String> {
+pub(crate) fn require_config(connection: &rusqlite::Connection, key: &str) -> Result<String, String> {
     get_config(connection, key)?.ok_or_else(|| format!("Missing app setting: {key}"))
 }
 
-fn set_config(connection: &rusqlite::Connection, key: &str, value: &str) -> Result<(), String> {
+pub(crate) fn set_config(connection: &rusqlite::Connection, key: &str, value: &str) -> Result<(), String> {
     connection
         .execute(
             r#"
@@ -173,8 +173,24 @@ fn verify_otp_for_purpose(
         connection
             .execute("UPDATE otp_tokens SET used = 1 WHERE id = ?1", params![id])
             .map_err(db_error)?;
+        let attempt_key = format!("otp_attempts_{}", id);
+        let _ = connection.execute("DELETE FROM app_config WHERE key = ?1", params![&attempt_key]);
         Ok(true)
     } else {
+        let attempt_key = format!("otp_attempts_{}", id);
+        let current_attempts: i64 = connection
+            .query_row("SELECT value FROM app_config WHERE key = ?1", params![&attempt_key], |r| r.get::<_, String>(0))
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0) + 1;
+
+        if current_attempts >= 5 {
+            let _ = connection.execute("DELETE FROM otp_tokens WHERE id = ?1", params![id]);
+            let _ = connection.execute("DELETE FROM app_config WHERE key = ?1", params![&attempt_key]);
+            return Err("Too many failed attempts. This verification code has been invalidated.".to_string());
+        } else {
+            let _ = set_config(connection, &attempt_key, &current_attempts.to_string());
+        }
         Ok(false)
     }
 }
@@ -268,12 +284,35 @@ pub fn update_smtp_config(
     smtp_email: String,
     smtp_password: String,
     recovery_email: String,
+    pin: Option<String>,
 ) -> Result<(), String> {
     if smtp_email.trim().is_empty() || smtp_password.trim().is_empty() || recovery_email.trim().is_empty() {
         return Err("Email setup fields cannot be empty".to_string());
     }
 
     let connection = state.connection.lock().map_err(db_error)?;
+
+    let is_authorized = if let Some(ref pin_val) = pin {
+        if let Ok(current_hash) = require_config(&connection, "app_pin_hash") {
+            crate::auth::verify_secret(pin_val, &current_hash)?
+        } else {
+            false
+        }
+    } else {
+        let verified_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM otp_tokens WHERE used = 1 AND purpose IN ('recovery_email_access', 'pin_change_access')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        verified_count > 0
+    };
+
+    if !is_authorized {
+        return Err("Unauthorized: valid PIN or verified OTP required to update SMTP configuration".to_string());
+    }
+
     set_config(&connection, "smtp_email", smtp_email.trim())?;
     set_config(&connection, "smtp_password", &smtp_password.replace(' ', ""))?;
     set_config(&connection, "recovery_email", recovery_email.trim())
@@ -289,50 +328,62 @@ pub fn get_recovery_email(state: State<'_, DbState>) -> Result<String, String> {
 pub fn update_recovery_email(
     state: State<'_, DbState>,
     recovery_email: String,
+    pin: Option<String>,
 ) -> Result<(), String> {
     if recovery_email.trim().is_empty() {
         return Err("Recovery email cannot be empty".to_string());
     }
 
     let connection = state.connection.lock().map_err(db_error)?;
+
+    let is_authorized = if let Some(ref pin_val) = pin {
+        if let Ok(current_hash) = require_config(&connection, "app_pin_hash") {
+            crate::auth::verify_secret(pin_val, &current_hash)?
+        } else {
+            false
+        }
+    } else {
+        let verified_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM otp_tokens WHERE used = 1 AND purpose = 'recovery_email_access'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        if verified_count > 0 {
+            let _ = connection.execute("DELETE FROM otp_tokens WHERE purpose = 'recovery_email_access'", []);
+            true
+        } else {
+            false
+        }
+    };
+
+    if !is_authorized {
+        return Err("Unauthorized: valid PIN or verified OTP required to update recovery email".to_string());
+    }
+
     set_config(&connection, "recovery_email", recovery_email.trim())
 }
 
 #[tauri::command]
-pub fn get_cases(state: State<'_, DbState>, school_year: Option<String>) -> Result<Vec<CaseRecord>, String> {
+pub fn get_cases(
+    state: State<'_, DbState>,
+    school_year: Option<String>,
+    group_id: Option<String>,
+) -> Result<Vec<CaseRecord>, String> {
     let connection = state.connection.lock().map_err(db_error)?;
-    
-    let mut query = r#"
-SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id, update_history, school_year
-FROM cases
-"#.to_string();
-
-    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-    
-    if let Some(ref year) = school_year {
-        if !year.is_empty() && year != "all" {
-            query.push_str(" WHERE (strftime('%Y', date) = ?1 OR school_year = ?1) ");
-            params_vec.push(Box::new(year.clone()));
-        }
-    }
-    
-    query.push_str(" ORDER BY id DESC");
-
-    let mut statement = connection.prepare(&query).map_err(db_error)?;
-
-    let param_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
-    
-    let cases = statement
-        .query_map(rusqlite::params_from_iter(param_refs), map_case)
-        .map_err(db_error)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(db_error)?;
-
-    Ok(cases)
+    CaseRepository::get_cases(&connection, school_year, group_id).map_err(db_error)
 }
 
 #[tauri::command]
-pub fn get_current_school_year(_state: State<'_, DbState>) -> Result<Option<String>, String> {
+pub fn get_current_school_year(state: State<'_, DbState>) -> Result<Option<String>, String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    let saved = get_config(&connection, "current_school_year")?;
+    if let Some(sy) = saved {
+        if !sy.trim().is_empty() {
+            return Ok(Some(sy));
+        }
+    }
     Ok(Some(chrono::Utc::now().format("%Y").to_string()))
 }
 
@@ -543,10 +594,31 @@ pub fn create_backup(
     let current_backup_dir = backup_dir.join(&folder_name);
     fs::create_dir_all(&current_backup_dir).map_err(|e| e.to_string())?;
 
-    fs::copy(&db_path, current_backup_dir.join("snapshot.db")).map_err(|e| e.to_string())?;
-
+    let snapshot_db = current_backup_dir.join("snapshot.db");
     let connection = state.connection.lock().map_err(db_error)?;
+
+    // Use atomic SQLite VACUUM INTO for consistent online backups
+    let escaped_path = snapshot_db.to_string_lossy().replace('\'', "''");
+    if let Err(e) = connection.execute(&format!("VACUUM INTO '{}'", escaped_path), []) {
+        eprintln!("VACUUM INTO failed ({}), falling back to file copy", e);
+        fs::copy(&db_path, &snapshot_db).map_err(|e| e.to_string())?;
+    }
+
     crate::db::backup::export_csv(&connection, &current_backup_dir.join("snapshot.csv"))?;
+
+    // Prune old automatic backups (BUG-23 retention logic)
+    if let Ok(entries) = fs::read_dir(&backup_dir) {
+        let mut auto_backups: Vec<_> = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().starts_with("backup_auto_"))
+            .collect();
+        auto_backups.sort_by_key(|e| std::cmp::Reverse(e.file_name()));
+        if auto_backups.len() > 30 {
+            for old in &auto_backups[30..] {
+                let _ = fs::remove_dir_all(old.path());
+            }
+        }
+    }
 
     Ok(())
 }
@@ -578,8 +650,9 @@ pub fn restore_backup(
     // Perform copy
     fs::copy(&backup_file, &db_path).map_err(|e| e.to_string())?;
 
-    // Reopen original connection
+    // Reopen original connection and run migrations
     let new_conn = crate::db::open_db(&db_path).map_err(|e| e.to_string())?;
+    crate::db::schema::initialize_schema(&new_conn).map_err(|e| e.to_string())?;
     *connection_guard = new_conn;
 
     Ok(())
@@ -621,7 +694,15 @@ pub fn save_file(
     use tauri_plugin_opener::OpenerExt;
 
     let download_dir = app.path().download_dir().map_err(|e| e.to_string())?;
-    let file_path = download_dir.join(&filename);
+
+    let sanitized_filename = filename.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_");
+    let safe_name = std::path::Path::new(&sanitized_filename)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("document.pdf");
+
+    let file_path = download_dir.join(safe_name);
 
     let bytes = general_purpose::STANDARD.decode(base64_data).map_err(|e| e.to_string())?;
     fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
@@ -670,6 +751,7 @@ pub fn import_db_file(
     fs::copy(&src_path, &db_path).map_err(|e| e.to_string())?;
 
     let new_conn = crate::db::open_db(&db_path).map_err(|e| e.to_string())?;
+    crate::db::schema::initialize_schema(&new_conn).map_err(|e| e.to_string())?;
     *connection_guard = new_conn;
 
     Ok(())

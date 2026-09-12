@@ -174,7 +174,10 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
               </button>
               <button
                 type="button"
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  sessionStorage.clear();
+                  window.location.reload();
+                }}
                 className="btn-primary flex-1 px-2 whitespace-nowrap bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 border-0"
               >
                 <span className="material-symbols-outlined text-[18px]">logout</span>

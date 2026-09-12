@@ -18,26 +18,32 @@ const MONTHS = [
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
+function parseLocalDate(dateStr?: string): Date {
+  if (!dateStr) return new Date();
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return new Date(y, m, d);
+    }
+  }
+  const parsed = new Date(dateStr);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
 export default function DatePicker({ value, onChange, prefix, placeholder = "Pick a date", min, max, className }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const [currentDate, setCurrentDate] = useState(() => {
-    if (value) {
-      const parsed = new Date(value);
-      if (!isNaN(parsed.getTime())) return parsed;
-    }
-    return new Date();
-  });
+  const [currentDate, setCurrentDate] = useState(() => parseLocalDate(value));
   
   const popoverRef = useRef<HTMLDivElement>(null);
 
   // Sync internal state when prop changes
   useEffect(() => {
     if (value) {
-      const parsed = new Date(value);
-      if (!isNaN(parsed.getTime())) {
-        setCurrentDate(parsed);
-      }
+      setCurrentDate(parseLocalDate(value));
     }
   }, [value]);
 
@@ -113,8 +119,7 @@ export default function DatePicker({ value, onChange, prefix, placeholder = "Pic
 
   const displayLabel = () => {
     if (!value) return placeholder;
-    const dateObj = new Date(value);
-    if (isNaN(dateObj.getTime())) return placeholder;
+    const dateObj = parseLocalDate(value);
     return dateObj.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",

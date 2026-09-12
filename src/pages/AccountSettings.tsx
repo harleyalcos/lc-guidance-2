@@ -138,6 +138,12 @@ export default function AccountSettings() {
     setIsResetting(true);
     try {
       await invoke("reset_application_data", { pin: resetPin });
+      localStorage.removeItem("lc_pending_import_rows");
+      localStorage.removeItem("lc_pending_import_filename");
+      localStorage.removeItem("new_case_draft");
+      window.dispatchEvent(new Event("storage"));
+      window.dispatchEvent(new Event("cases:changed"));
+      window.dispatchEvent(new Event("pending:changed"));
       handleCloseResetModal();
       showToast("success", "Application records successfully deleted. Emails and PIN preserved.");
     } catch (err) {

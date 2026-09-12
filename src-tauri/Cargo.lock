@@ -2112,7 +2112,7 @@ dependencies = [
 
 [[package]]
 name = "lc-guidance"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "argon2",
  "base64 0.22.1",

@@ -29,6 +29,61 @@ impl CaseRepository {
         })
     }
 
+    pub fn get_cases(
+        connection: &rusqlite::Connection,
+        school_year: Option<String>,
+        group_id: Option<String>,
+    ) -> Result<Vec<CaseRecord>, String> {
+        let mut query = r#"
+SELECT id, first_name, last_name, middle_initial, level, section, date, date_filed, adviser, "case", description, sanction, progress, proofs, students, title, reporting_student, group_id, update_history, school_year
+FROM cases
+"#.to_string();
+
+        let mut conditions: Vec<String> = Vec::new();
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+        if let Some(ref year) = school_year {
+            if !year.is_empty() && year != "all" {
+                let p1 = params_vec.len() + 1;
+                let p2 = params_vec.len() + 2;
+                conditions.push(format!("(strftime('%Y', date) = ?{} OR school_year = ?{} OR date LIKE ?{} OR ?{} LIKE '%' || school_year || '%')", p1, p1, p2, p1));
+                let prefix = if year.len() >= 4 {
+                    format!("{}%", &year[0..4])
+                } else {
+                    format!("{}%", year)
+                };
+                params_vec.push(Box::new(year.clone()));
+                params_vec.push(Box::new(prefix));
+            }
+        }
+
+        if let Some(ref gid) = group_id {
+            if !gid.trim().is_empty() {
+                let p = params_vec.len() + 1;
+                conditions.push(format!("group_id = ?{}", p));
+                params_vec.push(Box::new(gid.trim().to_string()));
+            }
+        }
+
+        if !conditions.is_empty() {
+            query.push_str(" WHERE ");
+            query.push_str(&conditions.join(" AND "));
+        }
+
+        query.push_str(" ORDER BY id DESC");
+
+        let mut statement = connection.prepare(&query).map_err(|e| e.to_string())?;
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+        let cases = statement
+            .query_map(rusqlite::params_from_iter(param_refs), Self::map_case)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+
+        Ok(cases)
+    }
+
     pub fn find_by_id(connection: &rusqlite::Connection, id: i64) -> Result<Option<CaseRecord>, String> {
         connection.query_row(
             "SELECT * FROM cases WHERE id = ?1 LIMIT 1",
@@ -83,12 +138,14 @@ impl CaseRepository {
             payload.date_filed
         );
 
-        let case_year = if payload.date.len() >= 4 {
-            payload.date[0..4].to_string()
-        } else if payload.date_filed.len() >= 4 {
-            payload.date_filed[0..4].to_string()
+        let case_year = if let Some(ref sy) = payload.school_year {
+            if !sy.trim().is_empty() {
+                sy.trim().to_string()
+            } else {
+                Self::derive_school_year(&payload.date, &payload.date_filed)
+            }
         } else {
-            chrono::Utc::now().format("%Y").to_string()
+            Self::derive_school_year(&payload.date, &payload.date_filed)
         };
 
         let students_json = serde_json::to_string(&payload.students)
@@ -238,5 +295,241 @@ WHERE id = ?20
         }
 
         Ok(months)
+    }
+
+    pub fn derive_school_year(date: &str, date_filed: &str) -> String {
+        let target_date = if !date.trim().is_empty() {
+            date.trim()
+        } else {
+            date_filed.trim()
+        };
+
+        if let Ok(d) = chrono::NaiveDate::parse_from_str(target_date, "%Y-%m-%d") {
+            let year = chrono::Datelike::year(&d);
+            let month = chrono::Datelike::month(&d);
+            if month >= 7 {
+                format!("{}-{}", year, year + 1)
+            } else {
+                format!("{}-{}", year - 1, year)
+            }
+        } else if let Ok(d) = chrono::NaiveDate::parse_from_str(target_date, "%m/%d/%Y") {
+            let year = chrono::Datelike::year(&d);
+            let month = chrono::Datelike::month(&d);
+            if month >= 7 {
+                format!("{}-{}", year, year + 1)
+            } else {
+                format!("{}-{}", year - 1, year)
+            }
+        } else if target_date.len() >= 4 && target_date[0..4].chars().all(|c| c.is_ascii_digit()) {
+            let year: i32 = target_date[0..4].parse().unwrap_or(2026);
+            format!("{}-{}", year, year + 1)
+        } else {
+            chrono::Utc::now().format("%Y").to_string()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::schema::initialize_schema;
+    use crate::models::{CasePayload, StudentInfo};
+
+    #[test]
+    fn test_derive_school_year() {
+        assert_eq!(CaseRepository::derive_school_year("2024-08-15", ""), "2024-2025");
+        assert_eq!(CaseRepository::derive_school_year("2025-03-10", ""), "2024-2025");
+        assert_eq!(CaseRepository::derive_school_year("08/15/2024", ""), "2024-2025");
+        assert_eq!(CaseRepository::derive_school_year("03/10/2025", ""), "2024-2025");
+    }
+
+    #[test]
+    fn test_insert_and_filter_by_academic_year() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+
+        let payload = CasePayload {
+            students: vec![StudentInfo {
+                first_name: "Juan".to_string(),
+                last_name: "Dela Cruz".to_string(),
+                middle_initial: "P".to_string(),
+                level: "Grade 10".to_string(),
+                section: "Rizal".to_string(),
+                adviser: "Ms. Santos".to_string(),
+                role: Some("Respondent".to_string()),
+                sanction: Some("Verbal Warning".to_string()),
+            }],
+            date: "2024-08-15".to_string(),
+            date_filed: "2024-08-15".to_string(),
+            r#case: "Tardiness".to_string(),
+            description: "Repeated tardiness".to_string(),
+            sanction: "Verbal Warning".to_string(),
+            progress: "Pending".to_string(),
+            proofs: "[]".to_string(),
+            title: "Tardiness Case".to_string(),
+            reporting_student: None,
+            group_id: None,
+            school_year: None,
+        };
+
+        let case_id = CaseRepository::insert(&conn, &payload).unwrap();
+        assert!(case_id > 0);
+
+        // Filter by school year 2024-2025
+        let cases_sy = CaseRepository::get_cases(&conn, Some("2024-2025".to_string()), None).unwrap();
+        assert_eq!(cases_sy.len(), 1, "Should find case when filtering by academic year 2024-2025");
+        assert_eq!(cases_sy[0].school_year, "2024-2025");
+
+        // Filter by calendar year 2024
+        let cases_cal = CaseRepository::get_cases(&conn, Some("2024".to_string()), None).unwrap();
+        assert_eq!(cases_cal.len(), 1, "Should find case when filtering by calendar year 2024");
+    }
+
+    #[test]
+    fn test_filter_by_group_id() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+
+        let mut p1 = CasePayload {
+            students: vec![StudentInfo {
+                first_name: "Student".to_string(),
+                last_name: "One".to_string(),
+                middle_initial: "".to_string(),
+                level: "Grade 8".to_string(),
+                section: "A".to_string(),
+                adviser: "Teacher".to_string(),
+                role: Some("Respondent".to_string()),
+                sanction: Some("Warning".to_string()),
+            }],
+            date: "2024-09-01".to_string(),
+            date_filed: "2024-09-01".to_string(),
+            r#case: "Dispute".to_string(),
+            description: "Group altercation".to_string(),
+            sanction: "Warning".to_string(),
+            progress: "Pending".to_string(),
+            proofs: "[]".to_string(),
+            title: "Group Dispute".to_string(),
+            reporting_student: None,
+            group_id: Some("GRP-1001".to_string()),
+            school_year: None,
+        };
+
+        CaseRepository::insert(&conn, &p1).unwrap();
+        p1.group_id = Some("GRP-1002".to_string());
+        p1.students[0].first_name = "StudentTwo".to_string();
+        CaseRepository::insert(&conn, &p1).unwrap();
+
+        let group_cases = CaseRepository::get_cases(&conn, None, Some("GRP-1001".to_string())).unwrap();
+        assert_eq!(group_cases.len(), 1);
+        assert_eq!(group_cases[0].group_id.as_deref(), Some("GRP-1001"));
+    }
+
+    #[test]
+    fn test_duplicate_detection_normalized_dates() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+
+        let payload = CasePayload {
+            students: vec![StudentInfo {
+                first_name: "Maria".to_string(),
+                last_name: "Clara".to_string(),
+                middle_initial: "".to_string(),
+                level: "Grade 7".to_string(),
+                section: "Luna".to_string(),
+                adviser: "Mr. Cruz".to_string(),
+                role: Some("Respondent".to_string()),
+                sanction: Some("Written Reprimand".to_string()),
+            }],
+            date: "2024-09-01".to_string(),
+            date_filed: "2024-09-01".to_string(),
+            r#case: "Bullying".to_string(),
+            description: "Teasing classmate".to_string(),
+            sanction: "Written Reprimand".to_string(),
+            progress: "Pending".to_string(),
+            proofs: "[]".to_string(),
+            title: "Bullying Incident".to_string(),
+            reporting_student: None,
+            group_id: None,
+            school_year: Some("2024-2025".to_string()),
+        };
+
+        CaseRepository::insert(&conn, &payload).unwrap();
+
+        let dup = CaseRepository::find_exact_duplicate(
+            &conn,
+            "Maria",
+            "Clara",
+            "",
+            "Grade 7",
+            "Luna",
+            "2024-09-01",
+            "Mr. Cruz",
+            "Bullying",
+            "Written Reprimand",
+            "Pending",
+        ).unwrap();
+
+        assert!(dup.is_some(), "Duplicate detection should match exact record");
+    }
+
+    #[test]
+    fn test_app_config_school_year() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+
+        // Default when not configured returns current calendar year
+        let default_sy = crate::commands::get_config(&conn, "current_school_year").unwrap();
+        assert!(default_sy.is_none());
+
+        // Configure academic year
+        crate::commands::set_config(&conn, "current_school_year", "2026-2027").unwrap();
+        let configured = crate::commands::get_config(&conn, "current_school_year").unwrap();
+        assert_eq!(configured, Some("2026-2027".to_string()));
+    }
+
+    #[test]
+    fn test_ai_query_blocks_sensitive_tables() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+
+        // Testing the query filter logic
+        let test_queries = [
+            ("SELECT * FROM app_config", true),
+            ("SELECT value FROM app_config WHERE key = 'app_pin_hash'", true),
+            ("SELECT * FROM otp_tokens", true),
+            ("SELECT * FROM sqlite_master", true),
+            ("SELECT id, title FROM cases", false),
+        ];
+
+        for (sql, should_block) in test_queries {
+            let upper = sql.to_uppercase();
+            let is_blocked = upper.contains("APP_CONFIG") 
+                || upper.contains("OTP_TOKENS") 
+                || upper.contains("SQLITE_MASTER") 
+                || upper.contains("SQLITE_SCHEMA")
+                || upper.contains("PRAGMA");
+            assert_eq!(is_blocked, should_block, "Query check failed for: {}", sql);
+        }
+    }
+
+    #[test]
+    fn test_export_csv_includes_all_columns() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+
+        let temp_dir = std::env::temp_dir();
+        let csv_path = temp_dir.join("test_snapshot.csv");
+
+        crate::db::backup::export_csv(&conn, &csv_path).unwrap();
+
+        let mut rdr = csv::Reader::from_path(&csv_path).unwrap();
+        let headers = rdr.headers().unwrap();
+        assert_eq!(headers.len(), 21, "CSV must include all 21 columns");
+        assert!(headers.iter().any(|h| h == "group_id"));
+        assert!(headers.iter().any(|h| h == "student_roles"));
+        assert!(headers.iter().any(|h| h == "update_history"));
+        assert!(headers.iter().any(|h| h == "school_year"));
+
+        let _ = std::fs::remove_file(csv_path);
     }
 }

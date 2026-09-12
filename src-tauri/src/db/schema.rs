@@ -385,10 +385,40 @@ WHERE EXISTS (
   SELECT 1 FROM case_proofs WHERE case_proofs.case_id = cases.id
 );
 
-DROP TABLE case_proofs;
+        DROP TABLE case_proofs;
 "#,
         )?;
     }
+
+    // Normalize legacy MM/DD/YYYY dates to ISO YYYY-MM-DD and repair corrupted school_year values
+    connection.execute_batch(
+        r#"
+UPDATE cases
+SET date = substr(date, 7, 4) || '-' || substr(date, 1, 2) || '-' || substr(date, 4, 2)
+WHERE date LIKE '__/__/____';
+
+UPDATE cases
+SET date_filed = substr(date_filed, 7, 4) || '-' || substr(date_filed, 1, 2) || '-' || substr(date_filed, 4, 2)
+WHERE date_filed LIKE '__/__/____';
+
+UPDATE cases
+SET school_year = CASE
+    WHEN date LIKE '____-__-__' THEN
+      CASE WHEN CAST(substr(date, 6, 2) AS INTEGER) >= 7
+        THEN substr(date, 1, 4) || '-' || CAST(CAST(substr(date, 1, 4) AS INTEGER) + 1 AS TEXT)
+        ELSE CAST(CAST(substr(date, 1, 4) AS INTEGER) - 1 AS TEXT) || '-' || substr(date, 1, 4)
+      END
+    WHEN length(school_year) >= 4 AND school_year NOT LIKE '%/%' THEN school_year
+    ELSE strftime('%Y', 'now')
+END
+WHERE school_year LIKE '%/%' OR length(school_year) < 4 OR school_year = '';
+
+CREATE INDEX IF NOT EXISTS idx_cases_group_id ON cases(group_id);
+CREATE INDEX IF NOT EXISTS idx_cases_school_year ON cases(school_year);
+CREATE INDEX IF NOT EXISTS idx_cases_date ON cases(date);
+CREATE INDEX IF NOT EXISTS idx_cases_progress ON cases(progress);
+"#,
+    )?;
 
     Ok(())
 }

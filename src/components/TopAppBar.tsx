@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 
 interface TopAppBarProps {
@@ -9,7 +9,7 @@ interface TopAppBarProps {
 export default function TopAppBar({ title, isSidebarCollapsed = false }: TopAppBarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const isCaseDetails = location.pathname.startsWith("/case/");
+  const isCaseDetails = location.pathname.startsWith("/case/") || location.pathname.startsWith("/group-case/");
   const showBackButton = isCaseDetails;
 
   const [pendingCount, setPendingCount] = useState(0);
@@ -45,9 +45,14 @@ export default function TopAppBar({ title, isSidebarCollapsed = false }: TopAppB
       }`}>
       <div className="flex items-center gap-4 flex-1">
         {showBackButton && (
-          <Link to={-1 as any} className="text-secondary hover:text-primary transition-colors duration-500">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            aria-label="Go back"
+            className="text-secondary hover:text-primary transition-colors duration-500 cursor-pointer flex items-center justify-center p-1 -ml-1 rounded-lg hover:bg-surface-container"
+          >
             <span className="material-symbols-outlined">arrow_back</span>
-          </Link>
+          </button>
         )}
         <h2 className="font-serif text-lg font-semibold text-primary dark:text-primary-fixed-dim text-left shrink-0">{title}</h2>
       </div>

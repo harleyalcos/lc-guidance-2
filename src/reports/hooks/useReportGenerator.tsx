@@ -106,7 +106,7 @@ export const useReportGenerator = (
         throw new Error("No generated PDF available to export.");
       }
 
-      const defaultFilename = `Guidance_Report_${reportData.metadata.reportingPeriod.replace(/[\s\.,-]/g, "_")}.pdf`;
+      const defaultFilename = `Guidance_Report_${reportData.metadata.reportingPeriod.replace(/[\s\.,\/\-\\–]/g, "_").replace(/_+/g, "_")}.pdf`;
       const filename = customFilename || defaultFilename;
 
       const base64Data = await blobToBase64(pdfBlob);

@@ -188,8 +188,7 @@ export default function GroupCaseDetails() {
     if (!groupId) return;
     try {
       setIsLoading(true);
-      const allCases = await invoke<CaseRecord[]>("get_cases", {});
-      const matched = allCases.filter((c) => c.group_id === groupId);
+      const matched = await invoke<CaseRecord[]>("get_cases", { groupId });
 
       if (matched.length === 0) {
         setError("No records found for this group ID.");
@@ -623,18 +622,22 @@ export default function GroupCaseDetails() {
       element.style.opacity = "1";
       element.style.visibility = "visible";
       element.style.overflow = "visible";
-      element.getBoundingClientRect();
-
+      const safeTitle = (groupTitle || "Record").replace(/[/\\?%*:|"<>]/g, "_").replace(/\s+/g, "_");
+      const filename = `Group_Case_${safeTitle}.pdf`;
       const opt = {
         margin: 0,
-        filename: `Group_Case_${(groupTitle || "Record").replace(/\s+/g, "_")}.pdf`,
+        filename,
         image: { type: "jpeg" as const, quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, logging: false },
         jsPDF: { unit: "mm" as const, format: "a4" as const, orientation: "portrait" as const },
       };
 
       try {
-        await html2pdf().set(opt).from(element).save();
+        const pdfBase64 = await html2pdf().from(element).set(opt).outputPdf("datauristring");
+        if (isMounted) {
+          const base64Data = pdfBase64.split(",")[1];
+          await invoke("save_pdf", { base64Data, filename });
+        }
       } catch (e) {
         console.error("PDF generation failed:", e);
       } finally {

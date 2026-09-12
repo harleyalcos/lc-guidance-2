@@ -14,6 +14,12 @@ import { useAcademicYearFilter } from "../context/AcademicYearFilterContext";
 import StatCard from "../components/StatCard";
 
 import { CaseRecord, StudentInfo } from "../types";
+import {
+  isClosedCase,
+  isPendingCase,
+  isReprimandCase,
+  isResolvedCase,
+} from "../utils/caseStatus";
 
 const formatCaseId = (id: number) => `#${id.toString().padStart(4, "0")}`;
 
@@ -774,10 +780,10 @@ export default function CaseCatalog() {
     }));
 
     const matchesStatusFilter = (caseRecord: CaseRecord) => {
-      if (statusFilter === "Pending") return isPending(caseRecord.progress) && !isReprimand(caseRecord);
-      if (statusFilter === "Resolved") return isResolved(caseRecord.progress);
-      if (statusFilter === "Closed") return isClosed(caseRecord.progress);
-      if (statusFilter === "Reprimand") return isReprimand(caseRecord);
+      if (statusFilter === "Pending") return isPendingCase(caseRecord);
+      if (statusFilter === "Resolved") return isResolvedCase(caseRecord);
+      if (statusFilter === "Closed") return isClosedCase(caseRecord);
+      if (statusFilter === "Reprimand") return isReprimandCase(caseRecord);
       return true;
     };
 
@@ -786,14 +792,16 @@ export default function CaseCatalog() {
       .sort((a, b) => {
       const repA = a.cases[0];
       const repB = b.cases[0];
-      const dateA = new Date(repA.date || repA.date_filed).getTime();
-      const dateB = new Date(repB.date || repB.date_filed).getTime();
+      const valA = sortBy === "date_filed" ? (repA.date_filed || repA.date) : (repA.date || repA.date_filed);
+      const valB = sortBy === "date_filed" ? (repB.date_filed || repB.date) : (repB.date || repB.date_filed);
+      const dateA = new Date(valA).getTime();
+      const dateB = new Date(valB).getTime();
 
-      if (dateA !== dateB) {
+      if (!isNaN(dateA) && !isNaN(dateB) && dateA !== dateB) {
         if (sortOrder === "asc") return dateA - dateB;
         return dateB - dateA;
       }
-      return repB.id - repA.id;
+      return sortOrder === "asc" ? repA.id - repB.id : repB.id - repA.id;
     });
 
     return allGroups;
@@ -917,10 +925,15 @@ export default function CaseCatalog() {
 
       // 3. Date range filter
       if (options.startDate || options.endDate) {
-        const caseDateStr = c.date;
-        if (caseDateStr) {
-          if (options.startDate && caseDateStr < options.startDate) return false;
-          if (options.endDate && caseDateStr > options.endDate) return false;
+        const rawDate = c.date || c.date_filed;
+        if (rawDate) {
+          let isoDate = rawDate;
+          if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(rawDate)) {
+            const [m, d, y] = rawDate.split('/');
+            isoDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+          }
+          if (options.startDate && isoDate < options.startDate) return false;
+          if (options.endDate && isoDate > options.endDate) return false;
         }
       }
 
@@ -1045,7 +1058,7 @@ export default function CaseCatalog() {
       // Additional case details fields (Default = false)
       { key: "caseId", header: "Case ID", width: 14, getValue: (c: CaseRecord) => `#${c.id.toString().padStart(4, "0")}` },
       { key: "title", header: "Case Title", width: 28, getValue: (c: CaseRecord) => c.title || "—" },
-      { key: "dateFiled", header: "Date", width: 22, getValue: (c: CaseRecord) => formatDateFiled(c.date_filed) },
+      { key: "dateFiled", header: "Date Filed", width: 22, getValue: (c: CaseRecord) => formatDateFiled(c.date_filed) },
       { key: "description", header: "Description", width: 35, getValue: (c: CaseRecord) => c.description || "—" },
       { key: "role", header: "Student Roles", width: 26, getValue: getStudentRoles },
       { key: "reportingStudent", header: "Reporting Student", width: 24, getValue: (c: CaseRecord) => c.reporting_student || "—" },
@@ -1099,10 +1112,12 @@ export default function CaseCatalog() {
       worksheet.addRow([]);
       worksheet.addRow([]);
 
-      const colEndLetter = String.fromCharCode(65 + Math.max(1, activeCols.length - 1));
-      worksheet.mergeCells(`B1:${colEndLetter}1`);
-      worksheet.mergeCells(`B2:${colEndLetter}2`);
-      worksheet.mergeCells(`B3:${colEndLetter}3`);
+      if (activeCols.length >= 3) {
+        const colEndLetter = String.fromCharCode(65 + activeCols.length - 1);
+        worksheet.mergeCells(`B1:${colEndLetter}1`);
+        worksheet.mergeCells(`B2:${colEndLetter}2`);
+        worksheet.mergeCells(`B3:${colEndLetter}3`);
+      }
 
       worksheet.getCell("B1").value = "LAGUNA COLLEGE";
       worksheet.getCell("B2").value = "San Pablo City";

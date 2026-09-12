@@ -20,6 +20,8 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [existingPendingCount, setExistingPendingCount] = useState<number>(0);
+  const [existingPendingFilename, setExistingPendingFilename] = useState<string>("");
   const toastTimerRef = useRef<number | null>(null);
   const navigate = useNavigate();
 
@@ -45,6 +47,25 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
     };
   }, []);
 
+  useEffect(() => {
+    if (isOpen) {
+      try {
+        const storedRowsStr = localStorage.getItem("lc_pending_import_rows");
+        const storedFilenameStr = localStorage.getItem("lc_pending_import_filename") || "";
+        if (storedRowsStr) {
+          const storedRows = JSON.parse(storedRowsStr);
+          if (Array.isArray(storedRows) && storedRows.length > 0) {
+            setExistingPendingCount(storedRows.length);
+            setExistingPendingFilename(storedFilenameStr);
+            return;
+          }
+        }
+      } catch {}
+      setExistingPendingCount(0);
+      setExistingPendingFilename("");
+    }
+  }, [isOpen]);
+
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
     setIsToastVisible(false);
@@ -67,8 +88,6 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
     }, MODAL_EXIT_MS);
   };
 
-  if (!isVisible) return null;
-
   const handleDownloadTemplate = async () => {
     try {
       setIsLoading(true);
@@ -81,28 +100,6 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
     }
   };
 
-  const [existingPendingCount, setExistingPendingCount] = useState<number>(0);
-  const [existingPendingFilename, setExistingPendingFilename] = useState<string>("");
-
-  useEffect(() => {
-    if (isOpen) {
-      try {
-        const storedRowsStr = localStorage.getItem("lc_pending_import_rows");
-        const storedFilenameStr = localStorage.getItem("lc_pending_import_filename") || "";
-        if (storedRowsStr) {
-          const storedRows = JSON.parse(storedRowsStr);
-          if (Array.isArray(storedRows) && storedRows.length > 0) {
-            setExistingPendingCount(storedRows.length);
-            setExistingPendingFilename(storedFilenameStr);
-            return;
-          }
-        }
-      } catch {}
-      setExistingPendingCount(0);
-      setExistingPendingFilename("");
-    }
-  }, [isOpen]);
-
   const handleDiscardExistingPending = () => {
     localStorage.removeItem("lc_pending_import_rows");
     localStorage.removeItem("lc_pending_import_filename");
@@ -112,6 +109,8 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
     setExistingPendingFilename("");
     showToast("success", "Previous pending session discarded.");
   };
+
+  if (!isVisible) return null;
 
   const handleSelectFile = async () => {
     try {

@@ -10,6 +10,12 @@ import { useAcademicYearFilter } from "../context/AcademicYearFilterContext";
 
 import { CaseRecord, StudentInfo } from "../types";
 import StatCard from "../components/StatCard";
+import {
+  isClosedCase,
+  isPendingCase,
+  isReprimandCase,
+  isResolvedCase,
+} from "../utils/caseStatus";
 
 const normalizeRole = (value?: string) => {
   const normalized = value?.trim() ?? "";
@@ -45,17 +51,6 @@ const TYPE_COLORS = [
 
 const matchPresetCaseType = (rawCase: string, description?: string): string => {
   return smartCategorizeCase(rawCase, description);
-};
-
-const isReprimandCase = (caseRecord: CaseRecord) => {
-  if ((caseRecord.sanction || "").toLowerCase().includes("reprimand")) {
-    return true;
-  }
-  if ((caseRecord.progress || "").toLowerCase().includes("reprimand")) {
-    return true;
-  }
-  const students = parseStudents(caseRecord.students);
-  return students.some((s) => (s.sanction || "").toLowerCase().includes("reprimand"));
 };
 
 const STATUS_CHART_SEGMENTS = [
@@ -201,10 +196,10 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     const total = filteredCases.length;
-    const resolved = filteredCases.filter(c => (c.progress || "").toLowerCase() === "resolved").length;
-    const closed = filteredCases.filter(c => (c.progress || "").toLowerCase() === "closed").length;
+    const resolved = filteredCases.filter(isResolvedCase).length;
+    const closed = filteredCases.filter(isClosedCase).length;
     const reprimand = filteredCases.filter(isReprimandCase).length;
-    const pending = filteredCases.filter(c => (c.progress || "").toLowerCase() === "pending" && !isReprimandCase(c)).length;
+    const pending = filteredCases.filter(isPendingCase).length;
 
     return { total, pending, resolved, closed, reprimand };
   }, [filteredCases]);
@@ -478,7 +473,7 @@ export default function Dashboard() {
       // Force a layout pass so the browser paints it
       element.getBoundingClientRect();
 
-      const filenameLabel = formatDashboardDateRange(dashStartDate, dashEndDate, cases).replace(/[\s\.-]/g, '_');
+      const filenameLabel = formatDashboardDateRange(dashStartDate, dashEndDate, cases).replace(/[\s\.,\/\-\\–]/g, '_').replace(/_+/g, '_');
       const filename = `Guidance_Overview_${filenameLabel}.pdf`;
       const opt = {
         margin: 0,

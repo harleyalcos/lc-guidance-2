@@ -111,15 +111,26 @@ export default function AcademicMonthRangePicker({
       setSelection(null);
       return;
     }
-    const startD = new Date(startDate);
-    const endD = new Date(endDate);
-    if (isNaN(startD.getTime()) || isNaN(endD.getTime())) {
+    const parseYM = (str: string) => {
+      const parts = str.split("-");
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        if (!isNaN(y) && !isNaN(m)) return { year: y, month: m };
+      }
+      const d = new Date(str);
+      return isNaN(d.getTime()) ? null : { year: d.getFullYear(), month: d.getMonth() };
+    };
+
+    const startYM = parseYM(startDate);
+    const endYM = parseYM(endDate);
+    if (!startYM || !endYM) {
       setSelection(null);
       return;
     }
     setSelection({
-      start: { year: startD.getFullYear(), month: startD.getMonth() },
-      end: { year: endD.getFullYear(), month: endD.getMonth() },
+      start: startYM,
+      end: endYM,
     });
   }, [startDate, endDate]);
 

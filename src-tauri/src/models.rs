@@ -339,12 +339,18 @@ impl ImportRow {
                 parsed_date = Some(naive);
             } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
                 parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%Y") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%y") {
+                parsed_date = Some(naive);
+            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%y") {
+                parsed_date = Some(naive);
             }
             
             if let Some(naive) = parsed_date {
-                self.date = naive.format("%m/%d/%Y").to_string();
+                self.date = naive.format("%Y-%m-%d").to_string();
             } else {
-                self.errors.push("Date format must be MM/DD/YYYY".to_string());
+                self.errors.push("Invalid date format. Must be YYYY-MM-DD or MM/DD/YYYY".to_string());
             }
         }
 

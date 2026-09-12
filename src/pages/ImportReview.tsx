@@ -57,10 +57,6 @@ export default function ImportReview() {
   const fallbackFilename = useMemo(() => {
     return localStorage.getItem("lc_pending_import_filename") || "";
   }, []);
-  
-  if (!state && !fallbackRows) {
-    return <Navigate to="/catalog" replace />;
-  }
 
   const [rows, setRows] = useState<ImportRow[]>(() => {
     if (state) return state.parseResult.rows;
@@ -506,6 +502,10 @@ export default function ImportReview() {
     if (activeTab === "duplicates") return duplicatesRows;
     return readyRows;
   }, [activeTab, issuesRows, duplicatesRows, readyRows]);
+
+  if (!state && !fallbackRows) {
+    return <Navigate to="/catalog" replace />;
+  }
 
   return (
     <div className="flex flex-col h-full bg-surface-container-lowest relative overflow-hidden animate-fade-in">

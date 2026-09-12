@@ -83,6 +83,15 @@ pub fn query_database_for_ai(state: State<'_, DbState>, sql: String) -> Result<V
         return Err("Query contains forbidden operations.".to_string());
     }
 
+    // Disallow querying sensitive tables and schemas
+    if upper_sql.contains("APP_CONFIG")
+        || upper_sql.contains("OTP_TOKENS")
+        || upper_sql.contains("SQLITE_MASTER")
+        || upper_sql.contains("SQLITE_SCHEMA")
+        || upper_sql.contains("PRAGMA") {
+        return Err("Access to sensitive system tables is forbidden.".to_string());
+    }
+
     let connection = state.connection.lock().map_err(db_error)?;
     let mut stmt = connection.prepare(sql_trimmed).map_err(db_error)?;
     

@@ -7,11 +7,12 @@ pub fn export_csv(connection: &rusqlite::Connection, csv_path: &Path) -> Result<
     wtr.write_record([
         "id", "students", "date", "date_filed", "case", "description", 
         "sanction", "progress", "proofs", "first_name", "last_name", 
-        "middle_initial", "level", "section", "adviser", "title", "reporting_student"
+        "middle_initial", "level", "section", "adviser", "title", "reporting_student",
+        "group_id", "student_roles", "update_history", "school_year"
     ]).map_err(|e| e.to_string())?;
 
     let mut stmt = connection.prepare(
-        r#"SELECT id, students, date, date_filed, "case", description, sanction, progress, proofs, first_name, last_name, middle_initial, level, section, adviser, title, reporting_student FROM cases"#
+        r#"SELECT id, students, date, date_filed, "case", description, sanction, progress, proofs, first_name, last_name, middle_initial, level, section, adviser, title, reporting_student, group_id, student_roles, update_history, school_year FROM cases"#
     ).map_err(|e| e.to_string())?;
     
     let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
@@ -35,6 +36,10 @@ pub fn export_csv(connection: &rusqlite::Connection, csv_path: &Path) -> Result<
             row.get::<_, String>("adviser").unwrap_or_default(),
             row.get::<_, String>("title").unwrap_or_default(),
             row.get::<_, String>("reporting_student").unwrap_or_default(),
+            row.get::<_, Option<String>>("group_id").unwrap_or_default().unwrap_or_default(),
+            row.get::<_, String>("student_roles").unwrap_or_default(),
+            row.get::<_, String>("update_history").unwrap_or_default(),
+            row.get::<_, String>("school_year").unwrap_or_default(),
         ]).map_err(|e| e.to_string())?;
     }
     

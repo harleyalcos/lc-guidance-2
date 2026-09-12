@@ -701,10 +701,9 @@ export default function CaseDetails() {
       // If this case is part of a group, propagate the updated complainants to all sibling cases
       if (caseRecord.group_id) {
         try {
-          const allCases = await invoke<CaseRecord[]>("get_cases");
-          const siblingCases = allCases.filter(
-            (c) => c.group_id === caseRecord.group_id && c.id !== caseRecord.id
-          );
+          const siblingCases = (
+            await invoke<CaseRecord[]>("get_cases", { groupId: caseRecord.group_id })
+          ).filter((c) => c.id !== caseRecord.id);
           const updatedComplainants = normalizedStudents.filter(isComplainantSubject);
 
           for (const sibling of siblingCases) {
@@ -903,8 +902,7 @@ export default function CaseDetails() {
         // Role is "Complainant / Subject"
         if (caseRecord.group_id) {
           try {
-            const allCases = await invoke<CaseRecord[]>("get_cases", {});
-            const groupSiblings = allCases.filter((c) => c.group_id === caseRecord.group_id);
+            const groupSiblings = await invoke<CaseRecord[]>("get_cases", { groupId: caseRecord.group_id });
             for (const sibling of groupSiblings) {
               const sibStudents = parseStudents(sibling.students);
               const alreadyExists = sibStudents.some(
@@ -996,7 +994,7 @@ export default function CaseDetails() {
     if (!caseRecord || !caseRecord.update_history) return [];
     try {
       const history = JSON.parse(caseRecord.update_history);
-      return Array.isArray(history) ? history.reverse() : [];
+      return Array.isArray(history) ? history.slice().reverse() : [];
     } catch (e) {
       return [];
     }

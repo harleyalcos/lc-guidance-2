@@ -1,5 +1,11 @@
 import { CaseRecord, StudentInfo } from "../../types";
 import { ReportConfig, ReportSummaryData } from "../types/reportTypes";
+import {
+  isClosedCase,
+  isPendingCase,
+  isReprimandCase,
+  isResolvedCase,
+} from "../../utils/caseStatus";
 
 export const normalizeRole = (value?: string): string => {
   const normalized = value?.trim() ?? "";
@@ -22,6 +28,18 @@ export const parseStudents = (studentsStr: string): StudentInfo[] => {
 };
 
 export const formatDate = (dateString: string): string => {
+  if (!dateString) return "";
+  const trimmed = dateString.trim();
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const [, yyyy, mm, dd] = isoMatch;
+    return `${mm.padStart(2, "0")}/${dd.padStart(2, "0")}/${yyyy}`;
+  }
+  const mdyMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (mdyMatch) {
+    const [, mm, dd, yyyy] = mdyMatch;
+    return `${mm.padStart(2, "0")}/${dd.padStart(2, "0")}/${yyyy}`;
+  }
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return dateString;
   const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -42,8 +60,8 @@ export const formatReportDateRange = (
     let oldest: Date | null = null;
     let latest: Date | null = null;
     for (const c of casesList) {
-      const d = new Date(c.date || c.date_filed);
-      if (!isNaN(d.getTime())) {
+      const d = getCaseDate(c);
+      if (d && !isNaN(d.getTime())) {
         if (!oldest || d.getTime() < oldest.getTime()) oldest = d;
         if (!latest || d.getTime() > latest.getTime()) latest = d;
       }
@@ -59,8 +77,16 @@ export const formatReportDateRange = (
   if (start && !end) return `From ${formatDate(start)}`;
   if (!start && end) return `Until ${formatDate(end)}`;
 
-  const startDateObj = new Date(start);
-  const endDateObj = new Date(end);
+  const parseLocalDate = (s: string) => {
+    const parts = s.split("-").map(Number);
+    if (parts.length === 3 && !parts.some(isNaN)) {
+      return new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+    return new Date(s);
+  };
+
+  const startDateObj = parseLocalDate(start);
+  const endDateObj = parseLocalDate(end);
 
   if (startDateObj.getTime() === endDateObj.getTime()) {
     return formatDate(start);
@@ -94,7 +120,13 @@ export const formatReportDateRange = (
 };
 
 export const getCaseDate = (caseRecord: CaseRecord): Date | null => {
-  const parsed = new Date(caseRecord.date || caseRecord.date_filed);
+  const dateStr = caseRecord.date || caseRecord.date_filed;
+  if (!dateStr) return null;
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length === 3 && !parts.some(isNaN)) {
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  const parsed = new Date(dateStr);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
@@ -109,36 +141,33 @@ export const getStatusColor = (progress: string): string => {
     return "#4b5563"; // Grayish
   }
   if (normalizedProgress === "resolved") {
-    return "#15803d"; // Green
+    return "#15803d"; // Greenish
   }
-  if (normalizedProgress === "pending") {
-    return "#a16207"; // Yellow/Gold
+  if (normalizedProgress.includes("reprimand")) {
+    return "#b91c1c"; // Reddish
   }
-  return "#b45309"; // Amber/Orange
+  return "#b45309"; // Amber/Pending
 };
 
-export const filterReportCases = (cases: CaseRecord[], config: ReportConfig): CaseRecord[] => {
-  return cases.filter((c) => {
-    // 1. Filter by scope
-    if (config.scope === "specific") {
+export const filterReportCases = (casesList: CaseRecord[], config: ReportConfig): CaseRecord[] => {
+  return casesList.filter((c) => {
+    // 1. Filter by grade scope
+    if (config.scope === "specific" && config.selectedGrade) {
       const grade = getCaseGradeLevel(c);
       if (grade !== config.selectedGrade) return false;
     }
 
-    // 2. Filter by status
+    // 2. Filter by status using unified rules
     if (config.status !== "all") {
-      const p = (c.progress || "").toLowerCase();
       const statusLower = config.status.toLowerCase();
-
       if (statusLower === "resolved") {
-        if (p !== "resolved") return false;
+        if (!isResolvedCase(c)) return false;
       } else if (statusLower === "closed") {
-        if (p !== "closed") return false;
+        if (!isClosedCase(c)) return false;
       } else if (statusLower === "reprimand") {
-        if (!p.includes("reprimand")) return false;
+        if (!isReprimandCase(c)) return false;
       } else if (statusLower === "pending") {
-        const isPending = p !== "resolved" && p !== "closed" && !p.includes("reprimand");
-        if (!isPending) return false;
+        if (!isPendingCase(c)) return false;
       }
     }
 
@@ -147,13 +176,13 @@ export const filterReportCases = (cases: CaseRecord[], config: ReportConfig): Ca
     if (!d) return false;
 
     if (config.startDate) {
-      const start = new Date(config.startDate);
-      start.setHours(0, 0, 0, 0);
+      const startParts = config.startDate.split("-").map(Number);
+      const start = startParts.length === 3 ? new Date(startParts[0], startParts[1] - 1, startParts[2], 0, 0, 0, 0) : new Date(config.startDate);
       if (d < start) return false;
     }
     if (config.endDate) {
-      const end = new Date(config.endDate);
-      end.setHours(23, 59, 59, 999);
+      const endParts = config.endDate.split("-").map(Number);
+      const end = endParts.length === 3 ? new Date(endParts[0], endParts[1] - 1, endParts[2], 23, 59, 59, 999) : new Date(config.endDate);
       if (d > end) return false;
     }
 
@@ -163,12 +192,10 @@ export const filterReportCases = (cases: CaseRecord[], config: ReportConfig): Ca
 
 export const calculateReportSummary = (activeCases: CaseRecord[]): ReportSummaryData => {
   const total = activeCases.length;
-  const resolved = activeCases.filter((c) => (c.progress || "").toLowerCase() === "resolved").length;
-  const closed = activeCases.filter((c) => (c.progress || "").toLowerCase() === "closed").length;
-  const reprimand = activeCases.filter((c) =>
-    (c.progress || "").toLowerCase().includes("reprimand")
-  ).length;
-  const pending = total - resolved - closed - reprimand;
+  const resolved = activeCases.filter(isResolvedCase).length;
+  const closed = activeCases.filter(isClosedCase).length;
+  const reprimand = activeCases.filter(isReprimandCase).length;
+  const pending = activeCases.filter(isPendingCase).length;
 
   return { total, pending, resolved, reprimand, closed };
 };

@@ -28,22 +28,23 @@ export const buildReportData = (config: ReportConfig, rawCases: CaseRecord[]): R
     let studentGrade = "";
     let studentAdviser = c.adviser || "—";
 
+    const formatStudentGrade = (rawLevel?: string) => {
+      if (!rawLevel || !rawLevel.trim()) return "—";
+      const trimmed = rawLevel.trim();
+      if (/^\d+$/.test(trimmed)) {
+        return `Grade ${trimmed}`;
+      }
+      return trimmed;
+    };
+
     if (students.length > 0) {
       const s = students[0];
       studentName = `${s.lastName}, ${s.firstName}${s.middleInitial ? ` ${s.middleInitial}.` : ""}`;
-      studentGrade = s.level
-        ? s.level.startsWith("Grade")
-          ? s.level
-          : `Grade ${s.level}`
-        : "—";
+      studentGrade = formatStudentGrade(s.level);
       studentAdviser = s.adviser || c.adviser || "—";
     } else {
       studentName = `${c.last_name}, ${c.first_name}${c.middle_initial ? ` ${c.middle_initial}.` : ""}`;
-      studentGrade = c.level
-        ? c.level.startsWith("Grade")
-          ? c.level
-          : `Grade ${c.level}`
-        : "—";
+      studentGrade = formatStudentGrade(c.level);
       studentAdviser = c.adviser || "—";
     }
 
