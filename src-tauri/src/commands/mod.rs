@@ -598,6 +598,10 @@ pub struct BackupRecord {
     pub filename: String,
 }
 
+pub fn backup_timestamp(filename: &str) -> String {
+    filename.split('_').skip(2).collect::<Vec<_>>().join("_")
+}
+
 #[tauri::command]
 pub fn get_backups(
     state: State<'_, DbState>,
@@ -618,7 +622,7 @@ pub fn get_backups(
             let path = entry.path();
             if path.is_dir() {
                 if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
-                    if filename.starts_with("backup_") {
+                    if filename.starts_with("backup_") && path.join("snapshot.db").is_file() {
                         let backup_type = if filename.starts_with("backup_manual_") {
                             "Manual".to_string()
                         } else if filename.starts_with("backup_safety_") {
@@ -671,7 +675,7 @@ pub fn get_backups(
         }
     }
 
-    backups.sort_by(|a, b| b.filename.cmp(&a.filename));
+    backups.sort_by(|a, b| backup_timestamp(&b.filename).cmp(&backup_timestamp(&a.filename)));
     Ok(backups)
 }
 

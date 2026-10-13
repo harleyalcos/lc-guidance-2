@@ -957,7 +957,7 @@ export default function CaseCatalog() {
         if (c.students) {
           const studentsArr = JSON.parse(c.students);
           if (Array.isArray(studentsArr) && studentsArr.length > 0) {
-            return studentsArr.map((s: any) => {
+            return studentsArr.filter((s: StudentInfo) => normalizeRole(s.role) === "Respondent").map((s: StudentInfo) => {
               const mi = s.middleInitial ? ` ${s.middleInitial}.` : "";
               return `${s.lastName}, ${s.firstName}${mi}`;
             }).join("\n");

@@ -73,7 +73,7 @@ const DEFAULT_COLUMNS: ExportColumns = {
 };
 
 const STANDARD_COLUMN_LABELS: { key: keyof ExportColumns; label: string; desc: string }[] = [
-  { key: "fullName", label: "Full Name", desc: "Student full name(s)" },
+  { key: "fullName", label: "Full Name", desc: "Respondent full name(s)" },
   { key: "date", label: "Date", desc: "Case date" },
   { key: "case", label: "Case Category", desc: "Type of incident / case" },
   { key: "sanction", label: "Sanction", desc: "Applied sanction" },
@@ -86,7 +86,7 @@ const STANDARD_COLUMN_LABELS: { key: keyof ExportColumns; label: string; desc: s
 const ADDITIONAL_COLUMN_LABELS: { key: keyof ExportColumns; label: string; desc: string }[] = [
   { key: "caseId", label: "Case ID", desc: "Formatted case reference (e.g. #0042)" },
   { key: "title", label: "Case Title", desc: "Title / subject of group incident" },
-  { key: "dateFiled", label: "Date", desc: "Date & time record was logged" },
+  { key: "dateFiled", label: "Date Filed", desc: "Date & time record was logged" },
   { key: "description", label: "Description", desc: "Full case narrative / details" },
   { key: "role", label: "Student Roles", desc: "Respondent, Complainant / Subject" },
   { key: "reportingStudent", label: "Reporting Student", desc: "Student who reported the case" },

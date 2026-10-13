@@ -13,6 +13,7 @@ type ToastType = "success" | "error";
 const RECOVERY_EMAIL_UNLOCK_KEY = "recovery_email_unlocked";
 
 const maskEmail = (value: string) => {
+  if (!value.trim()) return "Not configured";
   const [, domain = "gmail.com"] = value.split("@");
   return `*****@${domain || "gmail.com"}`;
 };
@@ -700,7 +701,7 @@ export default function AccountSettings() {
                 <button
                   type="button"
                   onClick={() => handleRecoveryVisibility()}
-                  disabled={recoveryOtpSending}
+                  disabled={recoveryOtpSending || !recoveryEmail}
                   aria-label={isRecoveryUnlocked && showRecoveryEmail ? "Hide recovery email" : "Show recovery email"}
                   className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-secondary hover:text-primary transition-colors duration-500 disabled:opacity-60"
                 >
@@ -709,7 +710,6 @@ export default function AccountSettings() {
                   </span>
                 </button>
               </div>
-              {isRecoveryUnlocked && <button type="button" onClick={() => handleRecoveryVisibility(true)} disabled={recoveryOtpSending} className="text-sm text-primary underline">Request a new verification code</button>}
               {isRecoveryUnlocked ? (
                 <button
                   type={isRecoveryEditing ? "submit" : "button"}
@@ -748,6 +748,7 @@ export default function AccountSettings() {
               )}
             </div>
           </div>
+          {isRecoveryUnlocked && <button type="button" onClick={() => handleRecoveryVisibility(true)} disabled={recoveryOtpSending} className="text-sm text-primary underline justify-self-start">Request a new verification code</button>}
         </form>
       </div>
         </div>
@@ -1159,11 +1160,13 @@ export default function AccountSettings() {
               inputMode="numeric"
               value={recoveryOtp}
               onChange={(e) => setRecoveryOtp(cleanPin(e.target.value))}
+              aria-label="Recovery email verification code"
               className={`${pinClass} mb-6`}
               placeholder="000000"
               autoFocus
               autoComplete="one-time-code"
             />
+            <button type="button" onClick={() => handleRecoveryVisibility(true)} disabled={recoveryOtpSending || recoveryOtpVerifying} className="text-sm text-primary underline mb-4">Resend verification code</button>
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"

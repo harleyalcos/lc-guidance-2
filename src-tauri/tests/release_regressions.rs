@@ -707,4 +707,11 @@ mod tests {
         case.students.extend([first.clone(), second, first]);
         assert_eq!(case.normalized().unwrap().students.len(), 3);
     }
+    #[test]
+    fn backup_order_uses_time_instead_of_backup_type() {
+        assert!(
+            commands::backup_timestamp("backup_manual_2026-10-14_01-43-00_abc")
+                > commands::backup_timestamp("backup_safety_2026-10-14_01-36-00_xyz")
+        );
+    }
 }
