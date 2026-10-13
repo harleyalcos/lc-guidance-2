@@ -802,4 +802,20 @@ mod tests {
         assert_eq!(imported.date, "2025-03-10T08:30");
         assert_eq!(imported.date_filed, "2026-10-14T09:00:00Z");
     }
+    #[test]
+    fn primary_student_sanction_tracks_case_edits_and_clearing() {
+        let app = app();
+        let state = app.state::<DbState>();
+        let conn = state.connection.lock().unwrap();
+        let mut original = payload("2026-10-13");
+        let id = CaseRepository::insert(&conn, &original).unwrap();
+        for sanction in ["Counseling", ""] {
+            original.sanction = sanction.into();
+            CaseRepository::update(&conn, id, &original, None).unwrap();
+            let saved = CaseRepository::find_by_id(&conn, id).unwrap().unwrap();
+            let students: serde_json::Value = serde_json::from_str(&saved.students).unwrap();
+            assert_eq!(saved.sanction, sanction);
+            assert_eq!(students[0]["sanction"], sanction);
+        }
+    }
 }

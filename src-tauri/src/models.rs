@@ -588,14 +588,8 @@ impl CasePayload {
                 .unwrap();
             payload.students.swap(0, index);
         }
-        if payload.students[0]
-            .sanction
-            .as_deref()
-            .unwrap_or("")
-            .is_empty()
-        {
-            payload.students[0].sanction = Some(payload.sanction.clone());
-        }
+        // The case sanction is authoritative for its primary respondent.
+        payload.students[0].sanction = Some(payload.sanction.clone());
         Ok(payload)
     }
 }
