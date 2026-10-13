@@ -129,7 +129,6 @@ export default function SummaryReports() {
     error,
     pdfBlobUrl,
     exportPdf,
-    printPdf,
     regenerate,
   } = useReportGenerator(reportConfig, cases);
 
@@ -206,7 +205,7 @@ export default function SummaryReports() {
         <div>
           <h1 className="page-header-h1 m-0">Reports</h1>
           <p className="text-sm text-secondary mt-1">
-            Generate, customize, and export guidance office reports with live PDF preview.
+            Generate and export reports with live PDF preview. To print, open the saved PDF and press Ctrl+P.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
@@ -219,8 +218,8 @@ export default function SummaryReports() {
             <span>{isExporting ? "Exporting..." : "Export PDF"}</span>
           </button>
           <button
-            onClick={printPdf}
-            disabled={state === "generating" || !pdfBlobUrl}
+            onClick={handleExportPDF}
+            disabled={isExporting || state === "generating" || !pdfBlobUrl}
             className="btn-primary"
           >
             <span className="material-symbols-outlined text-sm">print</span>

@@ -61,7 +61,7 @@ fn cell_to_date_string(cell: Option<&calamine::Data>) -> String {
 }
 
 #[tauri::command]
-pub fn parse_import_file(
+pub async fn parse_import_file(
     state: State<'_, DbState>,
     file_path: String,
 ) -> Result<ParseFileResult, String> {
@@ -115,10 +115,15 @@ pub fn parse_import_file(
     let Some((header_index, positions)) = found else {
         return Err(format!("No supported header row found in the first 25 rows. Required columns: {}. Download the import template and copy your records into it.", DB_IMPORT_HEADERS.join(", ")));
     };
-    let rows_iter = all_rows.into_iter().skip(header_index + 1);
+    let start_row = range
+        .start()
+        .map(|position| position.0 as usize)
+        .unwrap_or(0);
+    let rows_iter = all_rows.into_iter().enumerate().skip(header_index + 1);
 
     #[derive(Debug, Clone)]
     struct RawRowData {
+        source_row: usize,
         full_name: String,
         date: String,
         case_type: String,
@@ -131,7 +136,7 @@ pub fn parse_import_file(
     }
 
     let mut raw_records = Vec::new();
-    for row in rows_iter {
+    for (row_index, row) in rows_iter {
         let has_any_value = row.iter().any(|cell| !cell.to_string().trim().is_empty());
         if !has_any_value {
             continue;
@@ -214,6 +219,7 @@ pub fn parse_import_file(
                         });
 
                 raw_records.push(RawRowData {
+                    source_row: start_row + row_index + 1,
                     full_name: name.to_string(),
                     date: date_raw.clone(),
                     case_type: case_type_raw.clone(),
@@ -227,6 +233,7 @@ pub fn parse_import_file(
             }
         } else {
             raw_records.push(RawRowData {
+                source_row: start_row + row_index + 1,
                 full_name: full_name_raw,
                 date: date_raw,
                 case_type: case_type_raw,
@@ -255,7 +262,8 @@ pub fn parse_import_file(
         }
     }
 
-    let mut result_rows = Vec::new();
+    let mut result_rows: Vec<ImportRow> = Vec::new();
+    let mut reviewed = std::collections::HashMap::<String, usize>::new();
     let mut valid_count = 0;
     let mut duplicate_count = 0;
     let mut error_count = 0;
@@ -408,6 +416,7 @@ pub fn parse_import_file(
             };
 
             let mut import_row = ImportRow {
+                source_row: Some(row.source_row),
                 id: String::new(),
                 full_name: row.full_name,
                 last_name: String::new(),
@@ -450,26 +459,9 @@ pub fn parse_import_file(
             }
 
             if !import_row.is_duplicate && !import_row.has_errors {
-                let found_prev = result_rows.iter().find(|prev: &&ImportRow| {
-                    prev.first_name.trim().to_lowercase()
-                        == import_row.first_name.trim().to_lowercase()
-                        && prev.last_name.trim().to_lowercase()
-                            == import_row.last_name.trim().to_lowercase()
-                        && prev.middle_initial.trim().to_lowercase()
-                            == import_row.middle_initial.trim().to_lowercase()
-                        && prev.level.trim().to_lowercase()
-                            == import_row.level.trim().to_lowercase()
-                        && prev.section.trim().to_lowercase()
-                            == import_row.section.trim().to_lowercase()
-                        && prev.date.trim().to_lowercase() == import_row.date.trim().to_lowercase()
-                        && prev.adviser.trim().to_lowercase()
-                            == import_row.adviser.trim().to_lowercase()
-                        && prev.case.trim().to_lowercase() == import_row.case.trim().to_lowercase()
-                        && prev.sanction.trim().to_lowercase()
-                            == import_row.sanction.trim().to_lowercase()
-                        && prev.progress.trim().to_lowercase()
-                            == import_row.progress.trim().to_lowercase()
-                });
+                let found_prev = reviewed
+                    .get(&import_row_key(&import_row))
+                    .and_then(|index| result_rows.get(*index));
 
                 if let Some(prev) = found_prev {
                     import_row.is_duplicate = true;
@@ -506,6 +498,11 @@ pub fn parse_import_file(
                 valid_count += 1;
             }
 
+            if !import_row.has_errors {
+                reviewed
+                    .entry(import_row_key(&import_row))
+                    .or_insert(result_rows.len());
+            }
             result_rows.push(import_row);
         }
     }
@@ -519,7 +516,7 @@ pub fn parse_import_file(
 }
 
 #[tauri::command]
-pub fn batch_import_cases(
+pub async fn batch_import_cases(
     state: State<'_, DbState>,
     mut rows: Vec<ImportRow>,
 ) -> Result<BatchImportResult, String> {
@@ -656,7 +653,7 @@ pub fn validate_import_row(
 }
 
 #[tauri::command]
-pub fn validate_import_rows(
+pub async fn validate_import_rows(
     state: State<'_, DbState>,
     mut rows: Vec<ImportRow>,
 ) -> Result<Vec<ImportRow>, String> {
@@ -666,24 +663,30 @@ pub fn validate_import_rows(
     for row in &mut rows {
         row.validate(&connection);
         if !row.has_errors {
-            let key = serde_json::json!([
-                row.first_name,
-                row.last_name,
-                row.middle_initial,
-                row.level,
-                row.section,
-                row.date,
-                row.adviser,
-                row.r#case,
-                row.sanction,
-                row.progress
-            ])
-            .to_string()
-            .to_lowercase();
+            let key = import_row_key(row);
             if !seen.insert(key) {
                 row.is_duplicate = true;
             }
         }
     }
     Ok(rows)
+}
+
+fn import_row_key(row: &ImportRow) -> String {
+    serde_json::to_string(
+        &[
+            &row.first_name,
+            &row.last_name,
+            &row.middle_initial,
+            &row.level,
+            &row.section,
+            &row.date,
+            &row.adviser,
+            &row.r#case,
+            &row.sanction,
+            &row.progress,
+        ]
+        .map(|value| value.trim().to_lowercase()),
+    )
+    .unwrap()
 }

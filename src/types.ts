@@ -34,6 +34,7 @@ export interface StudentInfo {
 }
 
 export interface ImportRow {
+  source_row?: number;
   id: string;
   full_name: string;
   first_name: string;

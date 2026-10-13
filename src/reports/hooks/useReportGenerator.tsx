@@ -26,7 +26,6 @@ export interface UseReportGeneratorResult {
   pdfBlobUrl: string | null;
   reportData: ReportData;
   exportPdf: (customFilename?: string) => Promise<void>;
-  printPdf: () => void;
   regenerate: () => void;
 }
 
@@ -116,10 +115,6 @@ export const useReportGenerator = (
   );
 
   // Saving opens the exact PDF in the system viewer, where staff can use Ctrl+P.
-  const printPdf = useCallback(async () => {
-    try { await exportPdf(); }
-    catch (err) { setError(`Could not open the report for printing: ${String(err)}`); }
-  }, [exportPdf]);
 
   return {
     state,
@@ -128,7 +123,6 @@ export const useReportGenerator = (
     pdfBlobUrl,
     reportData,
     exportPdf,
-    printPdf,
     regenerate,
   };
 };

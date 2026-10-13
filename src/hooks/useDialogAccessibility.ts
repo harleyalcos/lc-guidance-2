@@ -60,7 +60,12 @@ export function useDialogAccessibility() {
         else if (event.shiftKey && (document.activeElement === first || !top.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && (document.activeElement === last || !top.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
       } else if (event.key === 'Escape') {
-        const close = Array.from(top.querySelectorAll<HTMLButtonElement>('button:not([disabled])')).find(button => /^(close|cancel|continue editing|keep editing)$/i.test(button.textContent?.trim() || '') || /^(close|cancel)/i.test(button.getAttribute('aria-label') || ''));
+        const close = Array.from(top.querySelectorAll<HTMLButtonElement>('button:not([disabled])')).find(button => {
+          const copy = button.cloneNode(true) as HTMLButtonElement;
+          copy.querySelectorAll('.material-symbols-outlined').forEach(icon => icon.remove());
+          const label = button.getAttribute('aria-label') || copy.textContent?.trim() || '';
+          return /^(close|cancel|continue editing|keep editing)(?:\s|$)/i.test(label);
+        });
         if (close) { event.preventDefault(); event.stopPropagation(); close.click(); }
       }
     };

@@ -59,6 +59,8 @@ pub struct CaseRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportRow {
+    #[serde(default)]
+    pub source_row: Option<usize>,
     pub id: String,
     pub full_name: String,
     pub first_name: String,
@@ -446,30 +448,21 @@ impl ImportRow {
             }
         }
 
-        if !self.date_filed.trim().is_empty() {
-            let trimmed = self.date_filed.trim();
-            let mut parsed_date = None;
-
-            if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%y") {
-                parsed_date = Some(naive);
-            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%Y") {
-                parsed_date = Some(naive);
-            } else if let Some(date) = normalize_incident_date(trimmed) {
-                self.date = date.clone();
-                parsed_date = None;
-            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%y") {
-                parsed_date = Some(naive);
-            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%Y") {
-                parsed_date = Some(naive);
-            }
-
-            if let Some(naive) = parsed_date {
-                self.date_filed = naive.format("%Y-%m-%d").to_string();
-            } else {
-                self.date_filed = self.date.clone();
-            }
-        } else {
+        if self.date_filed.trim().is_empty() {
             self.date_filed = self.date.clone();
+        } else if let Some(date) = normalize_incident_date(&self.date_filed) {
+            self.date_filed = date;
+        } else {
+            let parsed = ["%m/%d/%y", "%m/%d/%Y", "%m-%d-%y", "%m-%d-%Y"]
+                .iter()
+                .find_map(|format| {
+                    chrono::NaiveDate::parse_from_str(self.date_filed.trim(), format).ok()
+                });
+            if let Some(date) = parsed {
+                self.date_filed = date.format("%Y-%m-%d").to_string();
+            } else {
+                self.errors.push("Invalid filing date or time".into());
+            }
         }
 
         if !self.adviser.trim().is_empty() {

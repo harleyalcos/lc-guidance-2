@@ -493,8 +493,8 @@ export default function ImportReview() {
       )}
 
       {/* Header (styled exactly like layout TopAppBar) */}
-      <div className="app-topbar-surface h-16 border-b border-outline-variant flex items-center justify-between px-margin-page sticky top-0 z-20 shrink-0">
-        <div className="flex items-center gap-4">
+      <div className="app-topbar-surface min-h-16 py-3 gap-3 border-b border-outline-variant flex flex-wrap items-center justify-between px-margin-page sticky top-0 z-20 shrink-0">
+        <div className="flex min-w-0 items-center gap-4">
           <button 
             onClick={handleBackClick}
             className="text-secondary hover:text-primary transition-colors duration-500 flex items-center justify-center cursor-pointer"
@@ -502,7 +502,7 @@ export default function ImportReview() {
           >
             <span className="material-symbols-outlined text-[24px]">arrow_back</span>
           </button>
-          <h2 className="font-serif text-lg font-semibold text-primary dark:text-primary-fixed-dim text-left flex items-center gap-2">
+          <h2 className="font-serif text-lg font-semibold text-primary dark:text-primary-fixed-dim text-left flex flex-wrap items-center gap-2">
             Import Review
             <span className="text-xs font-normal text-on-surface-variant bg-surface-variant/70 dark:bg-surface-variant/30 border border-outline-variant px-2 py-0.5 rounded-full font-body-md">
               {filename}
@@ -671,7 +671,7 @@ export default function ImportReview() {
                       <tr className={`hover:bg-surface-container-low transition-colors ${row.has_errors ? "bg-[#FCE8E6]/10 dark:bg-[#ba1a1a]/5" : row.is_duplicate ? "bg-[#FEF7E0]/10 dark:bg-[#b06000]/5" : ""}`}>
                         {/* Row number */}
                         <td className="py-2.5 px-4 font-semibold text-center text-on-surface-variant bg-surface-container-low/30 text-sm">
-                          {index + 2}
+                          {row.source_row ?? index + 2}
                         </td>
 
                         {/* Student Name */}
@@ -783,7 +783,7 @@ export default function ImportReview() {
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                                 {/* Left Column: Excel data */}
                                 <div className="flex flex-col gap-2 p-3 bg-[#FEF7E0]/15 dark:bg-[#e65100]/10 rounded-lg border border-[#FEEFC3]/40 dark:border-[#ffb74d]/20">
-                                  <h4 className="font-bold text-[#B06000] dark:text-[#ffb74d] uppercase tracking-wider text-[10px] mb-0.5">Importing Data (Excel Row {index + 2})</h4>
+                                  <h4 className="font-bold text-[#B06000] dark:text-[#ffb74d] uppercase tracking-wider text-[10px] mb-0.5">Importing Data (Excel Row {row.source_row ?? index + 2})</h4>
                                   <div className="grid grid-cols-3 gap-y-1">
                                     <div className="text-on-surface-variant font-medium">Student:</div>
                                     <div className="col-span-2 font-semibold">{row.first_name} {row.last_name}</div>

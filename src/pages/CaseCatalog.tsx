@@ -329,7 +329,7 @@ export default function CaseCatalog() {
     placeAbove: boolean;
     isExiting: boolean;
   } | null>(null);
-  const warningCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const warningCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
   const isRestoredRef = useRef(false);
@@ -1309,6 +1309,7 @@ export default function CaseCatalog() {
               }
               setIsExportModalOpen(true);
             }}
+            disabled={isLoading || Boolean(error)}
             className="btn-secondary"
           >
             <span className="material-symbols-outlined text-[18px]">table_view</span>
@@ -1326,11 +1327,11 @@ export default function CaseCatalog() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <StatCard label="Total Cases" value={isLoading ? "..." : stats.totalCases} icon="analytics" colorClass="text-primary bg-primary/5" />
-        <StatCard label="Pending Cases" value={isLoading ? "..." : stats.pendingReview} icon="pending_actions" colorClass="text-[#D9A23B] bg-[#D9A23B]/5" />
-        <StatCard label="Resolved Cases" value={isLoading ? "..." : stats.resolvedAllTime} icon="task_alt" colorClass="text-[#15803D] bg-[#15803D]/5" />
-        <StatCard label="Closed Cases" value={isLoading ? "..." : stats.closedCases} icon="cancel" colorClass="text-[#4B5563] bg-[#4B5563]/5" />
-        <StatCard label="Reprimanded" value={isLoading ? "..." : stats.reprimandedCases} icon="gavel" colorClass="text-[#6B7280] bg-[#6B7280]/5" />
+        <StatCard label="Total Cases" value={error ? "Unavailable" : isLoading ? "..." : stats.totalCases} icon="analytics" colorClass="text-primary bg-primary/5" />
+        <StatCard label="Pending Cases" value={error ? "Unavailable" : isLoading ? "..." : stats.pendingReview} icon="pending_actions" colorClass="text-[#D9A23B] bg-[#D9A23B]/5" />
+        <StatCard label="Resolved Cases" value={error ? "Unavailable" : isLoading ? "..." : stats.resolvedAllTime} icon="task_alt" colorClass="text-[#15803D] bg-[#15803D]/5" />
+        <StatCard label="Closed Cases" value={error ? "Unavailable" : isLoading ? "..." : stats.closedCases} icon="cancel" colorClass="text-[#4B5563] bg-[#4B5563]/5" />
+        <StatCard label="Reprimanded" value={error ? "Unavailable" : isLoading ? "..." : stats.reprimandedCases} icon="gavel" colorClass="text-[#6B7280] bg-[#6B7280]/5" />
       </div>
 
       {/* Search & Filters System */}

@@ -439,6 +439,11 @@ CREATE INDEX IF NOT EXISTS idx_cases_group_id ON cases(group_id);
 CREATE INDEX IF NOT EXISTS idx_cases_school_year ON cases(school_year);
 CREATE INDEX IF NOT EXISTS idx_cases_date ON cases(date);
 CREATE INDEX IF NOT EXISTS idx_cases_progress ON cases(progress);
+CREATE INDEX IF NOT EXISTS idx_cases_import_match ON cases(
+  LOWER(TRIM(first_name)), LOWER(TRIM(last_name)), LOWER(TRIM(middle_initial)),
+  LOWER(TRIM(level)), LOWER(TRIM(section)), LOWER(TRIM(date)), LOWER(TRIM(adviser)),
+  LOWER(TRIM("case")), LOWER(TRIM(sanction)), LOWER(TRIM(progress))
+);
 "#,
     )?;
 

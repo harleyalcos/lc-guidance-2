@@ -215,8 +215,11 @@ mod tests {
             }
         }
         book.save(&path).unwrap();
-        let result =
-            commands::parse_import_file(app.state(), path.to_string_lossy().into()).unwrap();
+        let result = tauri::async_runtime::block_on(commands::parse_import_file(
+            app.state(),
+            path.to_string_lossy().into(),
+        ))
+        .unwrap();
         std::fs::remove_file(path).unwrap();
         assert_eq!(result.valid_count, 2);
         assert!(
@@ -290,12 +293,16 @@ mod tests {
         }
         book.save(&path).unwrap();
         let app = app();
-        let parsed =
-            commands::parse_import_file(app.state(), path.to_string_lossy().into()).unwrap();
+        let parsed = tauri::async_runtime::block_on(commands::parse_import_file(
+            app.state(),
+            path.to_string_lossy().into(),
+        ))
+        .unwrap();
         std::fs::remove_file(path).unwrap();
         assert_eq!(parsed.valid_count, 1);
         assert_eq!(parsed.rows[0].level, "Grade 7");
         assert_eq!(parsed.rows[0].date, "2025-03-10T08:30");
+        assert_eq!(parsed.rows[0].source_row, Some(9));
     }
 
     #[test]
@@ -415,22 +422,30 @@ mod tests {
     #[test]
     fn cross_file_duplicates_are_reviewed_and_rejected_at_commit() {
         let app = app();
-        let rows = commands::validate_import_rows(app.state(), vec![row(), row()]).unwrap();
+        let rows = tauri::async_runtime::block_on(commands::validate_import_rows(
+            app.state(),
+            vec![row(), row()],
+        ))
+        .unwrap();
         assert!(!rows[0].is_duplicate);
         assert!(rows[1].is_duplicate);
-        let result = commands::batch_import_cases(app.state(), vec![row(), row()]).unwrap();
+        let result = tauri::async_runtime::block_on(commands::batch_import_cases(
+            app.state(),
+            vec![row(), row()],
+        ))
+        .unwrap();
         assert!(!result.success);
         assert_eq!(result.inserted_count, 0);
         assert!(commands::get_cases(app.state(), None, None)
             .unwrap()
             .is_empty());
         assert!(
-            commands::batch_import_cases(app.state(), vec![row()])
+            tauri::async_runtime::block_on(commands::batch_import_cases(app.state(), vec![row()]))
                 .unwrap()
                 .success
         );
         assert!(
-            !commands::batch_import_cases(app.state(), vec![row()])
+            !tauri::async_runtime::block_on(commands::batch_import_cases(app.state(), vec![row()]))
                 .unwrap()
                 .success
         );
@@ -713,5 +728,78 @@ mod tests {
             commands::backup_timestamp("backup_manual_2026-10-14_01-43-00_abc")
                 > commands::backup_timestamp("backup_safety_2026-10-14_01-36-00_xyz")
         );
+    }
+    #[test]
+    fn full_size_workbook_imports_all_rows_without_false_groups() {
+        let path =
+            std::env::temp_dir().join(format!("guidance-load-{}.xlsx", uuid::Uuid::new_v4()));
+        let mut book = rust_xlsxwriter::Workbook::new();
+        let sheet = book.add_worksheet();
+        let headers = [
+            "Full Name",
+            "Date",
+            "Case",
+            "Sanction",
+            "Progress",
+            "Grade",
+            "Section",
+            "Adviser",
+        ];
+        for (index, header) in headers.iter().enumerate() {
+            sheet.write_string(0, index as u16, *header).unwrap();
+        }
+        for index in 1..=5000 {
+            let name = format!("Student{index}, Test");
+            let fields = [
+                name.as_str(),
+                "2026-10-13",
+                "Bullying",
+                "Warning",
+                "Pending",
+                "7",
+                "A",
+                "Teacher",
+            ];
+            for (column, value) in fields.iter().enumerate() {
+                sheet.write_string(index, column as u16, *value).unwrap();
+            }
+        }
+        book.save(&path).unwrap();
+        let app = app();
+        let start = std::time::Instant::now();
+        let parsed = tauri::async_runtime::block_on(commands::parse_import_file(
+            app.state(),
+            path.to_string_lossy().into(),
+        ))
+        .unwrap();
+        assert_eq!(parsed.valid_count, 5000);
+        assert!(parsed.rows.iter().all(|row| row.group_id.is_none()));
+        let result =
+            tauri::async_runtime::block_on(commands::batch_import_cases(app.state(), parsed.rows))
+                .unwrap();
+        assert!(result.success);
+        assert_eq!(result.inserted_count, 5000);
+        eprintln!(
+            "5,000-row parse and transactional commit: {:?}",
+            start.elapsed()
+        );
+        assert_eq!(
+            commands::get_cases(app.state(), None, None).unwrap().len(),
+            5000
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn import_filing_timestamp_does_not_replace_incident_date() {
+        let app = app();
+        let state = app.state::<DbState>();
+        let conn = state.connection.lock().unwrap();
+        let mut imported = row();
+        imported.date = "2025-03-10T08:30".into();
+        imported.date_filed = "2026-10-14T09:00:00Z".into();
+        imported.validate(&conn);
+        assert!(!imported.has_errors);
+        assert_eq!(imported.date, "2025-03-10T08:30");
+        assert_eq!(imported.date_filed, "2026-10-14T09:00:00Z");
     }
 }

@@ -88,16 +88,11 @@ export function useAiReportPdf(reportData: AiReportData | null) {
     [reportData]
   );
 
-  const printPdf = useCallback(async () => {
-    try { await exportPdf(); }
-    catch (err) { setError(`Could not open the report for printing: ${String(err)}`); }
-  }, [exportPdf]);
 
   return {
     pdfBlobUrl,
     isGenerating,
     error,
     exportPdf,
-    printPdf,
   };
 }
