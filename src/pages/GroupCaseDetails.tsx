@@ -854,21 +854,21 @@ export default function GroupCaseDetails() {
                       <input
                         type="text"
                         value={row.student.lastName}
-                        placeholder="Last Name"
+                        aria-label="Last name" placeholder="Last Name"
                         onChange={(e) => handleEditStudentChange(idx, "lastName", autoCapitalize(e.target.value))}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
                       />
                       <input
                         type="text"
                         value={row.student.firstName}
-                        placeholder="First Name"
+                        aria-label="First name" placeholder="First Name"
                         onChange={(e) => handleEditStudentChange(idx, "firstName", autoCapitalize(e.target.value))}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
                       />
                       <input
                         type="text"
                         value={row.student.middleInitial}
-                        placeholder="M.I."
+                        aria-label="Middle initial" placeholder="M.I."
                         maxLength={3}
                         onChange={(e) => handleEditStudentChange(idx, "middleInitial", e.target.value.replace(/\s+/g, "").toUpperCase())}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-14"
@@ -998,21 +998,21 @@ export default function GroupCaseDetails() {
                             <input
                               type="text"
                               value={row.student.lastName}
-                              placeholder="Last Name"
+                              aria-label="Last name" placeholder="Last Name"
                               onChange={(e) => handleEditStudentChange(idx, "lastName", autoCapitalize(e.target.value))}
                               className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
                             />
                             <input
                               type="text"
                               value={row.student.firstName}
-                              placeholder="First Name"
+                              aria-label="First name" placeholder="First Name"
                               onChange={(e) => handleEditStudentChange(idx, "firstName", autoCapitalize(e.target.value))}
                               className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
                             />
                             <input
                               type="text"
                               value={row.student.middleInitial}
-                              placeholder="M.I."
+                              aria-label="Middle initial" placeholder="M.I."
                               maxLength={3}
                               onChange={(e) => handleEditStudentChange(idx, "middleInitial", e.target.value.replace(/\s+/g, "").toUpperCase())}
                               className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary w-14"

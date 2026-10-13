@@ -597,9 +597,12 @@ export default function CaseDetails() {
   const handleUploadProof = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
+    if (!/^image\/(jpeg|png|gif|webp)$/.test(file.type) || file.size > 10 * 1024 * 1024) {
+      alert("Choose a JPG, PNG, GIF or WEBP image up to 10 MB."); e.target.value = ""; return;
+    }
     const reader = new FileReader();
-    reader.onloadend = async () => {
+    reader.onerror = () => alert("The image could not be read. Choose the file again.");
+    reader.onload = async () => {
       try {
         await saveProofs([
           ...uploadedProofs,
@@ -1207,7 +1210,7 @@ export default function CaseDetails() {
                       <input
                         type="text"
                         value={student.lastName}
-                        placeholder="Last Name"
+                        aria-label="Last name" placeholder="Last Name"
                         onChange={(e) => handleEditStudentChange(idx, "lastName", autoCapitalize(e.target.value))}
                         onBlur={() => handleEditStudentBlur(idx, "lastName")}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
@@ -1215,7 +1218,7 @@ export default function CaseDetails() {
                       <input
                         type="text"
                         value={student.firstName}
-                        placeholder="First Name"
+                        aria-label="First name" placeholder="First Name"
                         onChange={(e) => handleEditStudentChange(idx, "firstName", autoCapitalize(e.target.value))}
                         onBlur={() => handleEditStudentBlur(idx, "firstName")}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
@@ -1223,7 +1226,7 @@ export default function CaseDetails() {
                       <input
                         type="text"
                         value={student.middleInitial}
-                        placeholder="M.I."
+                        aria-label="Middle initial" placeholder="M.I."
                         maxLength={3}
                         onChange={(e) => handleEditStudentChange(idx, "middleInitial", e.target.value.replace(/\s+/g, "").toUpperCase())}
                         onBlur={() => handleEditStudentBlur(idx, "middleInitial")}
@@ -1312,7 +1315,7 @@ export default function CaseDetails() {
                           <input
                             type="text"
                             value={student.lastName}
-                            placeholder="Last Name"
+                            aria-label="Last name" placeholder="Last Name"
                             onChange={(e) => handleEditStudentChange(idx, "lastName", autoCapitalize(e.target.value))}
                             onBlur={() => handleEditStudentBlur(idx, "lastName")}
                             className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
@@ -1320,7 +1323,7 @@ export default function CaseDetails() {
                           <input
                             type="text"
                             value={student.firstName}
-                            placeholder="First Name"
+                            aria-label="First name" placeholder="First Name"
                             onChange={(e) => handleEditStudentChange(idx, "firstName", autoCapitalize(e.target.value))}
                             onBlur={() => handleEditStudentBlur(idx, "firstName")}
                             className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
@@ -1328,7 +1331,7 @@ export default function CaseDetails() {
                           <input
                             type="text"
                             value={student.middleInitial}
-                            placeholder="M.I."
+                            aria-label="Middle initial" placeholder="M.I."
                             maxLength={3}
                             onChange={(e) => handleEditStudentChange(idx, "middleInitial", e.target.value.replace(/\s+/g, "").toUpperCase())}
                             onBlur={() => handleEditStudentBlur(idx, "middleInitial")}
@@ -1587,7 +1590,7 @@ export default function CaseDetails() {
             <span>Documentation & Proofs</span>
           </h3>
           <div>
-            <label className="btn-primary cursor-pointer">
+            <label role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.querySelector("input")?.click(); } }} className="btn-primary cursor-pointer">
               <span className="material-symbols-outlined text-[18px]">upload_file</span>
               <span>Upload Proof</span>
               <input

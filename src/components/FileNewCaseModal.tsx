@@ -429,8 +429,12 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
   const handleUploadProof = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!/^image\/(jpeg|png|gif|webp)$/.test(file.type) || file.size > 10 * 1024 * 1024) {
+      showToast("Choose a JPG, PNG, GIF or WEBP image up to 10 MB."); e.target.value = ""; return;
+    }
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onerror = () => showToast("The image could not be read. Choose the file again.");
+    reader.onload = () => {
       setFormData((p) => ({
         ...p,
         uploadedProofs: [...p.uploadedProofs, { name: file.name, data: reader.result as string }],
@@ -1162,7 +1166,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                     <h3 className="text-base font-bold text-on-surface">Attach documentation</h3>
                     <p className="text-xs text-secondary mt-0.5">Photos, screenshots, or scanned documents.</p>
                   </div>
-                  <label className="flex items-center gap-1.5 bg-[#0B1E43] text-white text-xs font-bold py-2 px-4 rounded-lg cursor-pointer hover:bg-[#0F2451] transition-colors duration-500 shrink-0">
+                  <label role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.querySelector("input")?.click(); } }} className="flex items-center gap-1.5 bg-[#0B1E43] text-white text-xs font-bold py-2 px-4 rounded-lg cursor-pointer hover:bg-[#0F2451] transition-colors duration-500 shrink-0">
                     <span className="material-symbols-outlined" style={{ fontSize: 15 }}>upload</span>
                     Add file
                     <input type="file" accept="image/*" className="hidden" onChange={handleUploadProof} />
@@ -1170,11 +1174,11 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 </div>
 
                 {formData.uploadedProofs.length === 0 ? (
-                  <label className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-outline-variant rounded-xl p-10 cursor-pointer hover:border-primary hover:bg-primary/5 transition-all duration-500 group">
+                  <label role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.querySelector("input")?.click(); } }} className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-outline-variant rounded-xl p-10 cursor-pointer hover:border-primary hover:bg-primary/5 transition-all duration-500 group">
                     <span className="material-symbols-outlined text-secondary group-hover:text-primary transition-colors" style={{ fontSize: 36 }}>add_photo_alternate</span>
                     <div className="text-center">
-                      <p className="text-sm font-bold text-on-surface">Drop files here or click to upload</p>
-                      <p className="text-xs text-secondary mt-0.5">Supports JPG, PNG, GIF, WEBP</p>
+                      <p className="text-sm font-bold text-on-surface">Click to upload an image</p>
+                      <p className="text-xs text-secondary mt-0.5">JPG, PNG, GIF or WEBP, up to 10 MB each</p>
                     </div>
                     <input type="file" accept="image/*" className="hidden" onChange={handleUploadProof} />
                   </label>
@@ -1205,7 +1209,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                       </div>
                     ))}
                     {/* Add more button */}
-                    <label className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-outline-variant cursor-pointer hover:border-primary hover:bg-primary/5 transition-all duration-500 aspect-video group">
+                    <label role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.querySelector("input")?.click(); } }} className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-outline-variant cursor-pointer hover:border-primary hover:bg-primary/5 transition-all duration-500 aspect-video group">
                       <span className="material-symbols-outlined text-secondary group-hover:text-primary transition-colors" style={{ fontSize: 24 }}>add</span>
                       <span className="text-xs text-secondary group-hover:text-primary font-medium transition-colors">Add more</span>
                       <input type="file" accept="image/*" className="hidden" onChange={handleUploadProof} />
@@ -1225,7 +1229,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 </div>
                 <textarea
                   rows={4}
-                  placeholder="Write a brief description..."
+                  aria-label="Case description" placeholder="Write a brief description..."
                   value={formData.description}
                   maxLength={TEXT_FIELD_LIMIT}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value.slice(0, TEXT_FIELD_LIMIT) })}
