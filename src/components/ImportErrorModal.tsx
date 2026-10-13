@@ -182,7 +182,7 @@ export default function ImportErrorModal({
       />
 
       {/* Modal Container */}
-      <div
+      <div role="dialog" aria-modal="true" tabIndex={-1}
         className={`relative z-10 bg-surface border border-outline-variant rounded-3xl w-full max-w-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden ${
           isClosing ? "modal-panel-exit" : "modal-panel-enter"
         }`}

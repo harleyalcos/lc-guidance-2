@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StudentInfo {
+    #[serde(default)]
+    pub participant_id: Option<String>,
     pub first_name: String,
     pub last_name: String,
     pub middle_initial: String,
@@ -84,13 +86,30 @@ pub struct ImportRow {
 
 impl ImportRow {
     pub fn sync_students(&mut self) {
-        let fnames: Vec<&str> = self.first_name.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
-        let lnames: Vec<&str> = self.last_name.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
-        let mnames: Vec<&str> = self.middle_initial.split('\n').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+        let fnames: Vec<&str> = self
+            .first_name
+            .split('\n')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let lnames: Vec<&str> = self
+            .last_name
+            .split('\n')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let mnames: Vec<&str> = self
+            .middle_initial
+            .split('\n')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
 
+        let existing: Vec<serde_json::Value> =
+            serde_json::from_str(&self.students).unwrap_or_default();
         let mut student_list = Vec::new();
         let max_len = fnames.len().max(lnames.len()).max(mnames.len());
-        
+
         if max_len == 0 {
             student_list.push(serde_json::json!({
                 "firstName": "",
@@ -99,22 +118,25 @@ impl ImportRow {
                 "level": self.level,
                 "section": self.section,
                 "adviser": self.adviser,
-                "role": "Respondent"
+                "role": "Respondent",
+                "sanction": self.sanction
             }));
         } else {
             for index in 0..max_len {
                 let fn_val = fnames.get(index).copied().unwrap_or("").to_string();
                 let ln_val = lnames.get(index).copied().unwrap_or("").to_string();
                 let mn_val = mnames.get(index).copied().unwrap_or("").to_string();
-                
+
                 student_list.push(serde_json::json!({
+                    "participantId": existing.get(index).and_then(|s| s.get("participantId")).and_then(|v| v.as_str()).map(str::to_string).unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
                     "firstName": fn_val,
                     "lastName": ln_val,
                     "middleInitial": mn_val,
                     "level": self.level,
                     "section": self.section,
                     "adviser": self.adviser,
-                    "role": "Respondent"
+                    "role": "Respondent",
+                "sanction": self.sanction
                 }));
             }
         }
@@ -132,7 +154,9 @@ impl ImportRow {
 
         let normalize_id = |s: &str| -> Option<String> {
             let s = s.trim();
-            if s.is_empty() { return None; }
+            if s.is_empty() {
+                return None;
+            }
             if let Some(stripped) = s.strip_prefix('#') {
                 Some(stripped.trim().to_string())
             } else {
@@ -146,7 +170,10 @@ impl ImportRow {
                     let mut c = word.chars();
                     match c.next() {
                         None => String::new(),
-                        Some(f) => f.to_uppercase().collect::<String>() + c.as_str().to_lowercase().as_str(),
+                        Some(f) => {
+                            f.to_uppercase().collect::<String>()
+                                + c.as_str().to_lowercase().as_str()
+                        }
                     }
                 })
                 .collect::<Vec<String>>()
@@ -213,7 +240,10 @@ impl ImportRow {
 
         let mut missing_fields = Vec::new();
 
-        if trimmed_full.is_empty() || self.first_name.trim().is_empty() || self.last_name.trim().is_empty() {
+        if trimmed_full.is_empty()
+            || self.first_name.trim().is_empty()
+            || self.last_name.trim().is_empty()
+        {
             missing_fields.push("Full Name");
         }
         if self.date.trim().is_empty() {
@@ -228,20 +258,35 @@ impl ImportRow {
         }
 
         if !missing_fields.is_empty() {
-            self.errors.push(format!("These fields are required : {}", missing_fields.join(", ")));
+            self.errors.push(format!(
+                "These fields are required : {}",
+                missing_fields.join(", ")
+            ));
         }
 
         if !self.first_name.trim().is_empty() {
-            if self.first_name.trim().chars().all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',') {
-                self.errors.push("First Name cannot be purely numeric or punctuation".to_string());
+            if self
+                .first_name
+                .trim()
+                .chars()
+                .all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',')
+            {
+                self.errors
+                    .push("First Name cannot be purely numeric or punctuation".to_string());
             } else {
                 self.first_name = title_case(&self.first_name);
             }
         }
 
         if !self.last_name.trim().is_empty() {
-            if self.last_name.trim().chars().all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',') {
-                self.errors.push("Last Name cannot be purely numeric or punctuation".to_string());
+            if self
+                .last_name
+                .trim()
+                .chars()
+                .all(|c| c.is_numeric() || c.is_whitespace() || c == '.' || c == ',')
+            {
+                self.errors
+                    .push("Last Name cannot be purely numeric or punctuation".to_string());
             } else {
                 self.last_name = title_case(&self.last_name);
             }
@@ -256,7 +301,10 @@ impl ImportRow {
             if self.last_name == self.first_name {
                 self.full_name = self.first_name.clone();
             } else if !self.middle_initial.is_empty() {
-                self.full_name = format!("{}, {} {}", self.last_name, self.first_name, self.middle_initial);
+                self.full_name = format!(
+                    "{}, {} {}",
+                    self.last_name, self.first_name, self.middle_initial
+                );
             } else {
                 self.full_name = format!("{}, {}", self.last_name, self.first_name);
             }
@@ -267,22 +315,24 @@ impl ImportRow {
         }
 
         if !self.level.trim().is_empty() {
-            self.level = title_case(&self.level);
+            self.level = normalize_grade(&self.level);
         }
-        
+
         if !self.section.trim().is_empty() {
             if self.section.chars().count() > 250 {
-                self.errors.push("Section cannot exceed 250 characters".to_string());
+                self.errors
+                    .push("Section cannot exceed 250 characters".to_string());
             } else {
                 self.section = self.section.trim().to_uppercase();
             }
         }
-        
+
         let valid_progress = ["pending", "reprimand", "resolved", "closed"];
         if !self.progress.trim().is_empty() {
             let p_lower = self.progress.trim().to_lowercase();
             if !valid_progress.contains(&p_lower.as_str()) {
-                self.errors.push("Progress must be Pending, Reprimand, Resolved, or Closed".to_string());
+                self.errors
+                    .push("Progress must be Pending, Reprimand, Resolved, or Closed".to_string());
             } else {
                 self.progress = title_case(&p_lower);
             }
@@ -299,7 +349,10 @@ impl ImportRow {
                 (vec!["june", "jun.", "jun"], "6"),
                 (vec!["july", "jul.", "jul"], "7"),
                 (vec!["august", "aug.", "aug"], "8"),
-                (vec!["septemer", "september", "sept.", "sept", "sep.", "sep"], "9"),
+                (
+                    vec!["septemer", "september", "sept.", "sept", "sep.", "sep"],
+                    "9",
+                ),
                 (vec!["october", "oct.", "oct"], "10"),
                 (vec!["november", "nov.", "nov"], "11"),
                 (vec!["december", "dec.", "dec"], "12"),
@@ -307,7 +360,7 @@ impl ImportRow {
 
             let mut month_num = "";
             let mut found_variant = "";
-            
+
             for (variants, num) in months.iter() {
                 for variant in variants {
                     // check if the string contains the variant
@@ -324,21 +377,26 @@ impl ImportRow {
 
             if !month_num.is_empty() {
                 let rest = s.replace(found_variant, "");
-                let parts: Vec<&str> = rest.split(|c: char| c == ',' || c == ' ' || c == '/').filter(|p| !p.is_empty()).collect();
+                let parts: Vec<&str> = rest
+                    .split(|c: char| c == ',' || c == ' ' || c == '/')
+                    .filter(|p| !p.is_empty())
+                    .collect();
                 if parts.len() == 2 {
                     self.date = format!("{}/{}/{}", month_num, parts[0], parts[1]);
                 }
             }
 
-            let trimmed = self.date.trim();
+            let date_text = self.date.trim().to_string();
+            let trimmed = date_text.as_str();
             let mut parsed_date = None;
 
             if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%Y") {
                 parsed_date = Some(naive);
             } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%-m/%-d/%Y") {
                 parsed_date = Some(naive);
-            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
-                parsed_date = Some(naive);
+            } else if let Some(date) = normalize_incident_date(trimmed) {
+                self.date = date.clone();
+                parsed_date = None;
             } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%Y") {
                 parsed_date = Some(naive);
             } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%y") {
@@ -346,11 +404,12 @@ impl ImportRow {
             } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%y") {
                 parsed_date = Some(naive);
             }
-            
+
             if let Some(naive) = parsed_date {
                 self.date = naive.format("%Y-%m-%d").to_string();
-            } else {
-                self.errors.push("Invalid date format. Must be YYYY-MM-DD or MM/DD/YYYY".to_string());
+            } else if normalize_incident_date(&self.date).is_none() {
+                self.errors
+                    .push("Invalid date format. Must be YYYY-MM-DD or MM/DD/YYYY, with a valid optional time".to_string());
             }
         }
 
@@ -395,14 +454,15 @@ impl ImportRow {
                 parsed_date = Some(naive);
             } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m/%d/%Y") {
                 parsed_date = Some(naive);
-            } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
-                parsed_date = Some(naive);
+            } else if let Some(date) = normalize_incident_date(trimmed) {
+                self.date = date.clone();
+                parsed_date = None;
             } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%y") {
                 parsed_date = Some(naive);
             } else if let Ok(naive) = chrono::NaiveDate::parse_from_str(trimmed, "%m-%d-%Y") {
                 parsed_date = Some(naive);
             }
-            
+
             if let Some(naive) = parsed_date {
                 self.date_filed = naive.format("%Y-%m-%d").to_string();
             } else {
@@ -414,7 +474,8 @@ impl ImportRow {
 
         if !self.adviser.trim().is_empty() {
             if self.adviser.chars().count() > 50 {
-                self.errors.push("Adviser cannot exceed 50 characters".to_string());
+                self.errors
+                    .push("Adviser cannot exceed 50 characters".to_string());
             } else {
                 self.adviser = title_case(&self.adviser);
             }
@@ -422,14 +483,16 @@ impl ImportRow {
 
         if !self.r#case.trim().is_empty() {
             if self.r#case.chars().count() > 250 {
-                self.errors.push("Case Type cannot exceed 250 characters".to_string());
+                self.errors
+                    .push("Case Type cannot exceed 250 characters".to_string());
             } else {
                 self.r#case = title_case(&self.r#case);
             }
         }
 
         if self.sanction.chars().count() > 250 {
-            self.errors.push("Sanction cannot exceed 250 characters".to_string());
+            self.errors
+                .push("Sanction cannot exceed 250 characters".to_string());
         }
 
         let validate_json = |val: &str, field: &str, errors: &mut Vec<String>| {
@@ -441,11 +504,143 @@ impl ImportRow {
         };
 
         validate_json(&self.proofs, "proofs", &mut self.errors);
-        
+
         // Re-sync students since we title-cased the names
         self.sync_students();
         validate_json(&self.students, "students", &mut self.errors);
 
         self.has_errors = !self.errors.is_empty();
     }
+}
+
+pub fn normalize_grade(value: &str) -> String {
+    let trimmed = value.trim();
+    let lower = trimmed.to_lowercase();
+    let number = lower.strip_prefix("grade").unwrap_or(&lower).trim();
+    match number.parse::<u8>() {
+        Ok(n) if (7..=12).contains(&n) => format!("Grade {n}"),
+        _ => trimmed.to_string(),
+    }
+}
+
+impl CasePayload {
+    pub fn normalized(&self) -> Result<Self, String> {
+        let mut payload = self.clone();
+        if payload.students.is_empty() {
+            return Err("At least one student is required".into());
+        }
+        payload.date = normalize_incident_date(&payload.date)
+            .ok_or("Select a valid incident date and time.")?;
+        if payload.r#case.trim().is_empty() {
+            return Err("Case type is required".into());
+        }
+        if !["Pending", "Resolved", "Closed", "Reprimand"].contains(&payload.progress.as_str()) {
+            return Err("Select a valid case status.".into());
+        }
+        serde_json::from_str::<Vec<serde_json::Value>>(&payload.proofs)
+            .map_err(|_| "Attachments must be a valid list.")?;
+        for student in &mut payload.students {
+            if student.first_name.trim().is_empty() || student.last_name.trim().is_empty() {
+                return Err("Each student needs a first and last name.".into());
+            }
+            student.first_name = student.first_name.trim().to_string();
+            student.last_name = student.last_name.trim().to_string();
+            student.level = normalize_grade(&student.level);
+            let role = student
+                .role
+                .as_deref()
+                .unwrap_or("Respondent")
+                .to_lowercase();
+            student.role = Some(
+                match role.as_str() {
+                    "respondent" | "accused" | "reporter" | "" => "Respondent",
+                    "complainant" | "complainant / subject" => "Complainant / Subject",
+                    _ => return Err("Invalid student role.".into()),
+                }
+                .into(),
+            );
+        }
+        let mut seen = std::collections::HashSet::new();
+        payload.students.retain(|student| {
+            let key = student
+                .participant_id
+                .clone()
+                .filter(|id| !id.is_empty())
+                .unwrap_or_else(|| {
+                    if student.role.as_deref() == Some("Respondent") {
+                        uuid::Uuid::new_v4().to_string()
+                    } else {
+                        legacy_student_key(student)
+                    }
+                });
+            seen.insert(key)
+        });
+        for student in &mut payload.students {
+            if student.participant_id.as_deref().unwrap_or("").is_empty() {
+                student.participant_id = Some(uuid::Uuid::new_v4().to_string());
+            }
+        }
+        if !payload
+            .students
+            .iter()
+            .any(|s| s.role.as_deref() == Some("Respondent"))
+        {
+            return Err("At least one respondent is required.".into());
+        }
+        if payload.students[0].role.as_deref() != Some("Respondent") {
+            let index = payload
+                .students
+                .iter()
+                .position(|s| s.role.as_deref() == Some("Respondent"))
+                .unwrap();
+            payload.students.swap(0, index);
+        }
+        if payload.students[0]
+            .sanction
+            .as_deref()
+            .unwrap_or("")
+            .is_empty()
+        {
+            payload.students[0].sanction = Some(payload.sanction.clone());
+        }
+        Ok(payload)
+    }
+}
+
+pub fn legacy_student_key(student: &StudentInfo) -> String {
+    format!(
+        "{}|{}|{}|{}|{}|{}",
+        student.first_name.trim(),
+        student.last_name.trim(),
+        student.middle_initial.trim(),
+        normalize_grade(&student.level),
+        student.section.trim(),
+        student.role.as_deref().unwrap_or_default()
+    )
+    .to_lowercase()
+}
+
+pub fn normalize_incident_date(value: &str) -> Option<String> {
+    let value = value.trim();
+    if let Ok(day) = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+        return Some(day.format("%Y-%m-%d").to_string());
+    }
+    if let Ok(date) = chrono::DateTime::parse_from_rfc3339(value) {
+        return Some(date.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true));
+    }
+    for format in [
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%dT%H:%M:%S%.f",
+        "%Y-%m-%d %H:%M:%S%.f",
+    ] {
+        if let Ok(date) = chrono::NaiveDateTime::parse_from_str(value, format) {
+            use chrono::Timelike;
+            return Some(if date.second() == 0 && date.nanosecond() == 0 {
+                date.format("%Y-%m-%dT%H:%M").to_string()
+            } else {
+                date.format("%Y-%m-%dT%H:%M:%S%.f").to_string()
+            });
+        }
+    }
+    None
 }

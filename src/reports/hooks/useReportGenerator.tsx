@@ -115,37 +115,11 @@ export const useReportGenerator = (
     [pdfBlob, reportData.metadata.reportingPeriod]
   );
 
-  // Print the exact generated PDF blob via an invisible iframe
-  const printPdf = useCallback(() => {
-    if (!pdfBlobUrl) return;
-
-    const printIframe = document.createElement("iframe");
-    printIframe.style.position = "fixed";
-    printIframe.style.right = "0";
-    printIframe.style.bottom = "0";
-    printIframe.style.width = "0";
-    printIframe.style.height = "0";
-    printIframe.style.border = "0";
-    printIframe.src = pdfBlobUrl;
-
-    document.body.appendChild(printIframe);
-
-    printIframe.onload = () => {
-      try {
-        printIframe.contentWindow?.focus();
-        printIframe.contentWindow?.print();
-      } catch (e) {
-        console.error("Error printing PDF iframe:", e);
-      }
-      setTimeout(() => {
-        try {
-          if (document.body.contains(printIframe)) {
-            document.body.removeChild(printIframe);
-          }
-        } catch {}
-      }, 3000);
-    };
-  }, [pdfBlobUrl]);
+  // Saving opens the exact PDF in the system viewer, where staff can use Ctrl+P.
+  const printPdf = useCallback(async () => {
+    try { await exportPdf(); }
+    catch (err) { setError(`Could not open the report for printing: ${String(err)}`); }
+  }, [exportPdf]);
 
   return {
     state,

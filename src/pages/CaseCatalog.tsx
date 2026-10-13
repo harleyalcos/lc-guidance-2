@@ -1,3 +1,4 @@
+import { normalizeGrade, caseDay } from "../utils/caseValues";
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -201,21 +202,7 @@ const formatRelativeFiled = (dateStr: string) => {
 
 const isResolved = (progress: string) => progress.toLowerCase() === "resolved";
 const isClosed = (progress: string) => progress.toLowerCase() === "closed";
-const isReprimand = (caseRecord: CaseRecord) => {
-  if ((caseRecord.sanction || "").toLowerCase().includes("reprimand")) {
-    return true;
-  }
-  if ((caseRecord.progress || "").toLowerCase().includes("reprimand")) {
-    return true;
-  }
-  const students = parseStudents(caseRecord.students);
-  return students.some((s) => (s.sanction || "").toLowerCase().includes("reprimand"));
-};
-const isPending = (progress: string) => {
-  const normProgress = (progress || "").toLowerCase();
-  return normProgress === "pending";
-};
-
+const isReprimand = isReprimandCase;
 const getBadgeClass = (progress: string) => {
   const normalizedProgress = progress.toLowerCase();
 
@@ -673,7 +660,7 @@ export default function CaseCatalog() {
   const stats = useMemo(() => {
     return {
       totalCases: displayCases.length,
-      pendingReview: displayCases.filter((caseRecord) => isPending(caseRecord.progress) && !isReprimand(caseRecord)).length,
+      pendingReview: displayCases.filter((caseRecord) => isPendingCase(caseRecord)).length,
       resolvedAllTime: displayCases.filter((caseRecord) => isResolved(caseRecord.progress)).length,
       reprimandedCases: displayCases.filter(isReprimand).length,
       closedCases: displayCases.filter((caseRecord) => isClosed(caseRecord.progress)).length,
@@ -718,23 +705,8 @@ export default function CaseCatalog() {
 
 
 
-    if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      result = result.filter((c) => {
-        const dateVal = new Date(c.date || c.date_filed);
-        return dateVal >= start;
-      });
-    }
-
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      result = result.filter((c) => {
-        const dateVal = new Date(c.date || c.date_filed);
-        return dateVal <= end;
-      });
-    }
+    if (startDate) result = result.filter(c => caseDay(c.date || c.date_filed) >= startDate);
+    if (endDate) result = result.filter(c => caseDay(c.date || c.date_filed) <= endDate);
 
     result = [...result].sort((a, b) => {
       const dateA = new Date(a.date || a.date_filed).getTime();
@@ -911,7 +883,7 @@ export default function CaseCatalog() {
     const targetCases = cases.filter((c) => {
       // 1. Scope filter
       if (options.scope === "specific") {
-        if (!c.level || c.level.trim().toLowerCase() !== options.selectedGrade.toLowerCase()) {
+        if (!c.level || normalizeGrade(c.level) !== normalizeGrade(options.selectedGrade)) {
           return false;
         }
       }
@@ -927,7 +899,7 @@ export default function CaseCatalog() {
       if (options.startDate || options.endDate) {
         const rawDate = c.date || c.date_filed;
         if (rawDate) {
-          let isoDate = rawDate;
+          let isoDate = caseDay(rawDate);
           if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(rawDate)) {
             const [m, d, y] = rawDate.split('/');
             isoDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
@@ -1312,7 +1284,7 @@ export default function CaseCatalog() {
   return (
     <>
       {toastMessage && createPortal(
-        <div className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] px-4 py-3 text-[#002F87] dark:text-[#b4c5ff] shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+        <div role="status" aria-live="polite" className={`app-toast fixed bottom-5 right-5 z-[70] flex items-start gap-2 rounded-xl border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] px-4 py-3 text-[#002F87] dark:text-[#b4c5ff] shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
           <span className="material-symbols-outlined text-primary dark:text-[#b4c5ff]" style={{ fontSize: 18 }}>info</span>
           <p className="text-xs font-bold">{toastMessage}</p>
         </div>,
@@ -1536,7 +1508,7 @@ export default function CaseCatalog() {
               <tbody className="font-body-md text-sm text-on-surface">
                 <tr>
                   <td className="p-table-cell-padding text-on-surface-variant text-center" colSpan={7}>
-                    Backend unavailable. Open with npm run tauri -- dev to load cases.
+                    <div role="alert"><p>Case records could not be loaded. {error}</p><button className="btn-primary mt-3" onClick={() => void loadCases()}>Retry</button><p className="mt-2">Keep your database and backups; contact school IT if the problem continues.</p></div>
                   </td>
                 </tr>
               </tbody>
@@ -1899,7 +1871,7 @@ export default function CaseCatalog() {
             style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
             onClick={closeDeleteConfirm}
           />
-          <div className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant ${isDeleteConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+          <div role="dialog" aria-modal="true" tabIndex={-1} className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant ${isDeleteConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}>
             <div className="flex items-center gap-3 text-error mb-3">
               <span className="material-symbols-outlined text-[28px]">warning</span>

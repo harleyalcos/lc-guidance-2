@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
@@ -154,7 +155,7 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
             style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
             onClick={closeSignOutConfirm}
           />
-          <div className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant ${isSignOutConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
+          <div role="dialog" aria-modal="true" tabIndex={-1} className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant ${isSignOutConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}>
             <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-3">
               <span className="material-symbols-outlined text-[28px]">logout</span>
@@ -174,7 +175,8 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
+                  try { await invoke("sign_out"); } catch (error) { window.alert(`Unable to sign out: ${error}`); return; }
                   sessionStorage.clear();
                   window.location.reload();
                 }}

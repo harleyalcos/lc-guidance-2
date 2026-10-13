@@ -1,3 +1,4 @@
+import { applyCaseChanges, CaseChange, uniqueStudents, studentIdentity } from "../utils/caseChanges";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
@@ -123,7 +124,7 @@ const getStatusTextColor = (progress: string) => {
   if (p === "resolved") return "text-[#15803d] dark:text-[#34A06A]";
   if (p === "closed") return "text-[#4b5563] dark:text-[#9ca3af]";
   if (p === "reprimand") return "text-[#dc2626] dark:text-[#ef4444]";
-  return "text-[#d97706] dark:text-[#D9A23B]";
+  return "text-[#92400e] dark:text-[#D9A23B]";
 };
 
 const getEarliestDateString = (cases: CaseRecord[]): string => {
@@ -172,6 +173,7 @@ export default function GroupCaseDetails() {
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isAddStudentClosing, setIsAddStudentClosing] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const addAttemptRef = useRef<{dateFiled: string; groupId: string; requestId: string; participantId: string} | null>(null);
   const [addStudentError, setAddStudentError] = useState("");
   const [newStudentForm, setNewStudentForm] = useState({
     firstName: "",
@@ -213,7 +215,7 @@ export default function GroupCaseDetails() {
               rows.push({
                 caseId: c.id,
                 studentIndex: sIdx,
-                student: { ...s },
+                student: { ...s, sanction: s.sanction ?? (sIdx === 0 ? c.sanction : "") },
                 progress: c.progress,
               });
             });
@@ -235,7 +237,13 @@ export default function GroupCaseDetails() {
             });
           }
         });
-        setEditStudentRows(rows);
+        const shared = new Set<string>();
+        setEditStudentRows(rows.filter(row => {
+          if (!isComplainantSubject(row.student)) return true;
+          const key = studentIdentity(row.student);
+          if (shared.has(key)) return false;
+          shared.add(key); return true;
+        }));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -261,7 +269,7 @@ export default function GroupCaseDetails() {
       const students = parseStudents(c.students);
       const respondents = students.filter(isRespondent);
       if (respondents.length > 0) {
-        respondents.forEach((s) => list.push({ student: s, caseRecord: c }));
+        respondents.forEach((s) => list.push({ student: { ...s, sanction: s.sanction || c.sanction }, caseRecord: c }));
       } else if (c.last_name || c.first_name) {
         list.push({
           student: {
@@ -288,10 +296,10 @@ export default function GroupCaseDetails() {
       const students = parseStudents(c.students);
       const complainants = students.filter(isComplainantSubject);
       complainants.forEach((s) => {
-        const key = `${s.lastName}-${s.firstName}-${s.level}`;
+        const key = studentIdentity(s);
         if (!seenNames.has(key)) {
           seenNames.add(key);
-          list.push({ student: s, caseRecord: c });
+          list.push({ student: { ...s, sanction: s.sanction || c.sanction }, caseRecord: c });
         }
       });
     });
@@ -367,15 +375,17 @@ export default function GroupCaseDetails() {
   const handleSaveEdits = async () => {
     if (groupCases.length === 0 || isSaving) return;
     setIsSaving(true);
+    const changes: CaseChange[] = [];
     try {
       const normalizedTitle = capitalizeWords(editGroupForm.title).slice(0, CASE_TITLE_LIMIT);
       const normalizedCaseType = normalizeCaseType(editGroupForm.caseType);
       const normalizedDescription = editGroupForm.description.trim().slice(0, TEXT_FIELD_LIMIT);
 
       // Extract all updated complainants across the group
-      const updatedComplainants: StudentInfo[] = editStudentRows
+      const updatedComplainants: StudentInfo[] = uniqueStudents(editStudentRows
         .filter((r) => isComplainantSubject(r.student))
         .map((r) => ({
+          participantId: r.student.participantId,
           firstName: capitalizeWords(r.student.firstName),
           lastName: capitalizeWords(r.student.lastName),
           middleInitial: normalizeMiddleInitial(r.student.middleInitial),
@@ -384,13 +394,14 @@ export default function GroupCaseDetails() {
           adviser: capitalizeWords(r.student.adviser || "").slice(0, ADVISER_LIMIT),
           sanction: (r.student.sanction || "").trim().slice(0, TEXT_FIELD_LIMIT),
           role: "Complainant / Subject",
-        }));
+        })));
 
       for (const c of groupCases) {
         const respondentRows = editStudentRows.filter(
           (r) => r.caseId === c.id && isRespondent(r.student)
         );
         const updatedRespondents: StudentInfo[] = respondentRows.map((r) => ({
+          participantId: r.student.participantId,
           firstName: capitalizeWords(r.student.firstName),
           lastName: capitalizeWords(r.student.lastName),
           middleInitial: normalizeMiddleInitial(r.student.middleInitial),
@@ -420,9 +431,9 @@ export default function GroupCaseDetails() {
         const updatedStudents = [...finalRespondents, ...updatedComplainants];
         const primaryRow = respondentRows[0];
         const updatedProgress = primaryRow ? primaryRow.progress : c.progress;
-        const primarySanction = primaryRow?.student.sanction || c.sanction;
+        const primarySanction = primaryRow?.student.sanction ?? c.sanction;
 
-        await invoke("update_case", {
+        changes.push({ kind: "update",
           id: c.id,
           payload: {
             students: updatedStudents,
@@ -444,6 +455,7 @@ export default function GroupCaseDetails() {
         });
       }
 
+      await applyCaseChanges(changes);
       setIsEditing(false);
       window.dispatchEvent(new Event("cases:changed"));
       loadGroupCases();
@@ -456,6 +468,7 @@ export default function GroupCaseDetails() {
 
   // Add Student to Group
   const handleOpenAddStudent = () => {
+    addAttemptRef.current = null;
     setIsAddStudentClosing(false);
     setAddStudentError("");
     setNewStudentForm({
@@ -488,9 +501,12 @@ export default function GroupCaseDetails() {
 
     if (!groupId || !repCase) return;
 
+    addAttemptRef.current ??= {dateFiled: new Date().toISOString(), groupId: crypto.randomUUID(), requestId: crypto.randomUUID(), participantId: crypto.randomUUID()};
     setIsAddingStudent(true);
+    const changes: CaseChange[] = [];
     try {
       const newStudent: StudentInfo = {
+        participantId: addAttemptRef.current.participantId,
         firstName: capitalizeWords(newStudentForm.firstName),
         lastName: capitalizeWords(newStudentForm.lastName),
         middleInitial: normalizeMiddleInitial(newStudentForm.middleInitial),
@@ -506,11 +522,11 @@ export default function GroupCaseDetails() {
 
       if (isRespondentStudent) {
         // Add a new case record tied to this groupId
-        await invoke<number>("add_case", {
+        changes.push({ kind: "add",
           payload: {
-            students: [newStudent],
+            students: [newStudent, ...uniqueStudents(groupCases.flatMap(c => parseStudents(c.students)).filter(isComplainantSubject))],
             date: repCase.date,
-            dateFiled: new Date().toISOString(),
+            dateFiled: addAttemptRef.current.dateFiled,
             case: repCase.case.trim(),
             description: (repCase.description || "").trim().slice(0, TEXT_FIELD_LIMIT),
             sanction: newStudent.sanction ? newStudent.sanction.trim().slice(0, TEXT_FIELD_LIMIT) : "",
@@ -530,7 +546,7 @@ export default function GroupCaseDetails() {
                    s.lastName.toLowerCase() === newStudent.lastName.toLowerCase()
           );
           if (!alreadyExists) {
-            await invoke("update_case", {
+            changes.push({ kind: "update",
               id: sibling.id,
               payload: {
                 students: [...sibStudents, newStudent],
@@ -551,6 +567,7 @@ export default function GroupCaseDetails() {
         }
       }
 
+      await applyCaseChanges(changes, addAttemptRef.current.requestId);
       closeAddStudentModal();
       window.dispatchEvent(new Event("cases:changed"));
       loadGroupCases();
@@ -1290,7 +1307,7 @@ export default function GroupCaseDetails() {
             style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
             onClick={closeAddStudentModal}
           />
-          <div
+          <div role="dialog" aria-modal="true" tabIndex={-1}
             className={`relative bg-surface rounded-2xl border border-outline-variant shadow-2xl max-w-[780px] w-full flex flex-col overflow-hidden max-h-[90vh] ${
               isAddStudentClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}
@@ -1486,7 +1503,7 @@ export default function GroupCaseDetails() {
             }`}
             onClick={closeProofLightbox}
           />
-          <div
+          <div role="dialog" aria-modal="true" tabIndex={-1}
             className={`relative z-10 max-w-4xl max-h-[90vh] bg-surface rounded-2xl overflow-hidden shadow-2xl border border-outline-variant ${
               isProofLightboxClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}

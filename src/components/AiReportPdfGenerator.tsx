@@ -496,7 +496,7 @@ export default function AiReportPdfGenerator({
             title="Print Document"
           >
             <span className="material-symbols-outlined text-[15px]">print</span>
-            <span>Print</span>
+            <span>Open PDF to Print</span>
           </button>
         </div>
       </div>

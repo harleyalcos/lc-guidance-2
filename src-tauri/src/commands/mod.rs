@@ -11,8 +11,8 @@ pub use ai::*;
 
 use crate::db::DbState;
 
-use crate::models::CaseRecord;
 use crate::db::repository::CaseRepository;
+use crate::models::CaseRecord;
 
 // primary_student logic moved to repository
 
@@ -24,18 +24,32 @@ fn db_error(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
 
-pub(crate) fn get_config(connection: &rusqlite::Connection, key: &str) -> Result<Option<String>, String> {
+pub(crate) fn get_config(
+    connection: &rusqlite::Connection,
+    key: &str,
+) -> Result<Option<String>, String> {
     connection
-        .query_row("SELECT value FROM app_config WHERE key = ?1", params![key], |row| row.get(0))
+        .query_row(
+            "SELECT value FROM app_config WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(db_error)
 }
 
-pub(crate) fn require_config(connection: &rusqlite::Connection, key: &str) -> Result<String, String> {
+pub(crate) fn require_config(
+    connection: &rusqlite::Connection,
+    key: &str,
+) -> Result<String, String> {
     get_config(connection, key)?.ok_or_else(|| format!("Missing app setting: {key}"))
 }
 
-pub(crate) fn set_config(connection: &rusqlite::Connection, key: &str, value: &str) -> Result<(), String> {
+pub(crate) fn set_config(
+    connection: &rusqlite::Connection,
+    key: &str,
+    value: &str,
+) -> Result<(), String> {
     connection
         .execute(
             r#"
@@ -65,41 +79,65 @@ pub fn complete_setup(
     recovery_email: String,
 ) -> Result<(), String> {
     crate::auth::validate_pin(&pin)?;
-    if smtp_email.trim().is_empty() || smtp_password.trim().is_empty() || recovery_email.trim().is_empty() {
-        return Err("Email setup fields cannot be empty".to_string());
+    let mut connection = state.connection.lock().map_err(db_error)?;
+    if get_config(&connection, "is_setup_complete")?.as_deref() == Some("true") {
+        return Err(
+            "Setup has already been completed. Use Account Settings to change credentials.".into(),
+        );
     }
-
-    let pin_hash = crate::auth::hash_secret(&pin)?;
-    let connection = state.connection.lock().map_err(db_error)?;
-    set_config(&connection, "app_pin_hash", &pin_hash)?;
-    set_config(&connection, "smtp_email", smtp_email.trim())?;
-    set_config(&connection, "smtp_password", &smtp_password.replace(' ', ""))?;
-    set_config(&connection, "recovery_email", recovery_email.trim())?;
-    set_config(&connection, "is_setup_complete", "true")?;
-
-    Ok(())
+    let configure_email = !smtp_email.trim().is_empty()
+        || !smtp_password.trim().is_empty()
+        || !recovery_email.trim().is_empty();
+    if configure_email {
+        validate_email_settings(&smtp_email, &smtp_password, &recovery_email)?;
+    }
+    let hash = crate::auth::hash_secret(&pin)?;
+    let tx = connection.transaction().map_err(db_error)?;
+    set_config(&tx, "app_pin_hash", &hash)?;
+    if configure_email {
+        set_config(&tx, "smtp_email", smtp_email.trim())?;
+        set_config(&tx, "smtp_password", &smtp_password.replace(' ', ""))?;
+        set_config(&tx, "recovery_email", recovery_email.trim())?;
+    }
+    set_config(&tx, "is_setup_complete", "true")?;
+    tx.commit().map_err(db_error)
 }
 
 #[tauri::command]
-pub fn test_smtp(smtp_email: String, smtp_password: String) -> Result<(), String> {
-    if smtp_email.trim().is_empty() || smtp_password.trim().is_empty() {
-        return Err("Gmail address and App Password are required".to_string());
+pub async fn test_smtp(
+    state: State<'_, DbState>,
+    smtp_email: String,
+    smtp_password: String,
+    recovery_email: String,
+) -> Result<(), String> {
+    {
+        let connection = state.connection.lock().map_err(db_error)?;
+        if get_config(&connection, "is_setup_complete")?.as_deref() == Some("true") {
+            state.require_session()?;
+        }
     }
-
-    crate::email::send_test_email(smtp_email.trim(), &smtp_password.replace(' ', ""))
+    validate_email_settings(&smtp_email, &smtp_password, &recovery_email)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::email::send_test_email(
+            smtp_email.trim(),
+            &smtp_password.replace(' ', ""),
+            recovery_email.trim(),
+        )
+    })
+    .await
+    .map_err(db_error)?
 }
 
 #[tauri::command]
 pub fn verify_pin(state: State<'_, DbState>, pin: String) -> Result<bool, String> {
     let connection = state.connection.lock().map_err(db_error)?;
-    let hash = require_config(&connection, "app_pin_hash")?;
-    crate::auth::verify_secret(&pin, &hash)
+    verify_current_pin(&state, &connection, &pin, true)
 }
 
 fn request_otp_for_purpose(
     connection: &rusqlite::Connection,
     purpose: &str,
-) -> Result<(), String> {
+) -> Result<(String, String, String, String), String> {
     let now = Utc::now();
     let newest_expiry: Option<String> = connection
         .query_row(
@@ -121,12 +159,15 @@ fn request_otp_for_purpose(
     let code = crate::auth::generate_otp();
     let code_hash = crate::auth::hash_secret(&code)?;
     let expires_at = (now + Duration::minutes(10)).to_rfc3339();
-    let smtp_email = require_config(connection, "smtp_email")?;
+    let smtp_email = get_config(connection, "smtp_email")?.filter(|s| !s.is_empty()).ok_or("Email recovery is not configured. Sign in with your PIN and configure Recovery email delivery in Settings. If the PIN is lost, contact the school IT administrator.")?;
     let smtp_password = require_config(connection, "smtp_password")?;
     let recovery_email = require_config(connection, "recovery_email")?;
 
     connection
-        .execute("DELETE FROM otp_tokens WHERE purpose = ?1", params![purpose])
+        .execute(
+            "DELETE FROM otp_tokens WHERE purpose = ?1",
+            params![purpose],
+        )
         .map_err(db_error)?;
     connection
         .execute(
@@ -135,13 +176,7 @@ fn request_otp_for_purpose(
         )
         .map_err(db_error)?;
 
-    crate::email::send_otp_email(
-        &smtp_email,
-        &smtp_password,
-        &recovery_email,
-        &code,
-        purpose,
-    )
+    Ok((smtp_email, smtp_password, recovery_email, code))
 }
 
 fn verify_otp_for_purpose(
@@ -174,20 +209,34 @@ fn verify_otp_for_purpose(
             .execute("UPDATE otp_tokens SET used = 1 WHERE id = ?1", params![id])
             .map_err(db_error)?;
         let attempt_key = format!("otp_attempts_{}", id);
-        let _ = connection.execute("DELETE FROM app_config WHERE key = ?1", params![&attempt_key]);
+        let _ = connection.execute(
+            "DELETE FROM app_config WHERE key = ?1",
+            params![&attempt_key],
+        );
         Ok(true)
     } else {
         let attempt_key = format!("otp_attempts_{}", id);
         let current_attempts: i64 = connection
-            .query_row("SELECT value FROM app_config WHERE key = ?1", params![&attempt_key], |r| r.get::<_, String>(0))
+            .query_row(
+                "SELECT value FROM app_config WHERE key = ?1",
+                params![&attempt_key],
+                |r| r.get::<_, String>(0),
+            )
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(0) + 1;
+            .unwrap_or(0)
+            + 1;
 
         if current_attempts >= 5 {
             let _ = connection.execute("DELETE FROM otp_tokens WHERE id = ?1", params![id]);
-            let _ = connection.execute("DELETE FROM app_config WHERE key = ?1", params![&attempt_key]);
-            return Err("Too many failed attempts. This verification code has been invalidated.".to_string());
+            let _ = connection.execute(
+                "DELETE FROM app_config WHERE key = ?1",
+                params![&attempt_key],
+            );
+            return Err(
+                "Too many failed attempts. This verification code has been invalidated."
+                    .to_string(),
+            );
         } else {
             let _ = set_config(connection, &attempt_key, &current_attempts.to_string());
         }
@@ -196,68 +245,97 @@ fn verify_otp_for_purpose(
 }
 
 #[tauri::command]
-pub fn request_otp(state: State<'_, DbState>) -> Result<(), String> {
-    let connection = state.connection.lock().map_err(db_error)?;
-    request_otp_for_purpose(&connection, "pin_reset")
+pub async fn request_otp(state: State<'_, DbState>) -> Result<(), String> {
+    send_requested_code(state, "pin_reset").await
 }
 
 #[tauri::command]
 pub fn verify_otp(state: State<'_, DbState>, code: String) -> Result<bool, String> {
     let connection = state.connection.lock().map_err(db_error)?;
-    verify_otp_for_purpose(&connection, &code, "pin_reset")
+    let verified = verify_otp_for_purpose(&connection, &code, "pin_reset")?;
+    if verified {
+        let expires: String = connection.query_row("SELECT expires_at FROM otp_tokens WHERE purpose = ?1 AND used = 1 ORDER BY id DESC LIMIT 1", ["pin_reset"], |r| r.get(0)).map_err(db_error)?;
+        let expiry = chrono::DateTime::parse_from_rfc3339(&expires)
+            .map_err(db_error)?
+            .with_timezone(&Utc);
+        state
+            .security
+            .lock()
+            .map_err(db_error)?
+            .grants
+            .insert("pin_reset".into(), expiry);
+    }
+    Ok(verified)
 }
 
 #[tauri::command]
-pub fn request_recovery_email_otp(state: State<'_, DbState>) -> Result<(), String> {
-    let connection = state.connection.lock().map_err(db_error)?;
-    request_otp_for_purpose(&connection, "recovery_email_access")
+pub async fn request_recovery_email_otp(state: State<'_, DbState>) -> Result<(), String> {
+    state.require_session()?;
+    send_requested_code(state, "recovery_email_access").await
 }
 
 #[tauri::command]
-pub fn verify_recovery_email_otp(
-    state: State<'_, DbState>,
-    code: String,
-) -> Result<bool, String> {
+pub fn verify_recovery_email_otp(state: State<'_, DbState>, code: String) -> Result<bool, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
-    verify_otp_for_purpose(&connection, &code, "recovery_email_access")
+    let verified = verify_otp_for_purpose(&connection, &code, "recovery_email_access")?;
+    if verified {
+        let expires: String = connection.query_row("SELECT expires_at FROM otp_tokens WHERE purpose = ?1 AND used = 1 ORDER BY id DESC LIMIT 1", ["recovery_email_access"], |r| r.get(0)).map_err(db_error)?;
+        let expiry = chrono::DateTime::parse_from_rfc3339(&expires)
+            .map_err(db_error)?
+            .with_timezone(&Utc);
+        state
+            .security
+            .lock()
+            .map_err(db_error)?
+            .grants
+            .insert("recovery_email_access".into(), expiry);
+    }
+    Ok(verified)
 }
 
 #[tauri::command]
-pub fn request_pin_change_otp(state: State<'_, DbState>) -> Result<(), String> {
-    let connection = state.connection.lock().map_err(db_error)?;
-    request_otp_for_purpose(&connection, "pin_change_access")
+pub async fn request_pin_change_otp(state: State<'_, DbState>) -> Result<(), String> {
+    state.require_session()?;
+    send_requested_code(state, "pin_change_access").await
 }
 
 #[tauri::command]
-pub fn verify_pin_change_otp(
-    state: State<'_, DbState>,
-    code: String,
-) -> Result<bool, String> {
+pub fn verify_pin_change_otp(state: State<'_, DbState>, code: String) -> Result<bool, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
-    verify_otp_for_purpose(&connection, &code, "pin_change_access")
+    let verified = verify_otp_for_purpose(&connection, &code, "pin_change_access")?;
+    if verified {
+        let expires: String = connection.query_row("SELECT expires_at FROM otp_tokens WHERE purpose = ?1 AND used = 1 ORDER BY id DESC LIMIT 1", ["pin_change_access"], |r| r.get(0)).map_err(db_error)?;
+        let expiry = chrono::DateTime::parse_from_rfc3339(&expires)
+            .map_err(db_error)?
+            .with_timezone(&Utc);
+        state
+            .security
+            .lock()
+            .map_err(db_error)?
+            .grants
+            .insert("pin_change_access".into(), expiry);
+    }
+    Ok(verified)
 }
 
 #[tauri::command]
 pub fn reset_pin(state: State<'_, DbState>, new_pin: String) -> Result<(), String> {
     crate::auth::validate_pin(&new_pin)?;
-    let connection = state.connection.lock().map_err(db_error)?;
-    let verified_count: i64 = connection
-        .query_row(
-            "SELECT COUNT(*) FROM otp_tokens WHERE used = 1 AND purpose = 'pin_reset'",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(db_error)?;
-
-    if verified_count == 0 {
-        return Err("OTP not verified".to_string());
+    let mut connection = state.connection.lock().map_err(db_error)?;
+    let mut security = state.security.lock().map_err(db_error)?;
+    if !security.has_grant("pin_reset") {
+        return Err("Verification expired. Request a new reset code.".into());
     }
-
-    let pin_hash = crate::auth::hash_secret(&new_pin)?;
-    set_config(&connection, "app_pin_hash", &pin_hash)?;
-    connection
-        .execute("DELETE FROM otp_tokens WHERE purpose = 'pin_reset'", [])
-        .map_err(db_error)?;
+    let hash = crate::auth::hash_secret(&new_pin)?;
+    let tx = connection.transaction().map_err(db_error)?;
+    set_config(&tx, "app_pin_hash", &hash)?;
+    tx.execute("DELETE FROM otp_tokens", []).map_err(db_error)?;
+    tx.commit().map_err(db_error)?;
+    security.revoke();
+    security.failures = 0;
+    security.locked_until = None;
     Ok(())
 }
 
@@ -267,15 +345,22 @@ pub fn change_pin(
     current_pin: String,
     new_pin: String,
 ) -> Result<(), String> {
+    state.require_session()?;
     crate::auth::validate_pin(&new_pin)?;
     let connection = state.connection.lock().map_err(db_error)?;
-    let current_hash = require_config(&connection, "app_pin_hash")?;
-    if !crate::auth::verify_secret(&current_pin, &current_hash)? {
-        return Err("Current PIN is incorrect".to_string());
+    if !verify_current_pin(&state, &connection, &current_pin, false)? {
+        return Err("Current PIN is incorrect".into());
     }
-
-    let next_hash = crate::auth::hash_secret(&new_pin)?;
-    set_config(&connection, "app_pin_hash", &next_hash)
+    set_config(
+        &connection,
+        "app_pin_hash",
+        &crate::auth::hash_secret(&new_pin)?,
+    )?;
+    state.security.lock().map_err(db_error)?.grants.clear();
+    connection
+        .execute("DELETE FROM otp_tokens", [])
+        .map_err(db_error)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -286,40 +371,34 @@ pub fn update_smtp_config(
     recovery_email: String,
     pin: Option<String>,
 ) -> Result<(), String> {
-    if smtp_email.trim().is_empty() || smtp_password.trim().is_empty() || recovery_email.trim().is_empty() {
-        return Err("Email setup fields cannot be empty".to_string());
-    }
-
-    let connection = state.connection.lock().map_err(db_error)?;
-
-    let is_authorized = if let Some(ref pin_val) = pin {
-        if let Ok(current_hash) = require_config(&connection, "app_pin_hash") {
-            crate::auth::verify_secret(pin_val, &current_hash)?
-        } else {
-            false
-        }
+    state.require_session()?;
+    validate_email_settings(&smtp_email, &smtp_password, &recovery_email)?;
+    let mut connection = state.connection.lock().map_err(db_error)?;
+    let authorized = if let Some(pin) = pin {
+        verify_current_pin(&state, &connection, &pin, false)?
     } else {
-        let verified_count: i64 = connection
-            .query_row(
-                "SELECT COUNT(*) FROM otp_tokens WHERE used = 1 AND purpose IN ('recovery_email_access', 'pin_change_access')",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
-        verified_count > 0
+        state
+            .security
+            .lock()
+            .map_err(db_error)?
+            .has_grant("recovery_email_access")
     };
-
-    if !is_authorized {
-        return Err("Unauthorized: valid PIN or verified OTP required to update SMTP configuration".to_string());
+    if !authorized {
+        return Err("Enter your current PIN or verify a new recovery-email code.".into());
     }
-
-    set_config(&connection, "smtp_email", smtp_email.trim())?;
-    set_config(&connection, "smtp_password", &smtp_password.replace(' ', ""))?;
-    set_config(&connection, "recovery_email", recovery_email.trim())
+    let tx = connection.transaction().map_err(db_error)?;
+    set_config(&tx, "smtp_email", smtp_email.trim())?;
+    set_config(&tx, "smtp_password", &smtp_password.replace(' ', ""))?;
+    set_config(&tx, "recovery_email", recovery_email.trim())?;
+    tx.execute("DELETE FROM otp_tokens", []).map_err(db_error)?;
+    tx.commit().map_err(db_error)?;
+    state.security.lock().map_err(db_error)?.grants.clear();
+    Ok(())
 }
 
 #[tauri::command]
 pub fn get_recovery_email(state: State<'_, DbState>) -> Result<String, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     get_config(&connection, "recovery_email").map(|value| value.unwrap_or_default())
 }
@@ -330,39 +409,36 @@ pub fn update_recovery_email(
     recovery_email: String,
     pin: Option<String>,
 ) -> Result<(), String> {
-    if recovery_email.trim().is_empty() {
-        return Err("Recovery email cannot be empty".to_string());
-    }
-
-    let connection = state.connection.lock().map_err(db_error)?;
-
-    let is_authorized = if let Some(ref pin_val) = pin {
-        if let Ok(current_hash) = require_config(&connection, "app_pin_hash") {
-            crate::auth::verify_secret(pin_val, &current_hash)?
-        } else {
-            false
-        }
+    state.require_session()?;
+    crate::email::validate_address(recovery_email.trim())?;
+    let mut connection = state.connection.lock().map_err(db_error)?;
+    let authorized = if let Some(pin) = pin {
+        verify_current_pin(&state, &connection, &pin, false)?
     } else {
-        let verified_count: i64 = connection
-            .query_row(
-                "SELECT COUNT(*) FROM otp_tokens WHERE used = 1 AND purpose = 'recovery_email_access'",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
-        if verified_count > 0 {
-            let _ = connection.execute("DELETE FROM otp_tokens WHERE purpose = 'recovery_email_access'", []);
-            true
-        } else {
-            false
-        }
+        state
+            .security
+            .lock()
+            .map_err(db_error)?
+            .has_grant("recovery_email_access")
     };
-
-    if !is_authorized {
-        return Err("Unauthorized: valid PIN or verified OTP required to update recovery email".to_string());
+    if !authorized {
+        return Err("Enter your current PIN or verify a new recovery-email code.".into());
     }
-
-    set_config(&connection, "recovery_email", recovery_email.trim())
+    let tx = connection.transaction().map_err(db_error)?;
+    set_config(&tx, "recovery_email", recovery_email.trim())?;
+    tx.execute(
+        "DELETE FROM otp_tokens WHERE purpose = 'recovery_email_access'",
+        [],
+    )
+    .map_err(db_error)?;
+    tx.commit().map_err(db_error)?;
+    state
+        .security
+        .lock()
+        .map_err(db_error)?
+        .grants
+        .remove("recovery_email_access");
+    Ok(())
 }
 
 #[tauri::command]
@@ -371,12 +447,14 @@ pub fn get_cases(
     school_year: Option<String>,
     group_id: Option<String>,
 ) -> Result<Vec<CaseRecord>, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     CaseRepository::get_cases(&connection, school_year, group_id).map_err(db_error)
 }
 
 #[tauri::command]
 pub fn get_current_school_year(state: State<'_, DbState>) -> Result<Option<String>, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     let saved = get_config(&connection, "current_school_year")?;
     if let Some(sy) = saved {
@@ -388,7 +466,11 @@ pub fn get_current_school_year(state: State<'_, DbState>) -> Result<Option<Strin
 }
 
 #[tauri::command]
-pub fn set_current_school_year(state: State<'_, DbState>, start_year: String) -> Result<String, String> {
+pub fn set_current_school_year(
+    state: State<'_, DbState>,
+    start_year: String,
+) -> Result<String, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     set_config(&connection, "current_school_year", &start_year)?;
     Ok(start_year)
@@ -396,40 +478,40 @@ pub fn set_current_school_year(state: State<'_, DbState>, start_year: String) ->
 
 #[tauri::command]
 pub fn get_all_school_years(state: State<'_, DbState>) -> Result<Vec<String>, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
-    
+
     let mut statement = connection
         .prepare("SELECT DISTINCT strftime('%Y', date) as yr FROM cases WHERE date IS NOT NULL AND date != '' UNION SELECT DISTINCT school_year as yr FROM cases WHERE school_year != '' ORDER BY yr DESC")
         .map_err(db_error)?;
-        
+
     let mut years: Vec<String> = statement
         .query_map([], |row| row.get(0))
         .map_err(db_error)?
         .filter_map(|r| r.ok())
         .filter(|y: &String| !y.is_empty() && y != "null")
         .collect();
-        
+
     let current_calendar_year = chrono::Utc::now().format("%Y").to_string();
     if !years.contains(&current_calendar_year) {
         years.insert(0, current_calendar_year);
     }
-    
+
     years.sort_by(|a, b| b.cmp(a));
     years.dedup();
-    
+
     Ok(years)
 }
 
 use crate::models::CasePayload;
 
-
 #[tauri::command]
-pub fn add_case(
-    state: State<'_, DbState>,
-    payload: CasePayload,
-) -> Result<i64, String> {
+pub fn add_case(state: State<'_, DbState>, payload: CasePayload) -> Result<i64, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
-    CaseRepository::insert(&connection, &payload)
+    let id = CaseRepository::insert(&connection, &payload)?;
+    crate::db::backup::run_scheduled(&state, &connection, true);
+    Ok(id)
 }
 
 #[tauri::command]
@@ -439,12 +521,14 @@ pub fn update_case(
     payload: CasePayload,
     update_log: Option<String>,
 ) -> Result<(), String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     CaseRepository::update(&connection, id, &payload, update_log)
 }
 
 #[tauri::command]
 pub fn delete_case(state: State<'_, DbState>, id: i64) -> Result<(), String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     let rows_deleted = connection
         .execute("DELETE FROM cases WHERE id = ?1", params![id])
@@ -459,6 +543,7 @@ pub fn delete_case(state: State<'_, DbState>, id: i64) -> Result<(), String> {
 
 #[tauri::command]
 pub fn get_case(state: State<'_, DbState>, id: i64) -> Result<CaseRecord, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     let case = connection
         .query_row(
@@ -477,7 +562,12 @@ WHERE id = ?1
 }
 
 #[tauri::command]
-pub fn copy_generated_proof(src_path: String, dest_filename: String) -> Result<String, String> {
+pub fn copy_generated_proof(
+    state: State<'_, DbState>,
+    src_path: String,
+    dest_filename: String,
+) -> Result<String, String> {
+    state.require_session()?;
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let dest_path = std::path::Path::new(manifest_dir)
         .parent()
@@ -490,8 +580,12 @@ pub fn copy_generated_proof(src_path: String, dest_filename: String) -> Result<S
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
 
-    std::fs::copy(&src_path, &dest_path)
-        .map_err(|e| format!("Failed to copy file from {} to {:?}: {}", src_path, dest_path, e))?;
+    std::fs::copy(&src_path, &dest_path).map_err(|e| {
+        format!(
+            "Failed to copy file from {} to {:?}: {}",
+            src_path, dest_path, e
+        )
+    })?;
 
     Ok(format!("Successfully copied to {:?}", dest_path))
 }
@@ -505,22 +599,30 @@ pub struct BackupRecord {
 }
 
 #[tauri::command]
-pub fn get_backups(app: tauri::AppHandle) -> Result<Vec<BackupRecord>, String> {
-    use tauri::Manager;
+pub fn get_backups(
+    state: State<'_, DbState>,
+    app: tauri::AppHandle,
+) -> Result<Vec<BackupRecord>, String> {
+    state.require_session()?;
     use std::fs;
+    use tauri::Manager;
 
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let backup_dir = app_data_dir.join("backups");
 
     let mut backups = Vec::new();
-    if let Ok(entries) = fs::read_dir(backup_dir) {
-        for entry in entries.flatten() {
+    if backup_dir.exists() {
+        let entries = fs::read_dir(&backup_dir).map_err(db_error)?;
+        for entry in entries {
+            let entry = entry.map_err(db_error)?;
             let path = entry.path();
             if path.is_dir() {
                 if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
                     if filename.starts_with("backup_") {
                         let backup_type = if filename.starts_with("backup_manual_") {
                             "Manual".to_string()
+                        } else if filename.starts_with("backup_safety_") {
+                            "Safety".to_string()
                         } else {
                             "Automatic".to_string()
                         };
@@ -532,7 +634,11 @@ pub fn get_backups(app: tauri::AppHandle) -> Result<Vec<BackupRecord>, String> {
                                 dt = format!("{} {}", date_str, time_str.replace('-', ":"));
                                 dt.truncate(16);
                             }
-                            if dt.is_empty() { time_part.clone() } else { dt }
+                            if dt.is_empty() {
+                                time_part.clone()
+                            } else {
+                                dt
+                            }
                         } else {
                             time_part
                         };
@@ -575,52 +681,20 @@ pub fn create_backup(
     state: State<'_, DbState>,
     is_manual: Option<bool>,
 ) -> Result<(), String> {
+    state.require_session()?;
     use tauri::Manager;
-    use std::fs;
-
-    let db_path = crate::db::get_db_path(&app).map_err(|e| e.to_string())?;
-    if !db_path.exists() {
-        return Err("Database file does not exist".to_string());
-    }
-
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let backup_dir = app_data_dir.join("backups");
-    fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
-
-    let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-    let is_manual = is_manual.unwrap_or(true);
-    let prefix = if is_manual { "backup_manual" } else { "backup_auto" };
-    let folder_name = format!("{}_{}", prefix, now);
-    let current_backup_dir = backup_dir.join(&folder_name);
-    fs::create_dir_all(&current_backup_dir).map_err(|e| e.to_string())?;
-
-    let snapshot_db = current_backup_dir.join("snapshot.db");
+    let directory = app.path().app_data_dir().map_err(db_error)?.join("backups");
     let connection = state.connection.lock().map_err(db_error)?;
-
-    // Use atomic SQLite VACUUM INTO for consistent online backups
-    let escaped_path = snapshot_db.to_string_lossy().replace('\'', "''");
-    if let Err(e) = connection.execute(&format!("VACUUM INTO '{}'", escaped_path), []) {
-        eprintln!("VACUUM INTO failed ({}), falling back to file copy", e);
-        fs::copy(&db_path, &snapshot_db).map_err(|e| e.to_string())?;
-    }
-
-    crate::db::backup::export_csv(&connection, &current_backup_dir.join("snapshot.csv"))?;
-
-    // Prune old automatic backups (BUG-23 retention logic)
-    if let Ok(entries) = fs::read_dir(&backup_dir) {
-        let mut auto_backups: Vec<_> = entries
-            .filter_map(|e| e.ok())
-            .filter(|e| e.file_name().to_string_lossy().starts_with("backup_auto_"))
-            .collect();
-        auto_backups.sort_by_key(|e| std::cmp::Reverse(e.file_name()));
-        if auto_backups.len() > 30 {
-            for old in &auto_backups[30..] {
-                let _ = fs::remove_dir_all(old.path());
-            }
-        }
-    }
-
-    Ok(())
+    let manual = is_manual.unwrap_or(true);
+    crate::db::backup::snapshot(
+        &connection,
+        &directory,
+        if manual { "manual" } else { "auto" },
+    )?;
+    crate::db::backup::prune_automatic(
+        &directory,
+        crate::db::backup::policy(&connection)?.retention,
+    )
 }
 
 #[tauri::command]
@@ -629,42 +703,35 @@ pub fn restore_backup(
     state: State<'_, DbState>,
     filename: String,
 ) -> Result<(), String> {
+    state.require_session()?;
     use tauri::Manager;
-    use std::fs;
-
-    let db_path = crate::db::get_db_path(&app).map_err(|e| e.to_string())?;
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let backup_dir = app_data_dir.join("backups");
-    let backup_file = backup_dir.join(&filename).join("snapshot.db");
-
-    if !backup_file.exists() {
-        return Err(format!("Backup file snapshot.db does not exist in folder {}", filename));
+    if filename.contains("..")
+        || filename.contains('/')
+        || filename.contains(char::from(92))
+        || !filename.starts_with("backup_")
+    {
+        return Err("Invalid backup filename".into());
     }
-
-    let mut connection_guard = state.connection.lock().map_err(|_| "Failed to lock database state")?;
-    
-    // Temporarily replace with in-memory connection to drop file handles
-    let temp_conn = rusqlite::Connection::open_in_memory().map_err(|e| e.to_string())?;
-    *connection_guard = temp_conn;
-
-    // Perform copy
-    fs::copy(&backup_file, &db_path).map_err(|e| e.to_string())?;
-
-    // Reopen original connection and run migrations
-    let new_conn = crate::db::open_db(&db_path).map_err(|e| e.to_string())?;
-    crate::db::schema::initialize_schema(&new_conn).map_err(|e| e.to_string())?;
-    *connection_guard = new_conn;
-
+    let directory = app.path().app_data_dir().map_err(db_error)?.join("backups");
+    let mut connection = state.connection.lock().map_err(db_error)?;
+    crate::db::recovery::replace_database(
+        &mut connection,
+        &directory.join(filename).join("snapshot.db"),
+        &directory,
+    )?;
+    state.security.lock().map_err(db_error)?.revoke();
     Ok(())
 }
 
 #[tauri::command]
 pub fn delete_backup(
+    state: State<'_, DbState>,
     app: tauri::AppHandle,
     filename: String,
 ) -> Result<(), String> {
-    use tauri::Manager;
+    state.require_session()?;
     use std::fs;
+    use tauri::Manager;
 
     if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
         return Err("Invalid backup filename".to_string());
@@ -684,13 +751,15 @@ pub fn delete_backup(
 
 #[tauri::command]
 pub fn save_file(
+    state: State<'_, DbState>,
     app: tauri::AppHandle,
     base64_data: String,
     filename: String,
 ) -> Result<String, String> {
-    use tauri::Manager;
+    state.require_session()?;
+    use base64::{engine::general_purpose, Engine as _};
     use std::fs;
-    use base64::{Engine as _, engine::general_purpose};
+    use tauri::Manager;
     use tauri_plugin_opener::OpenerExt;
 
     let download_dir = app.path().download_dir().map_err(|e| e.to_string())?;
@@ -702,10 +771,43 @@ pub fn save_file(
         .filter(|s| !s.is_empty())
         .unwrap_or("document.pdf");
 
-    let file_path = download_dir.join(safe_name);
-
-    let bytes = general_purpose::STANDARD.decode(base64_data).map_err(|e| e.to_string())?;
-    fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
+    let bytes = general_purpose::STANDARD
+        .decode(base64_data)
+        .map_err(|e| e.to_string())?;
+    let original = download_dir.join(safe_name);
+    let mut file_path = original.clone();
+    let mut number = 0;
+    loop {
+        use std::io::Write;
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&file_path)
+        {
+            Ok(mut file) => {
+                if let Err(error) = file.write_all(&bytes).and_then(|_| file.sync_all()) {
+                    drop(file);
+                    let _ = fs::remove_file(&file_path);
+                    return Err(error.to_string());
+                }
+                break;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                number += 1;
+                let stem = original
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("document");
+                let extension = original
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .map(|s| format!(".{s}"))
+                    .unwrap_or_default();
+                file_path = download_dir.join(format!("{stem} ({number}){extension}"));
+            }
+            Err(error) => return Err(error.to_string()),
+        }
+    }
 
     let path_str = file_path.to_string_lossy().to_string();
     let _ = app.opener().open_path(&path_str, None::<&str>);
@@ -715,24 +817,29 @@ pub fn save_file(
 
 #[tauri::command]
 pub fn save_pdf(
+    state: State<'_, DbState>,
     app: tauri::AppHandle,
     base64_data: String,
     filename: String,
 ) -> Result<String, String> {
-    save_file(app, base64_data, filename)
+    state.require_session()?;
+    save_file(state, app, base64_data, filename)
 }
 
 #[tauri::command]
 pub fn export_db_file(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     state: State<'_, DbState>,
     dest_path: String,
 ) -> Result<(), String> {
-    use std::fs;
-    let _conn = state.connection.lock().map_err(|_| "Failed to lock database state")?;
-    let db_path = crate::db::get_db_path(&app).map_err(|e| e.to_string())?;
-    fs::copy(&db_path, &dest_path).map_err(|e| e.to_string())?;
-    Ok(())
+    state.require_session()?;
+    let connection = state.connection.lock().map_err(db_error)?;
+    let destination = std::path::Path::new(&dest_path);
+    if destination.exists() {
+        return Err("Choose a new filename so an existing database is not overwritten.".into());
+    }
+    let mut target = rusqlite::Connection::open(destination).map_err(db_error)?;
+    crate::db::backup::copy_database(&connection, &mut target)
 }
 
 #[tauri::command]
@@ -741,41 +848,238 @@ pub fn import_db_file(
     state: State<'_, DbState>,
     src_path: String,
 ) -> Result<(), String> {
-    use std::fs;
-    let db_path = crate::db::get_db_path(&app).map_err(|e| e.to_string())?;
-    let mut connection_guard = state.connection.lock().map_err(|_| "Failed to lock database state")?;
-    
-    let temp_conn = rusqlite::Connection::open_in_memory().map_err(|e| e.to_string())?;
-    *connection_guard = temp_conn;
-
-    fs::copy(&src_path, &db_path).map_err(|e| e.to_string())?;
-
-    let new_conn = crate::db::open_db(&db_path).map_err(|e| e.to_string())?;
-    crate::db::schema::initialize_schema(&new_conn).map_err(|e| e.to_string())?;
-    *connection_guard = new_conn;
-
+    state.require_session()?;
+    use tauri::Manager;
+    let directory = app.path().app_data_dir().map_err(db_error)?.join("backups");
+    let mut connection = state.connection.lock().map_err(db_error)?;
+    crate::db::recovery::replace_database(
+        &mut connection,
+        std::path::Path::new(&src_path),
+        &directory,
+    )?;
+    state.security.lock().map_err(db_error)?.revoke();
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_active_months(state: State<'_, DbState>, school_year: String) -> Result<Vec<String>, String> {
+pub fn get_active_months(
+    state: State<'_, DbState>,
+    school_year: String,
+) -> Result<Vec<String>, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     CaseRepository::get_active_months(&connection, &school_year)
 }
 
 #[tauri::command]
 pub fn reset_application_data(state: State<'_, DbState>, pin: String) -> Result<(), String> {
-    crate::auth::validate_pin(&pin)?;
-    let connection = state.connection.lock().map_err(db_error)?;
-    let hash = require_config(&connection, "app_pin_hash")?;
-    if !crate::auth::verify_secret(&pin, &hash)? {
-        return Err("Incorrect PIN. Cannot reset application data.".to_string());
+    state.require_session()?;
+    let mut connection = state.connection.lock().map_err(db_error)?;
+    if !verify_current_pin(&state, &connection, &pin, false)? {
+        return Err("Incorrect PIN. Cannot reset application data.".into());
     }
-
-    connection.execute("DELETE FROM cases;", []).map_err(db_error)?;
-    connection.execute("DELETE FROM otp_tokens;", []).map_err(db_error)?;
-    let _ = connection.execute("DELETE FROM sqlite_sequence WHERE name = 'cases';", []);
-
+    if let Some(dir) = &state.backup_dir {
+        crate::db::backup::snapshot(&connection, dir, "safety")?;
+    }
+    let tx = connection.transaction().map_err(db_error)?;
+    tx.execute_batch("DELETE FROM case_save_requests; DELETE FROM ai_messages; DELETE FROM ai_sessions; DELETE FROM cases; DELETE FROM otp_tokens; DELETE FROM app_config WHERE key LIKE 'otp_attempts_%'; DELETE FROM sqlite_sequence WHERE name = 'cases';").map_err(db_error)?;
+    tx.commit().map_err(db_error)?;
+    state.security.lock().map_err(db_error)?.grants.clear();
     Ok(())
 }
 
+fn verify_current_pin(
+    state: &DbState,
+    connection: &rusqlite::Connection,
+    pin: &str,
+    login: bool,
+) -> Result<bool, String> {
+    let mut security = state.security.lock().map_err(db_error)?;
+    security.check_attempt()?;
+    let valid = crate::auth::verify_secret(pin, &require_config(connection, "app_pin_hash")?)?;
+    security.record_attempt(valid);
+    if login && valid {
+        security.authenticated = true;
+    }
+    Ok(valid)
+}
+
+fn validate_email_settings(sender: &str, password: &str, recipient: &str) -> Result<(), String> {
+    crate::email::validate_address(sender.trim())?;
+    crate::email::validate_address(recipient.trim())?;
+    if password.replace(' ', "").len() != 16 {
+        return Err(
+            "Enter the 16-character Gmail App Password (not your Gmail account password).".into(),
+        );
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_session(state: State<'_, DbState>) -> Result<bool, String> {
+    Ok(state.security.lock().map_err(db_error)?.authenticated)
+}
+
+#[tauri::command]
+pub fn sign_out(state: State<'_, DbState>) -> Result<(), String> {
+    let connection = state.connection.lock().map_err(db_error)?;
+    state.security.lock().map_err(db_error)?.revoke();
+    connection
+        .execute("DELETE FROM otp_tokens", [])
+        .map_err(db_error)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_backup_policy(
+    state: State<'_, DbState>,
+) -> Result<crate::db::backup::BackupPolicy, String> {
+    state.require_session()?;
+    let connection = state.connection.lock().map_err(db_error)?;
+    crate::db::backup::policy(&connection)
+}
+#[tauri::command]
+pub fn set_backup_policy(
+    state: State<'_, DbState>,
+    mut policy: crate::db::backup::BackupPolicy,
+) -> Result<(), String> {
+    state.require_session()?;
+    policy.validate()?;
+    policy.last_error = None;
+    let connection = state.connection.lock().map_err(db_error)?;
+    set_config(
+        &connection,
+        "backup_policy",
+        &serde_json::to_string(&policy).map_err(db_error)?,
+    )?;
+    if let Some(dir) = &state.backup_dir {
+        crate::db::backup::prune_automatic(dir, policy.retention)?;
+    }
+    crate::db::backup::run_scheduled(&state, &connection, false);
+    Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaseChange {
+    pub kind: String,
+    pub id: Option<i64>,
+    pub payload: CasePayload,
+    pub update_log: Option<String>,
+}
+
+/// One receipt and all respondent/sibling writes commit together.
+pub fn apply_changes(
+    connection: &mut rusqlite::Connection,
+    request_id: &str,
+    changes: Vec<CaseChange>,
+) -> Result<Vec<i64>, String> {
+    use sha2::{Digest, Sha256};
+    uuid::Uuid::parse_str(request_id).map_err(|_| "Invalid save request.")?;
+    if changes.is_empty() || changes.len() > 5000 {
+        return Err("A save must contain 1 to 5,000 changes.".into());
+    }
+    let digest = format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&changes).map_err(db_error)?)
+    );
+    let previous: Option<(String, String)> = connection
+        .query_row(
+            "SELECT fingerprint, result FROM case_save_requests WHERE id = ?1",
+            [request_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
+        .map_err(db_error)?;
+    if let Some((fingerprint, result)) = previous {
+        if fingerprint != digest {
+            return Err("This save already completed with different details. Reload the saved record before editing.".into());
+        }
+        return serde_json::from_str(&result).map_err(db_error);
+    }
+    let tx = connection.transaction().map_err(db_error)?;
+    let mut ids = Vec::new();
+    let mut shared_participants = std::collections::HashMap::<String, String>::new();
+    for mut change in changes {
+        if let Some(group) = &change.payload.group_id {
+            for student in &mut change.payload.students {
+                let role = student.role.as_deref().unwrap_or_default().to_lowercase();
+                if role.starts_with("complainant")
+                    && student.participant_id.as_deref().unwrap_or("").is_empty()
+                {
+                    let key = format!("{}|{}", group, crate::models::legacy_student_key(student));
+                    student.participant_id = Some(
+                        shared_participants
+                            .entry(key)
+                            .or_insert_with(|| uuid::Uuid::new_v4().to_string())
+                            .clone(),
+                    );
+                }
+            }
+        }
+        match change.kind.as_str() {
+            "add" => ids.push(CaseRepository::insert(&tx, &change.payload)?),
+            "update" => {
+                let id = change.id.ok_or("An update requires a case ID.")?;
+                CaseRepository::update(&tx, id, &change.payload, change.update_log)?;
+                ids.push(id);
+            }
+            _ => return Err("Invalid case change.".into()),
+        }
+    }
+    tx.execute(
+        "INSERT INTO case_save_requests(id,fingerprint,result) VALUES (?1,?2,?3)",
+        params![
+            request_id,
+            digest,
+            serde_json::to_string(&ids).map_err(db_error)?
+        ],
+    )
+    .map_err(db_error)?;
+    tx.commit().map_err(db_error)?;
+    Ok(ids)
+}
+
+#[tauri::command]
+pub fn apply_case_changes(
+    state: State<'_, DbState>,
+    request_id: String,
+    changes: Vec<CaseChange>,
+) -> Result<Vec<i64>, String> {
+    state.require_session()?;
+    let mut connection = state.connection.lock().map_err(db_error)?;
+    let creates_record = changes.iter().any(|c| c.kind == "add");
+    let ids = apply_changes(&mut connection, &request_id, changes)?;
+    crate::db::backup::run_scheduled(&state, &connection, creates_record);
+    Ok(ids)
+}
+
+async fn send_requested_code(
+    state: State<'_, DbState>,
+    purpose: &'static str,
+) -> Result<(), String> {
+    let (sender, password, recipient, code) = {
+        let connection = state.connection.lock().map_err(db_error)?;
+        state
+            .security
+            .lock()
+            .map_err(db_error)?
+            .grants
+            .remove(purpose);
+        request_otp_for_purpose(&connection, purpose)?
+    };
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        crate::email::send_otp_email(&sender, &password, &recipient, &code, purpose)
+    })
+    .await
+    .map_err(db_error)?;
+    if result.is_err() {
+        state
+            .connection
+            .lock()
+            .map_err(db_error)?
+            .execute("DELETE FROM otp_tokens WHERE purpose = ?1", [purpose])
+            .map_err(db_error)?;
+    }
+    result
+}

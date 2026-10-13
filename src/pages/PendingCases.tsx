@@ -361,7 +361,7 @@ export default function PendingCases() {
   return (
     <>
       {toast && createPortal(
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${toast.type === "success"
+        <div role="status" aria-live="polite" className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${toast.type === "success"
             ? "border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] text-[#002F87] dark:text-[#b4c5ff]"
             : "border border-error/30 bg-error-container text-on-error-container"
           } ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
@@ -518,7 +518,7 @@ export default function PendingCases() {
                               </>
                             );
                           })()}
-                          <span className="ml-auto opacity-70">{formatDate(c.date)}</span>
+                          <span className="ml-auto">{formatDate(c.date)}</span>
                         </div>
                       </div>
                     </button>
@@ -556,7 +556,7 @@ export default function PendingCases() {
                         const name = `${firstStudent.lastName}, ${firstStudent.firstName}${firstStudent.middleInitial ? ` ${firstStudent.middleInitial}.` : ""}`;
                         if (students.length > 1) {
                           const count = students.length - 1;
-                          return `${name} and ${count} other respondent${count > 1 ? "s" : ""}`;
+                          return `${name} and ${count} other student${count > 1 ? "s" : ""} involved`;
                         }
                         return name;
                       })()}
@@ -796,7 +796,7 @@ export default function PendingCases() {
               }`}
             onClick={closeProofLightbox}
           />
-          <div className={`relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface dark:bg-surface-container-lowest rounded-xl shadow-2xl flex flex-col ${isProofLightboxClosing ? "modal-panel-exit" : "modal-panel-enter"
+          <div role="dialog" aria-modal="true" tabIndex={-1} className={`relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface dark:bg-surface-container-lowest rounded-xl shadow-2xl flex flex-col ${isProofLightboxClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}>
             <button
               onClick={closeProofLightbox}

@@ -1,37 +1,47 @@
-name: Build Cache & CI
+name: Windows release checks
 
 on:
   push:
     branches:
       - main
+      - 'codex/**'
+  pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build-cache:
+  release-checks:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
-
+          node-version: 24
+          cache: npm
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
+      - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
-
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: npm ci
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Compile Rust in release mode
-        run: cargo build --release --manifest-path src-tauri/Cargo.toml
+      - name: Frontend regression tests
+        run: npm test
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=moderate
+      - name: Rust regression tests
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Build Windows acceptance installer
+        run: npm run tauri build -- --config .github/tauri-ci.json
+      - name: Upload acceptance installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: guidance-windows-acceptance
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14

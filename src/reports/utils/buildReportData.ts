@@ -13,7 +13,7 @@ export const buildReportData = (config: ReportConfig, rawCases: CaseRecord[]): R
   const filteredCases = filterReportCases(rawCases, config);
   const summary = calculateReportSummary(filteredCases);
 
-  const reportingPeriod = formatReportDateRange(config.startDate, config.endDate, rawCases);
+  const reportingPeriod = formatReportDateRange(config.startDate, config.endDate, filteredCases);
   const scopeLabel = config.scope === "all" ? "All year levels" : config.selectedGrade;
   const statusLabel = config.status === "all" ? "All statuses" : config.status;
   const dateGenerated = new Date().toLocaleDateString("en-US", {

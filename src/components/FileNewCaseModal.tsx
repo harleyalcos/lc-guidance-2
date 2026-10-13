@@ -1,6 +1,6 @@
+import { applyCaseChanges, CaseChange } from "../utils/caseChanges";
 import { useState, useEffect, Fragment, useRef } from "react";
 import { createPortal } from "react-dom";
-import { invoke } from "@tauri-apps/api/core";
 import DatePicker from "./DatePicker";
 import { RoleDropdown } from "./RoleDropdown";
 
@@ -297,6 +297,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
   const [expandedCategory, setExpandedCategory] = useState<string | null>("behavioural");
   const [removingAdditionalStudents, setRemovingAdditionalStudents] = useState<StudentInfo[]>([]);
   const toastTimerRef = useRef<number | null>(null);
+  const filingRef = useRef<{ dateFiled: string; groupId: string; requestId: string; participantIds: string[] } | null>(null);
 
   const [formData, setFormData] = useState(emptyFormData);
   const isPrimaryRoleLocked = formData.additionalStudents.length === 0;
@@ -367,6 +368,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
 
   useEffect(() => {
     if (isOpen) {
+      filingRef.current = null;
       setIsVisible(true);
     } else {
       const timer = window.setTimeout(() => setIsVisible(false), 220);
@@ -589,7 +591,9 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       return;
     }
     setIsSubmitting(true);
+    const changes: CaseChange[] = [];
     try {
+      filingRef.current ??= { dateFiled: new Date().toISOString(), groupId: crypto.randomUUID(), requestId: crypto.randomUUID(), participantIds: [] };
       const students = [
         {
           firstName: normalized.firstName,
@@ -602,7 +606,11 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           role: normalizeRole(normalized.role, "Respondent"),
         },
         ...normalized.additionalStudents,
-      ];
+      ].map((student, index) => {
+        const ids = filingRef.current!.participantIds;
+        ids[index] ??= crypto.randomUUID();
+        return { ...student, participantId: ids[index] };
+      });
       const respondents = students.filter(isRespondent);
       const complainantSubjects = students.filter(isComplainantSubject);
       const isGroupedCase = respondents.length > 1;
@@ -612,17 +620,17 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         setIsSubmitting(false);
         return;
       }
-      const dateFiled = new Date().toISOString();
+      const { dateFiled } = filingRef.current;
       const proofs = JSON.stringify(normalized.uploadedProofs.map((proof) => ({
         ...proof,
         created_at: proof.created_at ?? dateFiled,
       })));
 
       if (students.length > 1) {
-        const groupId = crypto.randomUUID();
+        const groupId = filingRef.current.groupId;
         for (const student of respondents) {
           const caseStudents = [student, ...complainantSubjects];
-          await invoke<number>("add_case", {
+          changes.push({ kind: "add",
             payload: {
               students: caseStudents,
               date: normalized.date,
@@ -639,7 +647,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           });
         }
       } else {
-        await invoke<number>("add_case", {
+        changes.push({ kind: "add",
           payload: {
             students,
             date: normalized.date,
@@ -656,13 +664,8 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
         });
       }
 
+      await applyCaseChanges(changes, filingRef.current.requestId);
       localStorage.removeItem("new_case_draft");
-
-      const autoBackup = localStorage.getItem("backup_settings_auto") !== "false";
-      const freq = localStorage.getItem("backup_settings_freq") || "Daily";
-      if (autoBackup && freq === "On New Record") {
-        try { await invoke("create_backup", { isManual: false }); } catch {}
-      }
 
       window.dispatchEvent(new Event("cases:changed"));
       onCaseFiled?.();
@@ -687,7 +690,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleCloseAttempt} />
 
       {/* Panel */}
-      <div className={`relative w-full max-w-[960px] bg-surface-container-low rounded-2xl shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[92vh] overflow-hidden transition-all duration-200 ease-out ${isOpen ? "translate-y-0 scale-100 opacity-100 new-case-modal-panel-enter" : "translate-y-4 scale-[0.98] opacity-0 modal-panel-exit"}`}>
+      <div role="dialog" aria-modal="true" tabIndex={-1} className={`relative w-full max-w-[960px] bg-surface-container-low rounded-2xl shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[92vh] overflow-hidden transition-all duration-200 ease-out ${isOpen ? "translate-y-0 scale-100 opacity-100 new-case-modal-panel-enter" : "translate-y-4 scale-[0.98] opacity-0 modal-panel-exit"}`}>
 
         {/* ── Header ── */}
         <div className="px-4 sm:px-7 py-3 sm:py-4 bg-surface flex items-center justify-between border-b border-outline-variant shrink-0">
@@ -1703,7 +1706,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
 
       {/* ── Confirm Close Overlay ── */}
       {toastMessage && (
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl border border-error/30 bg-error-container px-4 py-3 text-on-error-container shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
+        <div role="status" aria-live="polite" className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl border border-error/30 bg-error-container px-4 py-3 text-on-error-container shadow-xl ${isToastVisible ? "case-toast-x-enter" : "case-toast-x-exit"}`}>
           <span className="material-symbols-outlined text-error" style={{ fontSize: 18 }}>error</span>
           <p className="text-xs font-bold">{toastMessage}</p>
         </div>
@@ -1718,7 +1721,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
             }`}
             onClick={() => closeDeleteProofConfirm()}
           />
-          <div className={`relative z-10 bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
+          <div role="dialog" aria-modal="true" tabIndex={-1} className={`relative z-10 bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
             isDeleteProofConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
           }`}>
             <span className="material-symbols-outlined text-5xl mx-auto text-error">delete</span>
@@ -1758,7 +1761,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
             }`}
             onClick={closeProofLightbox}
           />
-          <div className={`relative z-10 max-w-4xl max-h-[88vh] bg-surface rounded-2xl shadow-2xl overflow-hidden flex flex-col ${
+          <div role="dialog" aria-modal="true" tabIndex={-1} className={`relative z-10 max-w-4xl max-h-[88vh] bg-surface rounded-2xl shadow-2xl overflow-hidden flex flex-col ${
             isProofLightboxClosing ? "modal-panel-exit" : "modal-panel-enter"
           }`}>
             <button

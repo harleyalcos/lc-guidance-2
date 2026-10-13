@@ -22,6 +22,7 @@ export interface CaseRecord {
 }
 
 export interface StudentInfo {
+  participantId?: string;
   firstName: string;
   lastName: string;
   middleInitial: string;

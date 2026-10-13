@@ -26,6 +26,8 @@ const DEFAULT_SIGNATURE_CONFIG: SignatureConfig = {
 
 export default function SummaryReports() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingCases, setLoadingCases] = useState(true);
   const [scope, setScope] = useState<"all" | "specific">("all");
   const [selectedGrade, setSelectedGrade] = useState("Grade 7");
   const [selectedStatus, setSelectedStatus] = useState<"all" | "Pending" | "Reprimand" | "Resolved" | "Closed">("all");
@@ -94,9 +96,10 @@ export default function SummaryReports() {
           schoolYear: queryYear,
         });
         setCases(loadedCases);
+        setLoadError(null);
       } catch (err) {
-        console.error("Failed to load cases", err);
-      }
+        setLoadError(String(err));
+      } finally { setLoadingCases(false); }
     };
     loadCases();
 
@@ -193,6 +196,9 @@ export default function SummaryReports() {
 
   const activeColumnsCount = Object.values(visibleColumns).filter(Boolean).length;
 
+  if (loadError) return <div role="alert" className="p-6 rounded-xl bg-error-container text-on-error-container"><h1 className="text-lg font-bold">Case records could not be loaded</h1><p className="my-3">{loadError}</p><button className="btn-primary" onClick={() => window.location.reload()}>Retry</button><p className="mt-3">No report should be issued until the records load successfully.</p></div>;
+  if (loadingCases) return <p role="status" className="p-6">Loading case records…</p>;
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-7xl mx-auto pb-10 h-full">
       {/* Header */}
@@ -218,7 +224,7 @@ export default function SummaryReports() {
             className="btn-primary"
           >
             <span className="material-symbols-outlined text-sm">print</span>
-            <span>Print</span>
+            <span>Open PDF to Print</span>
           </button>
         </div>
       </div>

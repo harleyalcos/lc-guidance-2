@@ -1,3 +1,4 @@
+import { caseDay } from "../utils/caseValues";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -134,8 +135,8 @@ export default function CaseDistribution() {
   const dateFilteredCases = useMemo(() => {
     return cases.filter((c) => {
       if (!c.date) return true;
-      if (startDate && c.date < startDate) return false;
-      if (endDate && c.date > endDate) return false;
+      if (startDate && caseDay(c.date) < startDate) return false;
+      if (endDate && caseDay(c.date) > endDate) return false;
       return true;
     });
   }, [cases, startDate, endDate]);

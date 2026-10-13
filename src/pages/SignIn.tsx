@@ -19,6 +19,9 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
   const [pin, setPin] = useState("");
   const [setupPin, setSetupPin] = useState("");
   const [confirmSetupPin, setConfirmSetupPin] = useState("");
+  const [configureEmail, setConfigureEmail] = useState(false);
+  const [testEmailSent, setTestEmailSent] = useState(false);
+  const [emailReceived, setEmailReceived] = useState(false);
   const [smtpEmail, setSmtpEmail] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
   const [recoveryEmail, setRecoveryEmail] = useState("");
@@ -98,22 +101,25 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
       showToast("error", "The setup PINs do not match.");
       return;
     }
-    if (!smtpEmail.trim() || !smtpPassword.trim() || !recoveryEmail.trim()) {
+    if (configureEmail && (!smtpEmail.trim() || !smtpPassword.trim() || !recoveryEmail.trim())) {
       showToast("error", "Fill in the Gmail and recovery email fields.");
       return;
     }
 
     setIsBusy(true);
     try {
-      await invoke("test_smtp", {
-        smtpEmail: smtpEmail.trim(),
-        smtpPassword: cleanAppPassword(smtpPassword),
-      });
+      if (configureEmail && !testEmailSent) {
+        await invoke("test_smtp", { smtpEmail: smtpEmail.trim(), smtpPassword: cleanAppPassword(smtpPassword), recoveryEmail: recoveryEmail.trim() });
+        setTestEmailSent(true);
+        showToast("success", "Test sent to your recovery email. Check the inbox, then confirm receipt to finish setup.");
+        return;
+      }
+      if (configureEmail && !emailReceived) { showToast("error", "Confirm that you received the test email first."); return; }
       await invoke("complete_setup", {
         pin: setupPin,
-        smtpEmail: smtpEmail.trim(),
-        smtpPassword: cleanAppPassword(smtpPassword),
-        recoveryEmail: recoveryEmail.trim(),
+        smtpEmail: configureEmail ? smtpEmail.trim() : "",
+        smtpPassword: configureEmail ? cleanAppPassword(smtpPassword) : "",
+        recoveryEmail: configureEmail ? recoveryEmail.trim() : "",
       });
       onSetupComplete();
       showToast("success", "Setup complete. Sign in with your new PIN.");
@@ -192,7 +198,7 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
   };
 
   const renderToast = () => toast && createPortal(
-    <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+    <div role="status" aria-live="polite" className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
       toast.type === "success"
         ? "border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] text-[#002F87] dark:text-[#b4c5ff]"
         : "border border-error/30 bg-error-container text-on-error-container"
@@ -220,11 +226,13 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
       inputMode?: "numeric" | "text";
       placeholder?: string;
       autoFocus?: boolean;
+      label?: string;
       cleanValue?: (value: string) => string;
     } = {}
   ) => (
     <div className="relative">
       <input
+        aria-label={options.label || options.placeholder || "Security code"}
         type={isVisible ? "text" : "password"}
         inputMode={options.inputMode}
         value={value}
@@ -270,7 +278,7 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
               <div className="mb-5">
                 <h2 className="text-base font-bold text-on-surface">First Launch Setup</h2>
                 <p className="text-xs text-secondary mt-1">
-                  Create a 6-digit PIN and connect the Gmail account used to send reset codes.
+                  Create a 6-digit PIN to start. You can configure email recovery now or later in Settings. Keep the PIN in a safe place; email reset is unavailable until recovery is configured.
                 </p>
               </div>
               <div className="space-y-4">
@@ -281,6 +289,7 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                       className: secretPinClass,
                       inputMode: "numeric",
                       placeholder: "000000",
+                      label: "Create 6-digit PIN",
                       cleanValue: cleanPin,
                     })}
                   </div>
@@ -290,28 +299,34 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                       className: secretPinClass,
                       inputMode: "numeric",
                       placeholder: "000000",
+                      label: "Confirm setup PIN",
                       cleanValue: cleanPin,
                     })}
                   </div>
                 </div>
+                <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={configureEmail} onChange={(e) => setConfigureEmail(e.target.checked)} />Configure email recovery now</label>
+                {configureEmail && <><p className="text-xs text-secondary">Use a Gmail App Password created after enabling Google 2-Step Verification. Your normal Gmail password will not work. The test message goes to the recovery address.</p>
                 <div>
-                  <label className="font-label-caps text-label-caps text-secondary block mb-1.5">Email</label>
-                  <input type="email" value={smtpEmail} onChange={(e) => setSmtpEmail(e.target.value)} className={inputClass} placeholder="lc.guidanceoffice@gmail.com" />
+                  <label className="font-label-caps text-label-caps text-secondary block mb-1.5">Gmail sender address</label>
+                  <input type="email" value={smtpEmail} onChange={(e) => { setSmtpEmail(e.target.value); setTestEmailSent(false); setEmailReceived(false); }} className={inputClass} placeholder="lc.guidanceoffice@gmail.com" />
                 </div>
                 <div>
-                  <label className="font-label-caps text-label-caps text-secondary block mb-1.5">Password</label>
-                  {renderSecretInput(smtpPassword, setSmtpPassword, showSmtpPassword, () => setShowSmtpPassword((value) => !value), {
-                    placeholder: "Password",
+                  <label className="font-label-caps text-label-caps text-secondary block mb-1.5">Gmail App Password (16 characters)</label>
+                  {renderSecretInput(smtpPassword, (value) => { setSmtpPassword(value); setTestEmailSent(false); setEmailReceived(false); }, showSmtpPassword, () => setShowSmtpPassword((value) => !value), {
+                    placeholder: "16-character App Password",
                   })}
                 </div>
                 <div>
                   <label className="font-label-caps text-label-caps text-secondary block mb-1.5">Recovery Email</label>
-                  <input type="email" value={recoveryEmail} onChange={(e) => setRecoveryEmail(e.target.value)} className={inputClass} placeholder="Where reset codes are sent" />
+                  <input type="email" value={recoveryEmail} onChange={(e) => { setRecoveryEmail(e.target.value); setTestEmailSent(false); setEmailReceived(false); }} className={inputClass} placeholder="Where reset codes are sent" />
                 </div>
+                {testEmailSent && <label className="flex gap-2 text-sm"><input type="checkbox" checked={emailReceived} onChange={(e) => setEmailReceived(e.target.checked)} />I received the test email in my recovery inbox.</label>}
+                </>}
+
               </div>
               <button type="submit" disabled={isBusy} className="btn-primary w-full mt-7">
                 <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                <span>{isBusy ? "Testing Email & Saving..." : "Complete Setup"}</span>
+                <span>{isBusy ? "Please wait…" : configureEmail && !testEmailSent ? "Send Test Email" : "Complete Setup"}</span>
               </button>
             </form>
           ) : showReset ? (
@@ -341,6 +356,8 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                     <span className="material-symbols-outlined text-[18px]">verified</span>
                     <span>{isBusy ? "Checking..." : "Verify Code"}</span>
                   </button>
+                  <button type="button" disabled={isBusy} onClick={() => { setOtp(""); void handleRequestOtp(); }} className="btn-secondary w-full">Resend code</button>
+                  <button type="button" disabled={isBusy} onClick={() => { setOtp(""); setResetStep("request"); }} className="btn-secondary w-full">Back</button>
                 </form>
               )}
               {resetStep === "new-pin" && (
@@ -352,6 +369,7 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                         className: secretPinClass,
                         inputMode: "numeric",
                         placeholder: "000000",
+                      label: "New 6-digit PIN",
                         cleanValue: cleanPin,
                       })}
                     </div>
@@ -361,6 +379,7 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                         className: secretPinClass,
                         inputMode: "numeric",
                         placeholder: "000000",
+                      label: "Confirm new PIN",
                         cleanValue: cleanPin,
                       })}
                     </div>
@@ -380,6 +399,7 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                   className: secretPinClass,
                   inputMode: "numeric",
                   placeholder: "000000",
+                      label: "6-digit login PIN",
                   autoFocus: true,
                   cleanValue: cleanPin,
                 })}

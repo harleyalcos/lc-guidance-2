@@ -28,24 +28,23 @@ export default function Backup() {
   const [isNotificationVisible, setIsNotificationVisible] = useState(false);
   const notificationTimerRef = useRef<number | null>(null);
 
-  // Settings states from localStorage
-  const [autoBackup, setAutoBackup] = useState(() => {
-    const saved = localStorage.getItem("backup_settings_auto");
-    return saved !== "false"; // default to true
-  });
-  const [frequency, setFrequency] = useState(() => {
-    return localStorage.getItem("backup_settings_freq") || "Daily";
-  });
-  const [retention, setRetention] = useState(() => {
-    return localStorage.getItem("backup_settings_retention") || "7";
-  });
+  const [autoBackup, setAutoBackup] = useState(true);
+  const [frequency, setFrequency] = useState("Daily");
+  const [retention, setRetention] = useState("7");
+  const [policyError, setPolicyError] = useState<string | null>(null);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  type Policy = { enabled: boolean; frequency: string; retention: number; lastError?: string | null };
+  const applyPolicy = (policy: Policy) => {
+    setAutoBackup(policy.enabled); setFrequency(policy.frequency); setRetention(String(policy.retention)); setPolicyError(policy.lastError || null);
+  };
 
   // Load backups list
   const loadBackups = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await invoke<BackupRecord[]>("get_backups");
+      const [data, policy] = await Promise.all([invoke<BackupRecord[]>("get_backups"), invoke<Policy>("get_backup_policy")]);
       setBackups(data);
+      applyPolicy(policy);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -58,26 +57,19 @@ export default function Backup() {
     loadBackups();
   }, [loadBackups]);
 
-  // Persist settings
-  const handleToggleAuto = () => {
-    const newValue = !autoBackup;
-    setAutoBackup(newValue);
-    localStorage.setItem("backup_settings_auto", String(newValue));
-    showNotification(`Automatic backups ${newValue ? "enabled" : "disabled"}`, "success");
+  const savePolicy = async (changes: Partial<Policy>) => {
+    setSettingsBusy(true);
+    try {
+      await invoke("set_backup_policy", { policy: { enabled: autoBackup, frequency, retention: Number(retention), ...changes } });
+      applyPolicy(await invoke<Policy>("get_backup_policy"));
+      showNotification("Backup settings saved", "success");
+      await loadBackups();
+    } catch (error) { showNotification(String(error), "error"); }
+    finally { setSettingsBusy(false); }
   };
-
-  const handleFrequencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    setFrequency(val);
-    localStorage.setItem("backup_settings_freq", val);
-    showNotification(`Backup frequency updated to ${val}`, "success");
-  };
-
-  const handleRetentionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setRetention(val);
-    localStorage.setItem("backup_settings_retention", val);
-  };
+  const handleToggleAuto = () => void savePolicy({ enabled: !autoBackup });
+  const handleFrequencyChange = (event: React.ChangeEvent<HTMLSelectElement>) => void savePolicy({ frequency: event.target.value });
+  const handleRetentionChange = (event: React.ChangeEvent<HTMLInputElement>) => setRetention(event.target.value);
 
   // Notification helper
   const showNotification = (message: string, type: "success" | "error") => {
@@ -128,9 +120,9 @@ export default function Backup() {
     try {
       await invoke("restore_backup", { filename });
       showNotification("Database restored successfully!", "success");
-      loadBackups();
-      // Dispatch event so layout / catalog updates cases automatically
-      window.dispatchEvent(new Event("cases:changed"));
+      localStorage.removeItem("lc_pending_import_rows");
+      localStorage.removeItem("lc_pending_import_filename");
+      localStorage.removeItem("new_case_draft");
       
       // Reload window after short delay to fully refresh application state
       setTimeout(() => {
@@ -178,7 +170,7 @@ export default function Backup() {
     <div className="flex flex-col gap-6 animate-fade-in relative pb-12">
       {/* Toast Notification */}
       {notification && createPortal(
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl text-xs font-bold ${
+        <div role="status" aria-live="polite" className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl text-xs font-bold ${
           notification.type === "success"
             ? "border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] text-[#002F87] dark:text-[#b4c5ff]"
             : "border border-error/30 bg-error-container text-on-error-container"
@@ -202,7 +194,7 @@ export default function Backup() {
               {getLastBackupText()}
             </h3>
             <p className="text-secondary dark:text-secondary-fixed-dim text-xs font-medium mt-0.5">
-              Automatic backups are running normally
+              {policyError ? `Backup needs attention: ${policyError}` : autoBackup ? `Automatic backups: ${frequency}. Scheduled backups run while the app is open.` : "Automatic backups are disabled. Mandatory import/restore safety snapshots remain enabled."}
             </p>
           </div>
         </div>
@@ -265,7 +257,7 @@ export default function Backup() {
                     <div className="flex flex-col items-center gap-1.5">
                       <span className="material-symbols-outlined text-4xl text-outline-variant">backup</span>
                       <span className="text-xs font-bold">No backups found</span>
-                      <span className="text-[10px] opacity-75">Click "Backup Now" to create your first database backup.</span>
+                      <span className="text-[10px]">Click "Backup Now" to create your first database backup.</span>
                     </div>
                   </td>
                 </tr>
@@ -335,10 +327,13 @@ export default function Backup() {
           <div className="flex justify-between items-center">
             <div>
               <h4 className="font-bold text-on-surface text-sm">Automatic Backups</h4>
-              <p className="text-secondary text-xs mt-0.5">Run backups silently in the background.</p>
+              <p className="text-secondary text-xs mt-0.5">Run scheduled backups while the app is open. Manual and safety backups are retained until you delete them.</p>
             </div>
             <div>
               <button
+                aria-label="Automatic backups"
+                aria-pressed={autoBackup}
+                disabled={settingsBusy || isLoading}
                 onClick={handleToggleAuto}
                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-500 ease-in-out focus:outline-none ${
                   autoBackup ? "bg-primary" : "bg-[#c4c6d4]"
@@ -362,6 +357,8 @@ export default function Backup() {
               <label className="font-bold text-on-surface text-xs">Frequency</label>
               <div className="relative w-full">
                 <select
+                  aria-label="Backup frequency"
+                  disabled={settingsBusy || isLoading}
                   value={frequency}
                   onChange={handleFrequencyChange}
                   className="w-full appearance-none bg-surface dark:bg-surface-container border border-outline-variant rounded-lg pl-3 pr-10 py-2 font-body-md text-sm text-on-surface cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -383,6 +380,9 @@ export default function Backup() {
               <div className="flex items-center gap-3 h-full">
                 <span className="text-secondary text-sm">Keep last</span>
                 <input
+                  aria-label="Automatic backups to retain"
+                  disabled={settingsBusy || isLoading}
+                  onBlur={() => void savePolicy({ retention: Number(retention) })}
                   type="number"
                   min="1"
                   max="50"
@@ -390,7 +390,7 @@ export default function Backup() {
                   onChange={handleRetentionChange}
                   className="w-16 bg-surface dark:bg-surface-container border border-outline-variant rounded-lg px-2.5 py-1.5 text-center text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
-                <span className="text-secondary text-sm font-medium">backups</span>
+                <span className="text-secondary text-sm font-medium">automatic backups</span>
               </div>
             </div>
           </div>
@@ -406,7 +406,7 @@ export default function Backup() {
             }`}
             onClick={() => closeRestoreConfirm()}
           />
-          <div className={`bg-surface dark:bg-surface-container border border-outline-variant max-w-md w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center z-10 ${
+          <div role="dialog" aria-modal="true" tabIndex={-1} className={`bg-surface dark:bg-surface-container border border-outline-variant max-w-md w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center z-10 ${
             isRestoreConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
           }`}>
             <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/20 text-[#ba1a1a] flex items-center justify-center mx-auto">
@@ -417,7 +417,7 @@ export default function Backup() {
               <p className="text-xs text-secondary mt-1.5 leading-relaxed">
                 WARNING: Restoring will overwrite the current database with the backup file{" "}
                 <strong className="text-on-surface font-semibold">{confirmRestoreFilename}</strong>. 
-                Any changes made after this backup date will be lost. Do you want to proceed?
+                A separate safety backup of the current database will be saved before replacement. The restored view will contain records from the selected backup. Do you want to proceed?
               </p>
             </div>
             <div className="flex gap-3 mt-2">
@@ -452,7 +452,7 @@ export default function Backup() {
             }`}
             onClick={() => closeDeleteConfirm()}
           />
-          <div className={`bg-surface dark:bg-surface-container border border-outline-variant max-w-md w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center z-10 ${
+          <div role="dialog" aria-modal="true" tabIndex={-1} className={`bg-surface dark:bg-surface-container border border-outline-variant max-w-md w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center z-10 ${
             isDeleteConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
           }`}>
             <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/20 text-[#ba1a1a] flex items-center justify-center mx-auto">
