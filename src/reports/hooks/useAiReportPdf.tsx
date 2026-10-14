@@ -1,3 +1,4 @@
+import { localDay } from "../../utils/caseValues";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { pdf } from "@react-pdf/renderer";
 import { invoke } from "@tauri-apps/api/core";
@@ -75,7 +76,7 @@ export function useAiReportPdf(reportData: AiReportData | null) {
       const safeTitle = (reportData.title || "Guidance_Report")
         .replace(/[^a-zA-Z0-9_-]/g, "_")
         .replace(/_+/g, "_");
-      const filename = customFilename || `${safeTitle}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      const filename = customFilename || `${safeTitle}_${localDay()}.pdf`;
 
       const savedPath = await invoke<string>("save_pdf", {
         base64Data,
@@ -87,43 +88,11 @@ export function useAiReportPdf(reportData: AiReportData | null) {
     [reportData]
   );
 
-  const printPdf = useCallback(() => {
-    if (!pdfBlobUrl) {
-      alert("PDF document is still generating. Please wait a moment.");
-      return;
-    }
-
-    let iframe = document.getElementById("ai-print-iframe") as HTMLIFrameElement | null;
-    if (!iframe) {
-      iframe = document.createElement("iframe");
-      iframe.id = "ai-print-iframe";
-      iframe.style.position = "fixed";
-      iframe.style.right = "0";
-      iframe.style.bottom = "0";
-      iframe.style.width = "0";
-      iframe.style.height = "0";
-      iframe.style.border = "0";
-      document.body.appendChild(iframe);
-    }
-
-    iframe.src = pdfBlobUrl;
-    iframe.onload = () => {
-      setTimeout(() => {
-        try {
-          iframe?.contentWindow?.focus();
-          iframe?.contentWindow?.print();
-        } catch (e) {
-          console.error("Print error:", e);
-        }
-      }, 300);
-    };
-  }, [pdfBlobUrl]);
 
   return {
     pdfBlobUrl,
     isGenerating,
     error,
     exportPdf,
-    printPdf,
   };
 }

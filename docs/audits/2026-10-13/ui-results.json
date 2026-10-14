@@ -1,0 +1,473 @@
+[
+  {
+    "name": "sign-in",
+    "invalidPinFeedback": true,
+    "violations": [
+      {
+        "id": "region",
+        "impact": "moderate",
+        "count": 4,
+        "examples": [
+          {
+            "target": [
+              ".pb-6"
+            ],
+            "html": "<div class=\"p-8 pb-6 text-center border-b border-border-subtle relative flex flex-col items-center\">"
+          },
+          {
+            "target": [
+              "label"
+            ],
+            "html": "<label class=\"font-label-caps text-label-caps text-secondary block mb-1.5\">6-Digit PIN</label>"
+          },
+          {
+            "target": [
+              "input"
+            ],
+            "html": "<input inputmode=\"numeric\" class=\"rounded-md w-full bg...\" placeholder=\"000000\" type=\"password\" value=\"654321\">"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/",
+    "rendered": "Dashboard\n\nA statistical summary of guidance office activity for Oct 13, 2026.\n\ncalendar_month\nPERIOD:\nAll Records\nexpand_more\npicture_as_pdf\nExport PDF\nTOTAL C",
+    "pageErrors": [],
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              "span[title=\"Total Cases\"]"
+            ],
+            "html": "<span class=\"micro-label opacity-85 truncate\" title=\"Total Cases\">Total Cases</span>"
+          }
+        ]
+      },
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              ".min-h-\\[360px\\].duration-200:nth-child(1) > .px-5.py-3\\.5.border-b > h3"
+            ],
+            "html": "<h3 class=\"section-header-h2 m-0 mb-0 truncate text-sm sm:text-base font-bold\">2026 Monthly Case Volume</h3>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/catalog",
+    "rendered": "Case Catalog\ndownload\nImport Excel\ntable_view\nExport to Excel\nadd\nFile New Case\nTOTAL CASES\nanalytics\n6\nPENDING CASES\npending_actions\n3\nRESOLVED CASES\ntask_alt\n",
+    "pageErrors": [],
+    "violations": [
+      {
+        "id": "empty-table-header",
+        "impact": "minor",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              "th:nth-child(7)"
+            ],
+            "html": "<th class=\"py-1 px-4 border-b border-outline-variant\"></th>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/pending",
+    "rendered": "ACTIVE QUEUE\n3 PENDING\nsearch\n\nSantos, Group1 (+1 others)\n\nToday\n\nBullying\n\nGrade 7\n·\nA\nOct 13, 2026\n\nSantos, Group0 (+1 others)\n\nToday\n\nBullying\n\nGrade 7\n·\nA\nO",
+    "pageErrors": [],
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "count": 6,
+        "examples": [
+          {
+            "target": [
+              "button[data-case-id=\"6\"] > .min-w-0.gap-1\\.5.flex-col > .mt-0\\.5.text-\\[10px\\].gap-1\\.5 > .ml-auto.opacity-70"
+            ],
+            "html": "<span class=\"ml-auto opacity-70\">Oct 13, 2026</span>"
+          },
+          {
+            "target": [
+              "button[data-case-id=\"5\"] > .min-w-0.gap-1\\.5.flex-col > .mt-0\\.5.text-\\[10px\\].gap-1\\.5 > .ml-auto.opacity-70"
+            ],
+            "html": "<span class=\"ml-auto opacity-70\">Oct 13, 2026</span>"
+          },
+          {
+            "target": [
+              "button[data-case-id=\"1\"] > .min-w-0.gap-1\\.5.flex-col > .mt-0\\.5.text-\\[10px\\].gap-1\\.5 > .ml-auto.opacity-70"
+            ],
+            "html": "<span class=\"ml-auto opacity-70\">Oct 13, 2026</span>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/reports",
+    "rendered": "Reports\n\nGenerate, customize, and export guidance office reports with live PDF preview.\n\npicture_as_pdf\nExport PDF\nprint\nPrint\ntune\nSCOPE & FILTERS\nrestart_alt\n",
+    "pageErrors": [],
+    "violations": []
+  },
+  {
+    "name": "/distribution",
+    "rendered": "arrow_back\nANALYTICS & INSIGHTS\n/\nCASE DISTRIBUTION\nIn-Depth Case Distribution\ncalendar_month\nPERIOD:\nAll Records\nexpand_more\nTOTAL ANALYZED CASES\nfolder_open\n6",
+    "pageErrors": [],
+    "violations": []
+  },
+  {
+    "name": "/case/1",
+    "rendered": "ID: GC-2026-0001\npicture_as_pdf\nExport PDF\nadd\nAdd a Student\nedit\nEdit\nLAGUNA COLLEGE\n\nSan Pablo City\n\nGuidance Office\n\nSTUDENT INFORMATION\nFULL NAME\n\nSantos, A",
+    "pageErrors": [],
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              ".text-\\[\\#d97706\\]"
+            ],
+            "html": "<p class=\"text-sm font-bold uppercase tracking-wider text-[#d97706] dark:text-[#D9A23B]\">Pending</p>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/group-case/audit-group",
+    "rendered": "ID: GC-2026-0006\nvisibility\nShow Complainant\npicture_as_pdf\nExport PDF\nadd\nAdd a Student\nedit\nEdit\nLAGUNA COLLEGE\n\nSan Pablo City\n\nGuidance Office\n\nSTUDENT INFO",
+    "pageErrors": [],
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "count": 2,
+        "examples": [
+          {
+            "target": [
+              ".md\\:grid-cols-\\[2fr_1fr_1\\.5fr_2fr_1\\.2fr\\].gap-y-5.pb-4:nth-child(2) > div:nth-child(5) > .text-\\[\\#d97706\\].dark\\:text-\\[\\#D9A23B\\].tracking-wider"
+            ],
+            "html": "<p class=\"text-sm font-bold uppercase tracking-wider text-[#d97706] dark:text-[#D9A23B]\">Pending</p>"
+          },
+          {
+            "target": [
+              ".md\\:grid-cols-\\[2fr_1fr_1\\.5fr_2fr_1\\.2fr\\].gap-y-5.pb-4:nth-child(3) > div:nth-child(5) > .text-\\[\\#d97706\\].dark\\:text-\\[\\#D9A23B\\].tracking-wider"
+            ],
+            "html": "<p class=\"text-sm font-bold uppercase tracking-wider text-[#d97706] dark:text-[#D9A23B]\">Pending</p>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/account",
+    "rendered": "Settings\ntune\nGeneral Settings\nbackup\nBackup & Recovery\nACCOUNT\nChange PIN\n\nUse this for normal PIN changes when you still know the current PIN.\n\nlock_reset\nCha",
+    "pageErrors": [],
+    "violations": [
+      {
+        "id": "label",
+        "impact": "critical",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              ".cursor-not-allowed"
+            ],
+            "html": "<input disabled=\"\" class=\"w-full h-10 bg-surfa...\" type=\"text\" value=\"Gemini 3.1 Flash Lit...\">"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/account?tab=backup",
+    "rendered": "Settings\ntune\nGeneral Settings\nbackup\nBackup & Recovery\ncheck_circle\nNo backups created yet\n\nAutomatic backups are running normally\n\nbackup\nBackup Now\nBackup Hi",
+    "pageErrors": [],
+    "violations": [
+      {
+        "id": "button-name",
+        "impact": "critical",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              ".inline-flex"
+            ],
+            "html": "<button class=\"relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-500 ease-in-out focus:outline-none bg-primary\">"
+          }
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              ".opacity-75"
+            ],
+            "html": "<span class=\"text-[10px] opacity-75\">Click \"Backup Now\" to create your first database backup.</span>"
+          }
+        ]
+      },
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              ".text-base"
+            ],
+            "html": "<h3 class=\"font-bold text-on-surface text-base leading-snug\">No backups created yet</h3>"
+          }
+        ]
+      },
+      {
+        "id": "label",
+        "impact": "critical",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              "input"
+            ],
+            "html": "<input min=\"1\" max=\"50\" class=\"w-16 bg-surface dark:bg-surface-container border border-outline-variant rounded-lg px-2.5 py-1.5 text-center text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent\" type=\"number\" value=\"7\">"
+          }
+        ]
+      },
+      {
+        "id": "select-name",
+        "impact": "critical",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              "select"
+            ],
+            "html": "<select class=\"w-full appearance-none bg-surface dark:bg-surface-container border border-outline-variant rounded-lg pl-3 pr-10 py-2 font-body-md text-sm text-on-surface cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent\">"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/ai",
+    "rendered": "Guidance AI\nhistory\nHistory\nanalytics\nReport Templates\nmenu_book\nApp Guide & Manual\nANALYTICS & REPORTS\nWeekly Report\nCurrent week · all levels\narrow_forward\nMo",
+    "pageErrors": [],
+    "violations": []
+  },
+  {
+    "name": "group edit preserves one shared complainant per record",
+    "savedRecords": 2,
+    "complainantsPerRecord": [
+      2,
+      2
+    ]
+  },
+  {
+    "name": "summary PDF generation and export",
+    "files": [
+      {
+        "filename": "Guidance_Report_10_12_2026.pdf",
+        "bytes": 1373475
+      }
+    ]
+  },
+  {
+    "name": "export workbook and modal dismissal",
+    "files": [
+      {
+        "filename": "cases_export_2026-10-13.xlsx",
+        "bytes": 1584728
+      }
+    ],
+    "modalStillVisible": true
+  },
+  {
+    "name": "Excel export includes incident time on end date",
+    "text": "oup incident\n\nDate\n\nDate & time record was logged\n\nDescription\n\nFull case narrative / details\n\nStudent Roles\n\nRespondent, Complainant / Subject\n\nReporting Student\n\nStudent who reported the case\n\nSchool Year\n\nAcademic school year (e.g. 2026-2027)\n\nGroup ID\n\nLinked group case tracking ID\n\nAttached Proofs\n\nZIP\n\nNumber of uploaded documentation files\n\nUpdate History\n\nZIP\n\nAudit log of updates & status changes\n\nwarning\nNo cases match the selected export filters.\nCancel\nfile_download\nExport Excel File",
+    "exportDisabled": true
+  },
+  {
+    "name": "import dialog text",
+    "text": "chevron_left\nLaguna College\n\nGUIDANCE OFFICE\n\ndashboard\nDashboard\npending_actions\nPending Cases\nfolder_open\nCase Catalog\nassessment\nReports\nsmart_toy\nGuidance AI\nBETA\nsettings\nSettings\nlogout\nSign Out\nCase Catalog\nCase Catalog\ndownload\nImport Excel\ntable_view\nExport to Excel\nadd\nFile New Case\nTOTAL CASES\nanalytics\n6\nPENDING CASES\npending_actions\n3\nRESOLVED CASES\ntask_alt\n1\nCLOSED CASES\ncancel\n1\nREPRIMANDED\ngavel\n2\nsearch\nfilter_list\nSTATUS\nAll\nexpand_more\ncalendar_month\nPERIOD:\nAll Records\nexpand_more\nID\t\nDATE\narrow_upward\n\tSTUDENT(S) INVOLVED\tCASE TYPE\tSTATUS\tADVISER\t\n#0006\t\nOct 13, 2026\nToday\n\t\nSantos, Group1\n\t\nBullying\nSynthetic Group\nlink\n2 linked records\n\tPENDING\tTeacher\t\ngroups\ndelete\n\n#0005\t\nSantos, Group0\n\tPENDING\tTeacher\t\ndelete\n\n#0004\t\nOct 13, 2026\nToday\n\t\nSantos, Audit3\n\t\nBullying\n\tCLOSED\tTeacher\t\ndelete\n\n#0003\t\nOct 13, 2026\nToday\n\t\nSantos, Audit2\n\t\nBullying\n\tRESOLVED\tTeacher\t\ndelete\n\n#0002\t\nOct 13, 2026\nToday\n\t\nSantos, Audit1\n\t\nBullying\n\tREPRIMAND\tTeacher\t\ndelete\n\n#0001\t\nOct 13, 2026\nToday\n\t\nSantos, Audit0\n\t\nBullying\n\tPENDING\tTeacher\t\ndelete\nShowing 1 to 6 of 6 entries\nPrevious\n1\nNext\nImport Cases\nclose\n\nImport cases using the exact database export Excel (.xlsx) format. Below is how the sheet should look like for seamless importing:\n\nSHEET STRUCTURE PREVIEW\n\nFull Name\tDate\tCase\tSanction\tProgress\tSection\tAdviser\nSmith, Jane A.\t06/21/2026\tTruancy\tSuspension\tResolved\tSTEM\tMrs. Cruz\nlightbulb\n\nTIP: You can easily download an empty, pre-configured file with all these headers set up by clicking the Download Template button below!\n\nupload_file\nSelect File\ndownload\nDownload Template"
+  },
+  {
+    "name": "import review",
+    "reviewText": "arrow_back\nImport Review\nschool.xlsx\ndelete_sweep\nDiscard Session\nauto_fix_high\nAI Categorize\nadd\nAdd More Files\npublish\nImport All Ready Rows (40)\nIssues\n0\nDuplicates\n0\nReady to Import\n40\ndelete_sweep\nDelete All Ready (40)\nROW\tSTUDENT NAME\tDATE\tCASE TYPE\tSTATUS\tACTIONS\n2\t\nSantos, Maria A\n\t2026-08-15\tTardiness\t\ncheck_circle\nReady\t\nedit_note\nEdit Row\ndelete\nDisregard\n\n3\t\nDela Cruz, Juan P\n\t2026-08-22\tDress Code Violation\t\ncheck_circle\nReady\t\nedit_note\nEdit Row\ndelete\nDisregard\n\n4\t\nReyes, Christian M\n\t2026-09-02\tCutting Classes\t\ncheck_circle\nReady\t\nedit_note\nEdit Row\ndelete\nDisregard\n\n5\t\nAquino, Beatrice L\n\t2026-09-10\tInsubordination\t\ncheck_circle\nReady\t\nedit_note\nEdit Row\ndelete\nDisregard\n\n6\t\nNavarro, Gabriel S\n\t2026-09-18\tVandalism\t\ncheck_circle\nReady\t\nedit_note\nEdit Row\ndelete\nDisregard\n\n7\t\nVillanueva, Sophia K\n\t2026-10-01\tGambling\t\ncheck_circle\nReady\t\nedit_note\nEdit Row\ndelete\nDisregar",
+    "committedRowCount": 40,
+    "uniqueNames": 20,
+    "violations": []
+  },
+  {
+    "name": "new case field inventory",
+    "inputs": [
+      {
+        "placeholder": "Search by Name or Case Type",
+        "id": "",
+        "type": "text"
+      },
+      {
+        "placeholder": "e.g. Dela Cruz",
+        "id": "",
+        "type": "text"
+      },
+      {
+        "placeholder": "e.g. Juan",
+        "id": "",
+        "type": "text"
+      },
+      {
+        "placeholder": "e.g. M",
+        "id": "",
+        "type": "text"
+      },
+      {
+        "placeholder": "e.g. Grade 10",
+        "id": "",
+        "type": "text"
+      },
+      {
+        "placeholder": "e.g. Mr. Santos",
+        "id": "",
+        "type": "text"
+      }
+    ],
+    "text": "chevron_left\nLaguna College\n\nGUIDANCE OFFICE\n\ndashboard\nDashboard\npending_actions\nPending Cases\nfolder_open\nCase Catalog\nassessment\nReports\nsmart_toy\nGuidance AI\nBETA\nsettings\nSettings\nlogout\nSign Out\nCase Catalog\nCase Catalog\ndownload\nImport Excel\ntable_view\nExport to Excel\nadd\nFile New Case\nTOTAL CASES\nanalytics\n6\nPENDING CASES\npending_actions\n3\nRESOLVED CASES\ntask_alt\n1\nCLOSED CASES\ncancel\n1\nREPRIMANDED\ngavel\n2\nsearch\nfilter_list\nSTATUS\nAll\nexpand_more\ncalendar_month\nPERIOD:\nAll Records\nexpand_more\nID\t\nDATE\narrow_upward\n\tSTUDENT(S) INVOLVED\tCASE TYPE\tSTATUS\tADVISER\t\n#0006\t\nOct 13, 2026\nToday\n\t\nSantos, Group1\n\t\nBullying\nSynthetic Group\nlink\n2 linked records\n\tPENDING\tTeacher\t\ngroups\ndelete\n\n#0005\t\nSantos, Group0\n\tPENDING\tTeacher\t\ndelete\n\n#0004\t\nOct 13, 2026\nToday\n\t\nSantos, Audit3\n\t\nBullying\n\tCLOSED\tTeacher\t\ndelete\n\n#0003\t\nOct 13, 2026\nToday\n\t\nSantos, Audit2\n\t\nBullying\n\tRESOLVED\tTeacher\t\ndelete\n\n#0002\t\nOct 13, 2026\nToday\n\t\nSantos, Audit1\n\t\nBullying\n\tREPRIMAND\tTeacher\t\ndelete\n\n#0001\t\nOct 13, 2026\nToday\n\t\nSantos, Audit0\n\t\nBullying\n\tPENDING\tTeacher\t\ndelete\nShowing 1 to 6 of 6 entries\nPrevious\n1\nNext\nfolder_open\n\nGUIDANCE OFFICE\n\nFile New Case\nclose\ncheck\nCase type\n2\nStudents and report source\n3\nProofs and Description\n4\nReview\nlabel\nBullying\n\nCASE STATUS\n\nPending\nReprimand\nResolved\nClosed\n\nSTUDENT(S) INVOLVED\n\nLAST NAME\nemergency\nFIRST NAME\nemergency\nM.I.\nROLE\nemergency\nperson\nRespondent\nexpand_more\nperson\nRespondent\ncheck\nrecord_voice_over\nComplainant / Subject\nGRADE LEVEL\n\n0/8\n\nADVISER\n\n0/50\n\nSANCTION / ACTION TAKEN\n\n0/250\n\nperson_add\nAdd another student\narrow_back\nBack\nclose\nCancel\nContinue\narrow_forward"
+  },
+  {
+    "name": "new case student form",
+    "escapeClosedModal": false,
+    "violations": [
+      {
+        "id": "empty-table-header",
+        "impact": "minor",
+        "count": 1,
+        "examples": [
+          {
+            "target": [
+              "th:nth-child(7)"
+            ],
+            "html": "<th class=\"py-1 px-4 border-b border-outline-variant\"></th>"
+          }
+        ]
+      },
+      {
+        "id": "region",
+        "impact": "moderate",
+        "count": 12,
+        "examples": [
+          {
+            "target": [
+              ".sm\\:py-4 > .gap-3.items-center.flex"
+            ],
+            "html": "<div class=\"flex items-center gap-3\">"
+          },
+          {
+            "target": [
+              ".sm\\:px-7.overflow-x-auto.py-2\\.5"
+            ],
+            "html": "<div class=\"px-4 sm:px-7 py-2.5 bg-surface border-b border-outline-variant shrink-0 overflow-x-auto\">"
+          },
+          {
+            "target": [
+              ".animate-fade-in > .py-2.rounded-lg.px-3"
+            ],
+            "html": "<div class=\"flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold\" style=\"background: rgb(250, 238, 218); color: rgb(133, 79, 11); border: 1px solid rgb(250, 199, 117);\"><span class=\"material-symbols-outlined\" style=\"font-size: 14px;\">label</span>Bullying</div>"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "file ordinary case through four steps",
+    "saved": true,
+    "payload": {
+      "students": [
+        {
+          "firstName": "Auditor",
+          "lastName": "Synthetic",
+          "middleInitial": "",
+          "level": "Grade 7",
+          "section": "",
+          "adviser": "",
+          "sanction": "",
+          "role": "Respondent"
+        }
+      ],
+      "date": "2026-10-13T17:38",
+      "dateFiled": "2026-10-13T09:38:36.290Z",
+      "case": "Bullying",
+      "description": "",
+      "sanction": "",
+      "progress": "Pending",
+      "proofs": "[]",
+      "title": "",
+      "reportingStudent": "",
+      "groupId": null
+    }
+  },
+  {
+    "name": "failed second group record leaves a partial group",
+    "createdBeforeFailure": 1,
+    "text": "\nfolder_open\n\nGUIDANCE OFFICE\n\nFile New Case\nclose\ncheck\nCase type\ncheck\nStudents and report source\ncheck\nProofs and Description\n4\nReview\nfact_check\nReview before filing\nedit\nEdit fields\n\nCASE TYPE\n\nBehavioural\nBullying\n\nINCIDENT DETAILS\n\nDATE OF INCIDENT\n\nOct 13, 2026, 5:38 PM\n\nSTATUS\n\nPending\n\nSTUDENT(S) INVOLVED\n\nLAST NAME\n\nSynthetic\n\nFIRST NAME\n\nOne\n\nMIDDLE INITIAL\n\nNot set\n\nROLE\n\nRespondent\n\nGRADE\n\nNot set\n\nADVISER\n\nNot set\n\nSANCTION / ACTION TAKEN\n\nNot set\n\nSTUDENT 2\n\nLAST NAME\n\nSynthetic\n\nFIRST NAME\n\nTwo\n\nMIDDLE INITIAL\n\nNot set\n\nROLE\n\nRespondent\n\nGRADE LEVEL\n\nNot set\n\nSECTION\n\nNot set\n\nADVISER\n\nNot set\n\nSANCTION / ACTION TAKEN\n\nNot set\n\nATTACHMENTS\n\n0 files\n\nNo files attached.\n\nDESCRIPTION\n\nNot set\n\nSYNTHETIC SECOND-STUDENT SAVE FAILURE\n\narrow_back\nBack\nclose\nCancel\ncheck\nFile case"
+  },
+  {
+    "name": "database error feedback",
+    "text": "Case Catalog\ndownload\nImport Excel\ntable_view\nExport to Excel\nadd\nFile New Case\nTOTAL CASES\nanalytics\n0\nPENDING CASES\npending_actions\n0\nRESOLVED CASES\ntask_alt\n0\nCLOSED CASES\ncancel\n0\nREPRIMANDED\ngavel\n0\nsearch\nfilter_list\nSTATUS\nAll\nexpand_more\ncalendar_month\nPERIOD:\nAll Records\nexpand_more\nID\t\nDATE\narrow_upward\n\tSTUDENT(S) INVOLVED\tCASE TYPE\tSTATUS\tADVISER\t\nBackend unavailable. Open with npm run tauri -- dev to load cases.\nShowing 0 to 0 of 0 entries\nPrevious\n1\nNext",
+    "explicitError": false
+  },
+  {
+    "name": "first launch",
+    "button": {
+      "x": 326,
+      "y": 670,
+      "width": 372,
+      "height": 45
+    },
+    "viewportHeight": 600,
+    "bodyScrollHeight": 748,
+    "violations": [
+      {
+        "id": "region",
+        "impact": "moderate",
+        "count": 10,
+        "examples": [
+          {
+            "target": [
+              ".pb-6"
+            ],
+            "html": "<div class=\"p-8 pb-6 text-center border-b border-border-subtle relative flex flex-col items-center\">"
+          },
+          {
+            "target": [
+              ".mb-5"
+            ],
+            "html": "<div class=\"mb-5\"><h2 class=\"text-base font-bold text-on-surface\">First Launch Setup</h2><p class=\"text-xs text-secondary mt-1\">Create a 6-digit PIN and connect the Gmail account used to send reset codes.</p></div>"
+          },
+          {
+            "target": [
+              "div:nth-child(1) > label"
+            ],
+            "html": "<label class=\"font-label-caps text-label-caps text-secondary block mb-1.5\">6-Digit PIN</label>"
+          }
+        ]
+      }
+    ]
+  }
+]

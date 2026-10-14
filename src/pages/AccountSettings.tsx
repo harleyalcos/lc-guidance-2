@@ -13,6 +13,7 @@ type ToastType = "success" | "error";
 const RECOVERY_EMAIL_UNLOCK_KEY = "recovery_email_unlocked";
 
 const maskEmail = (value: string) => {
+  if (!value.trim()) return "Not configured";
   const [, domain = "gmail.com"] = value.split("@");
   return `*****@${domain || "gmail.com"}`;
 };
@@ -41,6 +42,13 @@ export default function AccountSettings() {
       setSearchParams({});
     }
   };
+  const [smtpSender, setSmtpSender] = useState("");
+  const [smtpSecret, setSmtpSecret] = useState("");
+  const [smtpRecipient, setSmtpRecipient] = useState("");
+  const [smtpPin, setSmtpPin] = useState("");
+  const [smtpTested, setSmtpTested] = useState("");
+  const [smtpReceived, setSmtpReceived] = useState(false);
+  const [smtpBusy, setSmtpBusy] = useState(false);
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -52,12 +60,12 @@ export default function AccountSettings() {
   const [isPinEditing, setIsPinEditing] = useState(false);
   const [isPinChangeOtpOpen, setIsPinChangeOtpOpen] = useState(false);
   const [pinChangeOtp, setPinChangeOtp] = useState("");
-  const [pinChangeOtpSending, setPinChangeOtpSending] = useState(false);
+  const pinChangeOtpSending = false;
   const [pinChangeOtpVerifying, setPinChangeOtpVerifying] = useState(false);
   const [showRecoveryEmail, setShowRecoveryEmail] = useState(false);
   const [isRecoveryEditing, setIsRecoveryEditing] = useState(false);
   const [isRecoveryUnlocked, setIsRecoveryUnlocked] = useState(
-    () => sessionStorage.getItem(RECOVERY_EMAIL_UNLOCK_KEY) === "true"
+    () => false
   );
   const [isRecoveryOtpOpen, setIsRecoveryOtpOpen] = useState(false);
   const [recoveryOtp, setRecoveryOtp] = useState("");
@@ -145,7 +153,7 @@ export default function AccountSettings() {
       window.dispatchEvent(new Event("cases:changed"));
       window.dispatchEvent(new Event("pending:changed"));
       handleCloseResetModal();
-      showToast("success", "Application records successfully deleted. Emails and PIN preserved.");
+      showToast("success", "Case records and AI history cleared. A safety backup is retained; emails and PIN are preserved.");
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : String(err));
     } finally {
@@ -208,7 +216,7 @@ export default function AccountSettings() {
       });
       if (!selectedPath) return;
 
-      const confirmImport = window.confirm("WARNING: Importing this database file will overwrite your current database. This action cannot be undone. Do you want to proceed?");
+      const confirmImport = window.confirm("WARNING: Importing this database file will overwrite your current database. A safety backup of the current database will be kept for recovery. Do you want to proceed?");
       if (!confirmImport) return;
 
       await invoke("import_db_file", { srcPath: selectedPath });
@@ -280,6 +288,7 @@ export default function AccountSettings() {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${trimmedKey}`,
         {
+          signal: AbortSignal.timeout(20_000),
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -292,7 +301,7 @@ export default function AccountSettings() {
         const errText = await response.text();
         console.error(`[Gemini API Error] gemini-3.1-flash-lite returned ${response.status}:`, errText);
         setGeminiStatus("invalid");
-        showToast("error", `Invalid API Key or Gemini error (${response.status}). Check console (F12).`);
+        showToast("error", `The API key could not be verified (${response.status}). Check the key and service quota, then retry.`);
         return;
       }
 
@@ -316,6 +325,7 @@ export default function AccountSettings() {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiKey.trim()}`,
         {
+          signal: AbortSignal.timeout(20_000),
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -328,7 +338,7 @@ export default function AccountSettings() {
         const errText = await response.text();
         console.error(`[Gemini API Error] gemini-3.1-flash-lite returned ${response.status}:`, errText);
         setGeminiStatus("invalid");
-        showToast("error", `Connection failed (${response.status}). Check console (F12).`);
+        showToast("error", `Connection failed (${response.status}). Check the API key and service quota, then retry.`);
         return;
       }
 
@@ -369,24 +379,7 @@ export default function AccountSettings() {
     }
   };
 
-  const handlePinEdit = async () => {
-    setPinChangeOtpSending(true);
-    try {
-      await invoke("request_pin_change_otp");
-      setPinChangeOtp("");
-      setIsPinChangeOtpOpen(true);
-      showToast("success", "A PIN verification code was sent to the recovery email.");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (message.includes("Please wait")) {
-        setPinChangeOtp("");
-        setIsPinChangeOtpOpen(true);
-      }
-      showToast("error", message);
-    } finally {
-      setPinChangeOtpSending(false);
-    }
-  };
+  const handlePinEdit = async () => { setIsPinEditing(true); };
 
   const handleVerifyPinChangeOtp = async (e: FormEvent) => {
     e.preventDefault();
@@ -430,6 +423,8 @@ export default function AccountSettings() {
       setRecoveryEmailBeforeEdit(recoveryEmail.trim());
       setIsRecoveryEditing(false);
       setShowRecoveryEmail(false);
+      setIsRecoveryUnlocked(false);
+      sessionStorage.removeItem(RECOVERY_EMAIL_UNLOCK_KEY);
       showToast("success", "Recovery email settings updated.");
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : String(err));
@@ -438,8 +433,8 @@ export default function AccountSettings() {
     }
   };
 
-  const handleRecoveryVisibility = async () => {
-    if (isRecoveryUnlocked) {
+  const handleRecoveryVisibility = async (forceNewCode = false) => {
+    if (isRecoveryUnlocked && !forceNewCode) {
       setShowRecoveryEmail((value) => !value);
       return;
     }
@@ -482,7 +477,7 @@ export default function AccountSettings() {
       setShowRecoveryEmail(true);
       setIsRecoveryOtpOpen(false);
       setRecoveryOtp("");
-      showToast("success", "Recovery email unlocked for this session.");
+      showToast("success", "Recovery email verified. Complete any changes before the code expires.");
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : String(err));
     } finally {
@@ -490,6 +485,21 @@ export default function AccountSettings() {
     }
   };
 
+  const smtpSignature = JSON.stringify([smtpSender.trim(), smtpSecret.replace(/\s/g, ""), smtpRecipient.trim()]);
+  const testRecoveryDelivery = async () => {
+    setSmtpBusy(true); setSmtpReceived(false);
+    try { await invoke("test_smtp", { smtpEmail: smtpSender.trim(), smtpPassword: smtpSecret.replace(/\s/g, ""), recoveryEmail: smtpRecipient.trim() }); setSmtpTested(smtpSignature); showToast("success", "Test sent. Check the recovery inbox before saving."); }
+    catch (error) { setSmtpTested(""); showToast("error", String(error)); }
+    finally { setSmtpBusy(false); }
+  };
+  const saveRecoveryDelivery = async (event: FormEvent) => {
+    event.preventDefault();
+    if (smtpTested !== smtpSignature || !smtpReceived) { showToast("error", "Send a test and confirm receipt at the current recovery address first."); return; }
+    setSmtpBusy(true);
+    try { await invoke("update_smtp_config", { smtpEmail: smtpSender.trim(), smtpPassword: smtpSecret.replace(/\s/g, ""), recoveryEmail: smtpRecipient.trim(), pin: smtpPin }); setRecoveryEmail(smtpRecipient.trim()); setRecoveryEmailBeforeEdit(smtpRecipient.trim()); setSmtpPin(""); setSmtpSecret(""); setSmtpTested(""); setSmtpReceived(false); showToast("success", "Recovery email delivery settings saved."); }
+    catch (error) { showToast("error", String(error)); }
+    finally { setSmtpBusy(false); }
+  };
   const inputClass = "w-full h-10 bg-surface dark:bg-surface-container border border-outline-variant rounded-lg px-3 py-0 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent";
   const pinClass = `${inputClass} font-data-mono tracking-[0.35em] text-center`;
   const secretInputClass = `${inputClass} pr-11`;
@@ -532,7 +542,7 @@ export default function AccountSettings() {
   return (
     <div className="flex flex-col gap-6 animate-fade-in pb-12">
       {toast && createPortal(
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+        <div role="status" aria-live="polite" className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
           toast.type === "success"
             ? "border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] text-[#002F87] dark:text-[#b4c5ff]"
             : "border border-error/30 bg-error-container text-on-error-container"
@@ -690,8 +700,8 @@ export default function AccountSettings() {
                 />
                 <button
                   type="button"
-                  onClick={handleRecoveryVisibility}
-                  disabled={recoveryOtpSending}
+                  onClick={() => handleRecoveryVisibility()}
+                  disabled={recoveryOtpSending || !recoveryEmail}
                   aria-label={isRecoveryUnlocked && showRecoveryEmail ? "Hide recovery email" : "Show recovery email"}
                   className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-secondary hover:text-primary transition-colors duration-500 disabled:opacity-60"
                 >
@@ -738,12 +748,27 @@ export default function AccountSettings() {
               )}
             </div>
           </div>
+          {isRecoveryUnlocked && <button type="button" onClick={() => handleRecoveryVisibility(true)} disabled={recoveryOtpSending} className="text-sm text-primary underline justify-self-start">Request a new verification code</button>}
         </form>
       </div>
         </div>
       </section>
 
 
+
+      <section className="card-standard p-6">
+        <h2 className="text-lg font-bold text-on-surface">Recovery email delivery</h2>
+        <p className="text-sm text-secondary my-3">Configure or replace the Gmail account used to send reset codes. Enable Google 2-Step Verification and create a 16-character App Password. Use the test to verify delivery to the recovery inbox before saving.</p>
+        <form onSubmit={saveRecoveryDelivery} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="text-sm">Gmail sender address<input type="email" required value={smtpSender} onChange={e => setSmtpSender(e.target.value)} className={inputClass} /></label>
+          <label className="text-sm">Gmail App Password<input type="password" required autoComplete="new-password" value={smtpSecret} onChange={e => setSmtpSecret(e.target.value)} className={inputClass} /></label>
+          <label className="text-sm">Recovery address<input type="email" required value={smtpRecipient} onChange={e => setSmtpRecipient(e.target.value)} className={inputClass} /></label>
+          <label className="text-sm">Current 6-digit PIN<input type="password" inputMode="numeric" required value={smtpPin} onChange={e => setSmtpPin(cleanPin(e.target.value))} className={inputClass} /></label>
+          <button type="button" className="btn-secondary" disabled={smtpBusy} onClick={() => void testRecoveryDelivery()}>Send test email</button>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={smtpReceived && smtpTested === smtpSignature} disabled={smtpTested !== smtpSignature || smtpBusy} onChange={e => setSmtpReceived(e.target.checked)} />I received the test email at this recovery address.</label>
+          <button className="btn-primary" disabled={smtpBusy || !smtpReceived || smtpTested !== smtpSignature}>Save delivery settings</button>
+        </form>
+      </section>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
@@ -861,7 +886,7 @@ export default function AccountSettings() {
                 </button>
               </div>
             </div>
-            
+
             <div className="flex flex-col gap-2">
               <label className="block text-[10px] font-bold text-secondary uppercase tracking-wider mb-1.5">Connection Status</label>
               <div className="flex items-center gap-3 p-4 rounded-lg border border-outline-variant bg-surface-container-lowest">
@@ -984,7 +1009,7 @@ export default function AccountSettings() {
             <div className="space-y-1">
               <p className="text-sm font-bold text-on-surface">Delete All Records</p>
               <p className="text-xs text-secondary">
-                Clears all case records and incident history from the database. Counselor credentials, configured emails, and security PINs will be safely preserved.
+                Clears all case records, incident history, AI conversations and generated AI reports from the database. Existing backups remain and may contain prior student data. Counselor credentials, configured emails, and security PINs will be safely preserved.
               </p>
             </div>
             <button
@@ -1057,14 +1082,14 @@ export default function AccountSettings() {
 
       {pinVerificationAction !== null && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div 
+          <div role="dialog" aria-modal="true" tabIndex={-1}
             className={`absolute inset-0 bg-black/45 ${
               isVerificationModalClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
             }`}
             style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
             onClick={handleCloseVerification}
           />
-          <form 
+          <form role="dialog" aria-modal="true" tabIndex={-1}
             onSubmit={handleVerifyAndExecute}
             className={`relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant ${
               isVerificationModalClosing ? "modal-panel-exit" : "modal-panel-enter"
@@ -1119,7 +1144,7 @@ export default function AccountSettings() {
             style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
             onClick={() => setIsRecoveryOtpOpen(false)}
           />
-          <form
+          <form role="dialog" aria-modal="true" tabIndex={-1}
             onSubmit={handleVerifyRecoveryOtp}
             className="relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant modal-panel-enter"
           >
@@ -1128,18 +1153,20 @@ export default function AccountSettings() {
               <h3 className="text-xl font-bold">Verify Recovery Email</h3>
             </div>
             <p className="text-secondary text-sm mb-6 leading-relaxed">
-              Enter the 6-digit code sent to {maskEmail(recoveryEmail)}. This unlocks visibility and editing until the app closes.
+              Enter the 6-digit code sent to {maskEmail(recoveryEmail)}. This unlocks visibility and editing for a short verification window. Request a new code if it expires.
             </p>
             <input
               type="text"
               inputMode="numeric"
               value={recoveryOtp}
               onChange={(e) => setRecoveryOtp(cleanPin(e.target.value))}
+              aria-label="Recovery email verification code"
               className={`${pinClass} mb-6`}
               placeholder="000000"
               autoFocus
               autoComplete="one-time-code"
             />
+            <button type="button" onClick={() => handleRecoveryVisibility(true)} disabled={recoveryOtpSending || recoveryOtpVerifying} className="text-sm text-primary underline mb-4">Resend verification code</button>
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
@@ -1174,7 +1201,7 @@ export default function AccountSettings() {
             style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
             onClick={() => setIsPinChangeOtpOpen(false)}
           />
-          <form
+          <form role="dialog" aria-modal="true" tabIndex={-1}
             onSubmit={handleVerifyPinChangeOtp}
             className="relative bg-surface p-6 rounded-2xl shadow-xl max-w-sm w-full border border-outline-variant modal-panel-enter"
           >
@@ -1231,7 +1258,7 @@ export default function AccountSettings() {
             }`}
             onClick={handleCloseResetModal}
           />
-          <div 
+          <div role="dialog" aria-modal="true" tabIndex={-1}
             className={`relative bg-surface dark:bg-surface-container p-6 sm:p-7 rounded-2xl shadow-2xl max-w-md w-full border border-outline-variant ${
               isResetModalClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}
@@ -1247,7 +1274,7 @@ export default function AccountSettings() {
             </div>
 
             <p className="text-secondary text-xs sm:text-sm mb-4 leading-relaxed">
-              This action will <strong className="text-error font-semibold">permanently delete all incident records</strong> from the system database.
+              This action will <strong className="text-error font-semibold">delete all incident records and AI history from the active database</strong> from the system database.
             </p>
 
             <div className="rounded-xl border border-outline-variant bg-surface-container-low p-3.5 mb-4 text-xs space-y-2">

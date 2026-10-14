@@ -1,3 +1,4 @@
+import { applyCaseChanges, CaseChange } from "../utils/caseChanges";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
@@ -163,6 +164,7 @@ const isComplainantSubject = (student: StudentInfo) => normalizeRole(student.rol
 const isRespondent = (student: StudentInfo) => normalizeRole(student.role) === "Respondent";
 
 const normalizeStudent = (student: StudentInfo): StudentInfo => ({
+  ...student,
   firstName: capitalizeWords(student.firstName),
   lastName: capitalizeWords(student.lastName),
   middleInitial: normalizeMiddleInitial(student.middleInitial),
@@ -252,6 +254,7 @@ export default function CaseDetails() {
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isAddStudentClosing, setIsAddStudentClosing] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const addAttemptRef = useRef<{dateFiled: string; groupId: string; requestId: string; participantId: string} | null>(null);
   const [addStudentError, setAddStudentError] = useState("");
   const [newStudentForm, setNewStudentForm] = useState({
     firstName: "",
@@ -585,18 +588,20 @@ export default function CaseDetails() {
       },
       updateLog
     });
-    setUploadedProofs(proofs);
-    setCaseRecord({ ...caseRecord, proofs: JSON.stringify(proofs) });
+    await loadCase();
     window.dispatchEvent(new Event("cases:changed"));
-  }, [caseRecord]);
+  }, [caseRecord, loadCase]);
 
   // Handle Proof Upload
   const handleUploadProof = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
+    if (!/^image\/(jpeg|png|gif|webp)$/.test(file.type) || file.size > 10 * 1024 * 1024) {
+      alert("Choose a JPG, PNG, GIF or WEBP image up to 10 MB."); e.target.value = ""; return;
+    }
     const reader = new FileReader();
-    reader.onloadend = async () => {
+    reader.onerror = () => alert("The image could not be read. Choose the file again.");
+    reader.onload = async () => {
       try {
         await saveProofs([
           ...uploadedProofs,
@@ -679,8 +684,9 @@ export default function CaseDetails() {
       diffs,
     });
 
+    const changes: CaseChange[] = [];
     try {
-      await invoke("update_case", {
+      changes.push({ kind: "update",
         id: caseRecord.id,
         payload: {
           students: normalizedStudents,
@@ -727,7 +733,7 @@ export default function CaseDetails() {
 
             const updatedSibStudents = [...finalRespondents, ...updatedComplainants];
 
-            await invoke("update_case", {
+            changes.push({ kind: "update",
               id: sibling.id,
               payload: {
                 students: updatedSibStudents,
@@ -749,10 +755,11 @@ export default function CaseDetails() {
             });
           }
         } catch (propagateErr) {
-          console.error("Failed to propagate complainant updates to sibling cases:", propagateErr);
+          throw propagateErr;
         }
       }
 
+      await applyCaseChanges(changes);
       setIsEditing(false);
       window.dispatchEvent(new Event("cases:changed"));
       loadCase();
@@ -762,6 +769,7 @@ export default function CaseDetails() {
   };
 
   const handleOpenAddStudent = () => {
+    addAttemptRef.current = null;
     setIsAddStudentClosing(false);
     setAddStudentError("");
     setNewStudentForm({
@@ -805,9 +813,12 @@ export default function CaseDetails() {
       return;
     }
 
+    addAttemptRef.current ??= {dateFiled: new Date().toISOString(), groupId: crypto.randomUUID(), requestId: crypto.randomUUID(), participantId: crypto.randomUUID()};
     setIsAddingStudent(true);
+    const changes: CaseChange[] = [];
     try {
       const newStudent: StudentInfo = {
+        participantId: addAttemptRef.current.participantId,
         firstName: capitalizeWords(newStudentForm.firstName),
         lastName: capitalizeWords(newStudentForm.lastName),
         middleInitial: normalizeMiddleInitial(newStudentForm.middleInitial),
@@ -824,8 +835,8 @@ export default function CaseDetails() {
       if (isRespondentStudent) {
         if (isIndividualCase) {
           // 1. Assign groupId to current case and update title
-          const groupId = crypto.randomUUID();
-          await invoke("update_case", {
+          const groupId = addAttemptRef.current.groupId;
+          changes.push({ kind: "update",
             id: caseRecord.id,
             payload: {
               students: currentStudents,
@@ -844,11 +855,11 @@ export default function CaseDetails() {
           });
 
           // 2. Add a new case record for the 2nd student sharing the same groupId
-          await invoke<number>("add_case", {
+          changes.push({ kind: "add",
             payload: {
               students: [newStudent, ...currentComplainants],
               date: caseRecord.date,
-              dateFiled: new Date().toISOString(),
+              dateFiled: addAttemptRef.current.dateFiled,
               case: caseRecord.case.trim(),
               description: (caseRecord.description || "").trim().slice(0, TEXT_FIELD_LIMIT),
               sanction: newStudent.sanction ? newStudent.sanction.trim().slice(0, TEXT_FIELD_LIMIT) : "",
@@ -862,11 +873,11 @@ export default function CaseDetails() {
         } else {
           // Already a linked or grouped case (shares caseRecord.group_id)
           const groupId = caseRecord.group_id!;
-          await invoke<number>("add_case", {
+          changes.push({ kind: "add",
             payload: {
               students: [newStudent, ...currentComplainants],
               date: caseRecord.date,
-              dateFiled: new Date().toISOString(),
+              dateFiled: addAttemptRef.current.dateFiled,
               case: caseRecord.case.trim(),
               description: (caseRecord.description || "").trim().slice(0, TEXT_FIELD_LIMIT),
               sanction: newStudent.sanction ? newStudent.sanction.trim().slice(0, TEXT_FIELD_LIMIT) : "",
@@ -879,7 +890,7 @@ export default function CaseDetails() {
           });
 
           if (resolvedTitle && resolvedTitle !== caseRecord.title) {
-            await invoke("update_case", {
+            changes.push({ kind: "update",
               id: caseRecord.id,
               payload: {
                 students: currentStudents,
@@ -910,7 +921,7 @@ export default function CaseDetails() {
                        s.lastName.toLowerCase() === newStudent.lastName.toLowerCase()
               );
               if (!alreadyExists) {
-                await invoke("update_case", {
+                changes.push({ kind: "update",
                   id: sibling.id,
                   payload: {
                     students: [...sibStudents, newStudent],
@@ -929,29 +940,10 @@ export default function CaseDetails() {
                 });
               }
             }
-          } catch (e) {
-            const updatedStudents = [...currentStudents, newStudent];
-            await invoke("update_case", {
-              id: caseRecord.id,
-              payload: {
-                students: updatedStudents,
-                date: caseRecord.date,
-                dateFiled: caseRecord.date_filed,
-                case: normalizeCaseType(caseRecord.case),
-                description: (caseRecord.description || "").slice(0, TEXT_FIELD_LIMIT),
-                sanction: (caseRecord.sanction || "").slice(0, TEXT_FIELD_LIMIT),
-                progress: caseRecord.progress,
-                proofs: caseRecord.proofs,
-                title: resolvedTitle,
-                reportingStudent: caseRecord.reporting_student || "",
-                groupId: caseRecord.group_id,
-              },
-              updateLog: `Added complainant ${newStudent.firstName} ${newStudent.lastName}`,
-            });
-          }
+          } catch (e) { throw e; }
         } else {
           const updatedStudents = [...currentStudents, newStudent];
-          await invoke("update_case", {
+          changes.push({ kind: "update",
             id: caseRecord.id,
             payload: {
               students: updatedStudents,
@@ -971,6 +963,7 @@ export default function CaseDetails() {
         }
       }
 
+      await applyCaseChanges(changes, addAttemptRef.current.requestId);
       closeAddStudentModal();
       window.dispatchEvent(new Event("cases:changed"));
       loadCase();
@@ -1216,7 +1209,7 @@ export default function CaseDetails() {
                       <input
                         type="text"
                         value={student.lastName}
-                        placeholder="Last Name"
+                        aria-label="Last name" placeholder="Last Name"
                         onChange={(e) => handleEditStudentChange(idx, "lastName", autoCapitalize(e.target.value))}
                         onBlur={() => handleEditStudentBlur(idx, "lastName")}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
@@ -1224,7 +1217,7 @@ export default function CaseDetails() {
                       <input
                         type="text"
                         value={student.firstName}
-                        placeholder="First Name"
+                        aria-label="First name" placeholder="First Name"
                         onChange={(e) => handleEditStudentChange(idx, "firstName", autoCapitalize(e.target.value))}
                         onBlur={() => handleEditStudentBlur(idx, "firstName")}
                         className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
@@ -1232,7 +1225,7 @@ export default function CaseDetails() {
                       <input
                         type="text"
                         value={student.middleInitial}
-                        placeholder="M.I."
+                        aria-label="Middle initial" placeholder="M.I."
                         maxLength={3}
                         onChange={(e) => handleEditStudentChange(idx, "middleInitial", e.target.value.replace(/\s+/g, "").toUpperCase())}
                         onBlur={() => handleEditStudentBlur(idx, "middleInitial")}
@@ -1321,7 +1314,7 @@ export default function CaseDetails() {
                           <input
                             type="text"
                             value={student.lastName}
-                            placeholder="Last Name"
+                            aria-label="Last name" placeholder="Last Name"
                             onChange={(e) => handleEditStudentChange(idx, "lastName", autoCapitalize(e.target.value))}
                             onBlur={() => handleEditStudentBlur(idx, "lastName")}
                             className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
@@ -1329,7 +1322,7 @@ export default function CaseDetails() {
                           <input
                             type="text"
                             value={student.firstName}
-                            placeholder="First Name"
+                            aria-label="First name" placeholder="First Name"
                             onChange={(e) => handleEditStudentChange(idx, "firstName", autoCapitalize(e.target.value))}
                             onBlur={() => handleEditStudentBlur(idx, "firstName")}
                             className="bg-white dark:bg-surface border border-outline-variant rounded-lg py-1.5 px-2.5 text-sm font-medium text-on-surface focus:outline-none focus:ring-1 focus:ring-primary min-w-0 flex-1"
@@ -1337,7 +1330,7 @@ export default function CaseDetails() {
                           <input
                             type="text"
                             value={student.middleInitial}
-                            placeholder="M.I."
+                            aria-label="Middle initial" placeholder="M.I."
                             maxLength={3}
                             onChange={(e) => handleEditStudentChange(idx, "middleInitial", e.target.value.replace(/\s+/g, "").toUpperCase())}
                             onBlur={() => handleEditStudentBlur(idx, "middleInitial")}
@@ -1535,7 +1528,7 @@ export default function CaseDetails() {
                       ? "text-[#4b5563] dark:text-[#9ca3af]"
                       : caseRecord.progress.toLowerCase() === "reprimand"
                       ? "text-[#dc2626] dark:text-[#ef4444]"
-                      : "text-[#d97706] dark:text-[#D9A23B]"
+                      : "text-[#92400e] dark:text-[#D9A23B]"
                   }`}>
                     {caseRecord.progress}
                   </p>
@@ -1596,7 +1589,7 @@ export default function CaseDetails() {
             <span>Documentation & Proofs</span>
           </h3>
           <div>
-            <label className="btn-primary cursor-pointer">
+            <label role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.querySelector("input")?.click(); } }} className="btn-primary cursor-pointer">
               <span className="material-symbols-outlined text-[18px]">upload_file</span>
               <span>Upload Proof</span>
               <input
@@ -1763,7 +1756,7 @@ export default function CaseDetails() {
             }`}
             onClick={() => closeDeleteProofConfirm()}
           />
-          <div className={`relative z-10 bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
+          <div role="dialog" aria-modal="true" tabIndex={-1} className={`relative z-10 bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
             isDeleteProofConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
           }`}>
             <span className="material-symbols-outlined text-5xl mx-auto text-error">delete</span>
@@ -1805,7 +1798,7 @@ export default function CaseDetails() {
             }`}
             onClick={closeProofLightbox}
           />
-          <div className={`relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface rounded-xl shadow-2xl flex flex-col ${
+          <div role="dialog" aria-modal="true" tabIndex={-1} className={`relative max-w-4xl max-h-[85vh] z-10 overflow-hidden bg-surface rounded-xl shadow-2xl flex flex-col ${
             isProofLightboxClosing ? "modal-panel-exit" : "modal-panel-enter"
           }`}>
             <button
@@ -2005,7 +1998,7 @@ export default function CaseDetails() {
             style={{ backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
             onClick={closeAddStudentModal}
           />
-          <div
+          <div role="dialog" aria-modal="true" tabIndex={-1}
             className={`relative bg-surface rounded-2xl border border-outline-variant shadow-2xl max-w-[780px] w-full flex flex-col overflow-hidden max-h-[90vh] ${
               isAddStudentClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}

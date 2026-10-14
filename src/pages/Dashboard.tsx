@@ -1,3 +1,4 @@
+import { caseDay, localDay, normalizeGrade } from "../utils/caseValues";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
@@ -57,10 +58,12 @@ const STATUS_CHART_SEGMENTS = [
   { label: "Resolved", color: "#7C96E8" },
   { label: "Pending", color: "#F0B94D" },
   { label: "Closed", color: "#F17272" },
+  { label: "Reprimand", color: "#b91c1c" },
 ];
 
 const getCaseDate = (caseRecord: CaseRecord) => {
-  const parsed = new Date(caseRecord.date || caseRecord.date_filed);
+  const day = caseDay(caseRecord.date || caseRecord.date_filed);
+  const parsed = new Date(`${day}T00:00:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
@@ -77,16 +80,16 @@ const formatDashboardDateRange = (startStr: string, endStr: string, casesList: C
         .sort((a, b) => a.getTime() - b.getTime());
 
       if (dates.length > 0) {
-        start = dates[0].toISOString().split("T")[0];
-        end = dates[dates.length - 1].toISOString().split("T")[0];
+        start = localDay(dates[0]);
+        end = localDay(dates[dates.length - 1]);
       }
     }
   }
 
   if (!start && !end) return "all recorded periods";
 
-  const startObj = start ? new Date(start) : null;
-  const endObj = end ? new Date(end) : null;
+  const startObj = start ? new Date(`${start}T00:00:00`) : null;
+  const endObj = end ? new Date(`${end}T00:00:00`) : null;
 
   if (startObj && endObj) {
     if (startObj.getTime() === endObj.getTime()) {
@@ -122,7 +125,7 @@ const formatDashboardDateRange = (startStr: string, endStr: string, casesList: C
 
 const getCaseGradeLevel = (caseRecord: CaseRecord) => {
   const students = parseStudents(caseRecord.students);
-  return students[0]?.level || caseRecord.level || "Unspecified";
+  return normalizeGrade(students[0]?.level || caseRecord.level) || "Unspecified";
 };
 
 const isComplainantSubjectCaseRecord = (caseRecord: CaseRecord) => {
@@ -135,6 +138,8 @@ const isComplainantSubjectCaseRecord = (caseRecord: CaseRecord) => {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [cases, setCases] = useState<CaseRecord[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingCases, setLoadingCases] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const dashboardRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
@@ -159,9 +164,10 @@ export default function Dashboard() {
           schoolYear: queryYear
         });
         setCases(loadedCases);
+        setLoadError(null);
       } catch (err) {
-        console.error("Failed to load cases", err);
-      }
+        setLoadError(String(err));
+      } finally { setLoadingCases(false); }
     };
     loadCases();
 
@@ -179,16 +185,9 @@ export default function Dashboard() {
     return displayCases.filter((c) => {
       const d = getCaseDate(c);
       if (!d) return false;
-      if (dashStartDate) {
-        const start = new Date(dashStartDate);
-        start.setHours(0, 0, 0, 0);
-        if (d.getTime() < start.getTime()) return false;
-      }
-      if (dashEndDate) {
-        const end = new Date(dashEndDate);
-        end.setHours(23, 59, 59, 999);
-        if (d.getTime() > end.getTime()) return false;
-      }
+      const day = caseDay(c.date || c.date_filed);
+      if (dashStartDate && day < dashStartDate) return false;
+      if (dashEndDate && day > dashEndDate) return false;
       return true;
     });
   }, [cases, dashStartDate, dashEndDate]);
@@ -281,7 +280,7 @@ export default function Dashboard() {
   const statusDistribution = useMemo(() => {
     const resolved = filteredCases.filter(c => (c.progress || "").toLowerCase() === "resolved").length;
     const closed = filteredCases.filter(c => (c.progress || "").toLowerCase() === "closed").length;
-    const pending = filteredCases.filter(c => (c.progress || "").toLowerCase() === "pending" && !isReprimandCase(c)).length;
+    const pending = filteredCases.filter(isPendingCase).length;
 
     return STATUS_CHART_SEGMENTS.map((segment) => {
       const label = segment.label.toLowerCase();
@@ -289,6 +288,7 @@ export default function Dashboard() {
       if (label === "resolved") value = resolved;
       else if (label === "closed") value = closed;
       else if (label === "pending") value = pending;
+      else if (label === "reprimand") value = filteredCases.filter(isReprimandCase).length;
 
       return {
         ...segment,
@@ -796,6 +796,9 @@ export default function Dashboard() {
       </div>
     );
   };
+
+  if (loadError) return <div role="alert" className="p-6 rounded-xl bg-error-container text-on-error-container"><h1 className="text-lg font-bold">Case records could not be loaded</h1><p className="my-3">{loadError}</p><button className="btn-primary" onClick={() => window.location.reload()}>Retry</button><p className="mt-3">No report should be issued until the records load successfully.</p></div>;
+  if (loadingCases) return <p role="status" className="p-6">Loading case records…</p>;
 
   return (
     <div ref={dashboardRef} className="flex flex-col gap-6 w-full max-w-7xl mx-auto pb-10 h-full p-4 md:p-6 animate-fade-in">

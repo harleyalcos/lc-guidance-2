@@ -10,16 +10,9 @@ export const parseStudentsList = (studentsStr?: string): StudentInfo[] => {
   }
 };
 
-export const isReprimandCase = (caseRecord: CaseRecord): boolean => {
-  if ((caseRecord.sanction || "").toLowerCase().includes("reprimand")) {
-    return true;
-  }
-  if ((caseRecord.progress || "").toLowerCase().includes("reprimand")) {
-    return true;
-  }
-  const students = parseStudentsList(caseRecord.students);
-  return students.some((s) => (s.sanction || "").toLowerCase().includes("reprimand"));
-};
+// Status metrics are exclusive. A reprimand sanction does not override progress.
+export const isReprimandCase = (caseRecord: CaseRecord): boolean =>
+  (caseRecord.progress || "").trim().toLowerCase() === "reprimand";
 
 export const isResolvedCase = (caseRecord: CaseRecord): boolean => {
   return (caseRecord.progress || "").toLowerCase() === "resolved";
@@ -32,6 +25,5 @@ export const isClosedCase = (caseRecord: CaseRecord): boolean => {
 export const isPendingCase = (caseRecord: CaseRecord): boolean => {
   const progress = (caseRecord.progress || "").toLowerCase();
   if (progress === "resolved" || progress === "closed") return false;
-  if (isReprimandCase(caseRecord)) return false;
   return progress === "pending" || progress === "";
 };

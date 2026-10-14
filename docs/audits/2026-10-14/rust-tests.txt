@@ -1,0 +1,63 @@
+   Compiling lc-guidance v0.1.11 (/Users/harleyalcos/Documents/CSBS/lc-guidance-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 22.25s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/lc_guidance_lib-861e5eeec9fb99aa)
+
+running 7 tests
+test db::repository::tests::test_derive_school_year ... ok
+test db::repository::tests::test_ai_query_blocks_sensitive_tables ... ok
+test db::repository::tests::test_app_config_school_year ... ok
+test db::repository::tests::test_export_csv_includes_all_columns ... ok
+test db::repository::tests::test_duplicate_detection_normalized_dates ... ok
+test db::repository::tests::test_filter_by_group_id ... ok
+test db::repository::tests::test_insert_and_filter_by_academic_year ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/lc_guidance-b2e56d3f8c365799)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/release_regressions.rs (src-tauri/target/debug/deps/release_regressions-41634d4153eed635)
+
+running 30 tests
+test tests::backup_order_uses_time_instead_of_backup_type ... ok
+test tests::distinct_participant_ids_preserve_same_named_students ... ok
+test tests::confidential_database_reads_require_login ... ok
+test tests::backend_backup_policy_disabled_schedule_retention_and_distinct_safety_snapshots ... ok
+test tests::complete_setup_cannot_overwrite_initialized_account ... ok
+test tests::creation_history_has_valid_timestamp ... ok
+test tests::academic_filter_excludes_previous_school_year ... ok
+test tests::branded_excel_export_can_be_imported_with_reordered_headers ... ok
+test tests::excel_same_date_and_type_do_not_imply_same_incident ... ok
+test tests::editing_date_updates_school_year ... ok
+test tests::expired_verified_otp_cannot_change_recovery_email ... ok
+test tests::new_case_datetime_derives_january_academic_year ... ok
+test tests::cross_file_duplicates_are_reviewed_and_rejected_at_commit ... ok
+test tests::import_filing_timestamp_does_not_replace_incident_date ... ok
+test tests::numeric_import_grade_is_canonical_for_grade_filters ... ok
+test tests::group_save_rolls_back_then_retries_idempotently ... ok
+test tests::import_validation_returns_matching_students_and_primary_name ... ok
+test tests::replacement_copy_failure_preserves_live_connection ... ok
+test tests::incident_times_survive_import_and_invalid_suffixes_fail ... ok
+test tests::imported_dates_and_invalid_dates_are_checked ... ok
+test tests::replacement_rejects_corrupt_unrelated_and_failed_safety_snapshot_without_data_loss ... ok
+test tests::primary_student_sanction_tracks_case_edits_and_clearing ... ok
+test tests::otp_for_another_purpose_cannot_change_delivery_settings ... ok
+test tests::ordinary_case_crud_and_group_filter_work ... ok
+test tests::shared_participant_is_unique_at_storage_boundary_and_import_keeps_sanction ... ok
+test tests::status_transition_is_logged_without_frontend_log ... ok
+test tests::reset_removes_confidential_ai_history ... ok
+test tests::offline_setup_login_signout_and_pin_lockout ... ok
+test tests::verified_grants_are_expiring_single_use_and_revoked_on_signout ... ok
+5,000-row parse and transactional commit: 34.098447833s
+test tests::full_size_workbook_imports_all_rows_without_false_groups ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 63.62s
+
+   Doc-tests lc_guidance_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

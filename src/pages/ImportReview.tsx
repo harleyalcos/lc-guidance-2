@@ -76,6 +76,16 @@ export default function ImportReview() {
   const [isToastVisible, setIsToastVisible] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
 
+  const [isRevalidating, setIsRevalidating] = useState(true);
+  useEffect(() => {
+    let active = true;
+    invoke<ImportRow[]>("validate_import_rows", { rows: state?.parseResult.rows || fallbackRows || [] })
+      .then(checked => { if (active) setRows(checked); })
+      .catch(error => { if (active) showToast("error", `Unable to review imports: ${error}`); })
+      .finally(() => { if (active) setIsRevalidating(false); });
+    return () => { active = false; };
+  }, []);
+
   // Categorize rows based on their status
   const issuesRows = useMemo(() => {
     return rows.map((row, index) => ({ row, index })).filter(({ row }) => row.has_errors);
@@ -292,53 +302,10 @@ export default function ImportReview() {
     if (!editData) return;
     try {
       setIsSavingRow(true);
-      let updatedRow = await invoke<ImportRow>("validate_import_row", { row: editData });
-      
       const newRows = [...rows];
-      
-      if (!updatedRow.is_duplicate && !updatedRow.has_errors) {
-        const duplicateIndex = newRows.findIndex((r, idx) => {
-          if (idx === index) return false;
-          return r.first_name.trim().toLowerCase() === updatedRow.first_name.trim().toLowerCase()
-            && r.last_name.trim().toLowerCase() === updatedRow.last_name.trim().toLowerCase()
-            && r.middle_initial.trim().toLowerCase() === updatedRow.middle_initial.trim().toLowerCase()
-            && r.level.trim().toLowerCase() === updatedRow.level.trim().toLowerCase()
-            && r.section.trim().toLowerCase() === updatedRow.section.trim().toLowerCase()
-            && r.date.trim().toLowerCase() === updatedRow.date.trim().toLowerCase()
-            && r.adviser.trim().toLowerCase() === updatedRow.adviser.trim().toLowerCase()
-            && r.case.trim().toLowerCase() === updatedRow.case.trim().toLowerCase()
-            && r.sanction.trim().toLowerCase() === updatedRow.sanction.trim().toLowerCase()
-            && r.progress.trim().toLowerCase() === updatedRow.progress.trim().toLowerCase();
-        });
+      newRows[index] = editData;
+      setRows(await invoke<ImportRow[]>("validate_import_rows", { rows: newRows }));
 
-        if (duplicateIndex !== -1) {
-          const prev = newRows[duplicateIndex];
-          updatedRow.is_duplicate = true;
-          updatedRow.existing_case = {
-            id: 0,
-            first_name: prev.first_name,
-            last_name: prev.last_name,
-            middle_initial: prev.middle_initial,
-            level: prev.level,
-            section: prev.section,
-            date: prev.date,
-            date_filed: prev.date_filed,
-            adviser: prev.adviser,
-            case: prev.case,
-            description: prev.description,
-            sanction: prev.sanction,
-            progress: prev.progress,
-            proofs: prev.proofs,
-            students: prev.students,
-            title: prev.title,
-            update_history: "",
-          };
-        }
-      }
-
-      newRows[index] = updatedRow;
-      setRows(newRows);
-      
       setIsEditModalClosing(true);
       setTimeout(() => {
         setEditingRowIndex(null);
@@ -385,7 +352,7 @@ export default function ImportReview() {
   };
 
   const handleImportReady = async () => {
-    if (readyRows.length === 0) return;
+    if (readyRows.length === 0 || isRevalidating) return;
     try {
       setIsImporting(true);
       const rowsToImport = readyRows.map(item => item.row);
@@ -409,6 +376,7 @@ export default function ImportReview() {
           remainingCount: remainingRows.length,
         });
       } else {
+        setRows(await invoke<ImportRow[]>("validate_import_rows", { rows }));
         showToast("error", `Import failed. ${result.failed_count} errors. ${result.errors.join(" ")}`);
       }
     } catch (e) {
@@ -439,8 +407,9 @@ export default function ImportReview() {
       );
 
       if (modifiedCount > 0) {
-        setRows(updatedRows);
-        localStorage.setItem("lc_pending_import_rows", JSON.stringify(updatedRows));
+        const checkedRows = await invoke<ImportRow[]>("validate_import_rows", { rows: updatedRows });
+        setRows(checkedRows);
+        localStorage.setItem("lc_pending_import_rows", JSON.stringify(checkedRows));
         showToast("success", `Standardized and mapped ${modifiedCount} case category(ies) using ${apiKey ? "Gemini AI" : "intelligent guidance classification"}.`);
       } else {
         showToast("success", "All imported rows are already mapped to standard distribution types.");
@@ -457,7 +426,7 @@ export default function ImportReview() {
     try {
       const selected = await open({
         multiple: true,
-        filters: [{ name: "Excel", extensions: ["xlsx"] }]
+        filters: [{ name: "Excel", extensions: ["xlsx", "xls"] }]
       });
 
       if (!selected) return;
@@ -480,7 +449,7 @@ export default function ImportReview() {
       }
 
       if (newRows.length > 0) {
-        const mergedRows = [...rows, ...newRows];
+        const mergedRows = await invoke<ImportRow[]>("validate_import_rows", { rows: [...rows, ...newRows] });
         setRows(mergedRows);
 
         const existingNames = filename.split(", ").map(s => s.trim()).filter(Boolean);
@@ -510,7 +479,7 @@ export default function ImportReview() {
   return (
     <div className="flex flex-col h-full bg-surface-container-lowest relative overflow-hidden animate-fade-in">
       {toast && createPortal(
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+        <div role="status" aria-live="polite" className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
           toast.type === "success"
             ? "border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] text-[#002F87] dark:text-[#b4c5ff]"
             : "border border-error/30 bg-error-container text-on-error-container"
@@ -524,8 +493,8 @@ export default function ImportReview() {
       )}
 
       {/* Header (styled exactly like layout TopAppBar) */}
-      <div className="app-topbar-surface h-16 border-b border-outline-variant flex items-center justify-between px-margin-page sticky top-0 z-20 shrink-0">
-        <div className="flex items-center gap-4">
+      <div className="app-topbar-surface min-h-16 py-3 gap-3 border-b border-outline-variant flex flex-wrap items-center justify-between px-margin-page sticky top-0 z-20 shrink-0">
+        <div className="flex min-w-0 items-center gap-4">
           <button 
             onClick={handleBackClick}
             className="text-secondary hover:text-primary transition-colors duration-500 flex items-center justify-center cursor-pointer"
@@ -533,7 +502,7 @@ export default function ImportReview() {
           >
             <span className="material-symbols-outlined text-[24px]">arrow_back</span>
           </button>
-          <h2 className="font-serif text-lg font-semibold text-primary dark:text-primary-fixed-dim text-left flex items-center gap-2">
+          <h2 className="font-serif text-lg font-semibold text-primary dark:text-primary-fixed-dim text-left flex flex-wrap items-center gap-2">
             Import Review
             <span className="text-xs font-normal text-on-surface-variant bg-surface-variant/70 dark:bg-surface-variant/30 border border-outline-variant px-2 py-0.5 rounded-full font-body-md">
               {filename}
@@ -702,7 +671,7 @@ export default function ImportReview() {
                       <tr className={`hover:bg-surface-container-low transition-colors ${row.has_errors ? "bg-[#FCE8E6]/10 dark:bg-[#ba1a1a]/5" : row.is_duplicate ? "bg-[#FEF7E0]/10 dark:bg-[#b06000]/5" : ""}`}>
                         {/* Row number */}
                         <td className="py-2.5 px-4 font-semibold text-center text-on-surface-variant bg-surface-container-low/30 text-sm">
-                          {index + 2}
+                          {row.source_row ?? index + 2}
                         </td>
 
                         {/* Student Name */}
@@ -814,7 +783,7 @@ export default function ImportReview() {
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                                 {/* Left Column: Excel data */}
                                 <div className="flex flex-col gap-2 p-3 bg-[#FEF7E0]/15 dark:bg-[#e65100]/10 rounded-lg border border-[#FEEFC3]/40 dark:border-[#ffb74d]/20">
-                                  <h4 className="font-bold text-[#B06000] dark:text-[#ffb74d] uppercase tracking-wider text-[10px] mb-0.5">Importing Data (Excel Row {index + 2})</h4>
+                                  <h4 className="font-bold text-[#B06000] dark:text-[#ffb74d] uppercase tracking-wider text-[10px] mb-0.5">Importing Data (Excel Row {row.source_row ?? index + 2})</h4>
                                   <div className="grid grid-cols-3 gap-y-1">
                                     <div className="text-on-surface-variant font-medium">Student:</div>
                                     <div className="col-span-2 font-semibold">{row.first_name} {row.last_name}</div>
@@ -1117,7 +1086,7 @@ export default function ImportReview() {
             className="absolute inset-0 bg-black/40 backdrop-blur-sm modal-backdrop-enter"
             onClick={() => setIsDeleteAllConfirmOpen(false)}
           />
-          <div
+          <div role="dialog" aria-modal="true" tabIndex={-1}
             className="relative z-10 bg-surface border border-outline-variant p-6 rounded-2xl shadow-xl max-w-sm w-full modal-panel-enter text-center"
             onClick={(e) => e.stopPropagation()}
           >
@@ -1161,7 +1130,7 @@ export default function ImportReview() {
             }`}
             onClick={closeDisregardConfirm}
           />
-          <div
+          <div role="dialog" aria-modal="true" tabIndex={-1}
             className={`relative z-10 bg-surface border border-outline-variant p-6 rounded-2xl shadow-xl max-w-sm w-full text-center ${
               isDisregardConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}
@@ -1206,7 +1175,7 @@ export default function ImportReview() {
             }`}
             onClick={closeSuccessModal}
           />
-          <div
+          <div role="dialog" aria-modal="true" tabIndex={-1}
             className={`relative z-10 bg-surface border border-outline-variant p-6 sm:p-7 rounded-3xl shadow-2xl max-w-md w-full text-center ${
               isSuccessModalClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}
@@ -1278,7 +1247,7 @@ export default function ImportReview() {
             }`}
             onClick={closeDiscardSessionConfirm}
           />
-          <div
+          <div role="dialog" aria-modal="true" tabIndex={-1}
             className={`relative z-10 bg-surface border border-outline-variant p-6 rounded-2xl shadow-xl max-w-sm w-full text-center ${
               isDiscardSessionClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}
@@ -1324,7 +1293,7 @@ export default function ImportReview() {
             }`}
             onClick={closeBackConfirm}
           />
-          <div
+          <div role="dialog" aria-modal="true" tabIndex={-1}
             className={`relative z-10 bg-surface border border-outline-variant p-6 rounded-2xl shadow-xl max-w-md w-full text-center ${
               isBackConfirmClosing ? "modal-panel-exit" : "modal-panel-enter"
             }`}

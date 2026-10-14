@@ -1,3 +1,4 @@
+import { normalizeGrade, caseDay } from "../../utils/caseValues";
 import { CaseRecord, StudentInfo } from "../../types";
 import { ReportConfig, ReportSummaryData } from "../types/reportTypes";
 import {
@@ -66,8 +67,8 @@ export const formatReportDateRange = (
         if (!latest || d.getTime() > latest.getTime()) latest = d;
       }
     }
-    if (oldest) oldestStr = oldest.toISOString().split("T")[0];
-    if (latest) latestStr = latest.toISOString().split("T")[0];
+    if (oldest) oldestStr = `${oldest.getFullYear()}-${String(oldest.getMonth()+1).padStart(2,"0")}-${String(oldest.getDate()).padStart(2,"0")}`;
+    if (latest) latestStr = `${latest.getFullYear()}-${String(latest.getMonth()+1).padStart(2,"0")}-${String(latest.getDate()).padStart(2,"0")}`;
   }
 
   const start = startStr || oldestStr;
@@ -122,7 +123,7 @@ export const formatReportDateRange = (
 export const getCaseDate = (caseRecord: CaseRecord): Date | null => {
   const dateStr = caseRecord.date || caseRecord.date_filed;
   if (!dateStr) return null;
-  const parts = dateStr.split("-").map(Number);
+  const parts = caseDay(dateStr).split("-").map(Number);
   if (parts.length === 3 && !parts.some(isNaN)) {
     return new Date(parts[0], parts[1] - 1, parts[2]);
   }
@@ -132,7 +133,7 @@ export const getCaseDate = (caseRecord: CaseRecord): Date | null => {
 
 export const getCaseGradeLevel = (caseRecord: CaseRecord): string => {
   const students = parseStudents(caseRecord.students);
-  return students[0]?.level || caseRecord.level || "Unspecified";
+  return normalizeGrade(students[0]?.level || caseRecord.level) || "Unspecified";
 };
 
 export const getStatusColor = (progress: string): string => {
@@ -154,7 +155,7 @@ export const filterReportCases = (casesList: CaseRecord[], config: ReportConfig)
     // 1. Filter by grade scope
     if (config.scope === "specific" && config.selectedGrade) {
       const grade = getCaseGradeLevel(c);
-      if (grade !== config.selectedGrade) return false;
+      if (grade !== normalizeGrade(config.selectedGrade)) return false;
     }
 
     // 2. Filter by status using unified rules

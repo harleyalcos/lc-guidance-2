@@ -1,0 +1,12 @@
+
+> lc-guidance@0.1.11 test
+> vitest run
+
+
+ RUN  v5.0.4 /Users/harleyalcos/Documents/CSBS/lc-guidance-2
+
+
+ Test Files  2 passed (2)
+      Tests  12 passed (12)
+   Start at  12:35:07
+   Duration  557ms (environment 52%, import 19%, tests 16%, transform 11%, worker 2%)

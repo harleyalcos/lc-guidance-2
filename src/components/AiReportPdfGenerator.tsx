@@ -294,7 +294,7 @@ export default function AiReportPdfGenerator({
     selectedPaperSize,
   ]);
 
-  const { pdfBlobUrl, isGenerating, exportPdf, printPdf } = useAiReportPdf(reportData);
+  const { pdfBlobUrl, isGenerating, exportPdf } = useAiReportPdf(reportData);
 
   const handleExport = async () => {
     try {
@@ -490,13 +490,13 @@ export default function AiReportPdfGenerator({
           {/* Print Button */}
           <button
             type="button"
-            onClick={printPdf}
-            disabled={isGenerating || !pdfBlobUrl}
+            onClick={handleExport}
+            disabled={isExportingState || isGenerating || !pdfBlobUrl}
             className="btn-secondary h-8 !py-0 !px-3 text-xs flex items-center gap-1.5 cursor-pointer"
-            title="Print Document"
+            title="Open the saved PDF in your system viewer, then press Ctrl+P to print"
           >
             <span className="material-symbols-outlined text-[15px]">print</span>
-            <span>Print</span>
+            <span>Open PDF to Print</span>
           </button>
         </div>
       </div>

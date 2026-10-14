@@ -1,0 +1,200 @@
+[
+  {
+    "id": 1,
+    "students": [
+      {
+        "participantId": "cb931d74-b876-42a2-ae9d-2dc576664c0e",
+        "firstName": "Alice",
+        "lastName": "Audit",
+        "middleInitial": "",
+        "level": "Grade 7",
+        "section": "A",
+        "adviser": "Test Teacher",
+        "role": "Respondent",
+        "sanction": "Verbal Warning"
+      }
+    ],
+    "history": [
+      {
+        "action": "Case created",
+        "timestamp": "2024-08-15T00:00:00Z"
+      }
+    ],
+    "school_year": "2024-2025",
+    "group_id": null
+  },
+  {
+    "id": 2,
+    "students": [
+      {
+        "participantId": "67d73b7a-5947-49b9-942e-3e6bf88cc74a",
+        "firstName": "Ben",
+        "lastName": "Audit",
+        "middleInitial": "",
+        "level": "Grade 7",
+        "section": "B",
+        "adviser": "Test Teacher",
+        "role": "Respondent",
+        "sanction": "Written Reprimand"
+      }
+    ],
+    "history": [
+      {
+        "action": "Case created",
+        "timestamp": "2025-03-10T00:00:00Z"
+      }
+    ],
+    "school_year": "2024-2025",
+    "group_id": null
+  },
+  {
+    "id": 3,
+    "students": [
+      {
+        "participantId": "e0f790a9-845d-4389-a67d-11d5d2abd0db",
+        "firstName": "Cara",
+        "lastName": "Audit",
+        "middleInitial": "",
+        "level": "Grade 10",
+        "section": "C",
+        "adviser": "Test Teacher",
+        "role": "Respondent",
+        "sanction": ""
+      }
+    ],
+    "history": [
+      {
+        "action": "Case created",
+        "timestamp": "2026-10-01T00:00:00Z"
+      }
+    ],
+    "school_year": "2026-2027",
+    "group_id": null
+  },
+  {
+    "id": 4,
+    "students": [
+      {
+        "participantId": "057a7015-c945-48a1-9bcb-20e5b5d058ad",
+        "firstName": "Dana",
+        "lastName": "Separate",
+        "middleInitial": "",
+        "level": "Grade 8",
+        "section": "A",
+        "adviser": "Test Teacher",
+        "role": "Respondent",
+        "sanction": "Warning"
+      }
+    ],
+    "history": [
+      {
+        "action": "Case created",
+        "timestamp": "2026-10-02T00:00:00Z"
+      }
+    ],
+    "school_year": "2026-2027",
+    "group_id": null
+  },
+  {
+    "id": 5,
+    "students": [
+      {
+        "participantId": "c3029f82-45fe-4560-bfe3-cb4a8ac816b7",
+        "firstName": "Evan",
+        "lastName": "Separate",
+        "middleInitial": "",
+        "level": "Grade 9",
+        "section": "B",
+        "adviser": "Different Teacher",
+        "role": "Respondent",
+        "sanction": "Warning"
+      }
+    ],
+    "history": [
+      {
+        "action": "Case created",
+        "timestamp": "2026-10-02T00:00:00Z"
+      }
+    ],
+    "school_year": "2026-2027",
+    "group_id": null
+  },
+  {
+    "id": 6,
+    "students": [
+      {
+        "participantId": "666ccb22-8536-489b-9ca1-b211feef1c48",
+        "firstName": "Morgan",
+        "lastName": "Release",
+        "middleInitial": "",
+        "level": "Grade 7",
+        "section": "",
+        "adviser": "Test Teacher",
+        "role": "Respondent",
+        "sanction": "Written Warning"
+      },
+      {
+        "participantId": "d713ec20-ac45-4775-9f66-0c41b36b0dbf",
+        "firstName": "Jamie Updated",
+        "lastName": "Subject",
+        "middleInitial": "",
+        "level": "Grade 7",
+        "section": "",
+        "adviser": "",
+        "role": "Complainant / Subject",
+        "sanction": ""
+      }
+    ],
+    "history": [
+      {
+        "action": "Case created",
+        "timestamp": "2026-10-13T17:38:44.954+00:00"
+      },
+      {
+        "timestamp": "2026-10-13T17:40:48.880145+00:00",
+        "action": "{\"text\":\"Group case details were updated.\",\"diffs\":[{\"label\":\"Group Edit\",\"oldVal\":\"Synthetic Release Group\",\"newVal\":\"Synthetic Release Group\"}]}"
+      }
+    ],
+    "school_year": "2026-2027",
+    "group_id": "44f1cde2-ae66-4c36-af19-de076683e0bb"
+  },
+  {
+    "id": 7,
+    "students": [
+      {
+        "participantId": "21533441-ba62-49b1-9a87-59fa409ab904",
+        "firstName": "Taylor",
+        "lastName": "Release",
+        "middleInitial": "",
+        "level": "Grade 8",
+        "section": "",
+        "adviser": "",
+        "role": "Respondent",
+        "sanction": "Counseling"
+      },
+      {
+        "participantId": "d713ec20-ac45-4775-9f66-0c41b36b0dbf",
+        "firstName": "Jamie Updated",
+        "lastName": "Subject",
+        "middleInitial": "",
+        "level": "Grade 7",
+        "section": "",
+        "adviser": "",
+        "role": "Complainant / Subject",
+        "sanction": ""
+      }
+    ],
+    "history": [
+      {
+        "action": "Case created",
+        "timestamp": "2026-10-13T17:38:44.954+00:00"
+      },
+      {
+        "timestamp": "2026-10-13T17:40:48.877810+00:00",
+        "action": "{\"text\":\"Group case details were updated.\",\"diffs\":[{\"label\":\"Group Edit\",\"oldVal\":\"Synthetic Release Group\",\"newVal\":\"Synthetic Release Group\"}]}"
+      }
+    ],
+    "school_year": "2026-2027",
+    "group_id": "44f1cde2-ae66-4c36-af19-de076683e0bb"
+  }
+]

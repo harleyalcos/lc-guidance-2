@@ -43,8 +43,9 @@ pub struct AiGeneratedDocument {
 
 #[tauri::command]
 pub fn get_gemini_api_key(state: State<'_, DbState>) -> Result<String, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
-    
+
     let key: Option<String> = connection
         .query_row(
             "SELECT value FROM app_config WHERE key = 'gemini_api_key'",
@@ -52,34 +53,41 @@ pub fn get_gemini_api_key(state: State<'_, DbState>) -> Result<String, String> {
             |row| row.get(0),
         )
         .ok();
-        
+
     Ok(key.unwrap_or_default())
 }
 
 #[tauri::command]
 pub fn set_gemini_api_key(state: State<'_, DbState>, api_key: String) -> Result<(), String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
-    
+
     connection
         .execute(
             "INSERT INTO app_config (key, value) VALUES ('gemini_api_key', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             params![api_key],
         )
         .map_err(db_error)?;
-        
+
     Ok(())
 }
 
 #[tauri::command]
 pub fn query_database_for_ai(state: State<'_, DbState>, sql: String) -> Result<Vec<Value>, String> {
+    state.require_session()?;
     let sql_trimmed = sql.trim();
     if !sql_trimmed.to_uppercase().starts_with("SELECT") {
         return Err("Only SELECT queries are allowed for AI context.".to_string());
     }
-    
+
     // As an additional safety check, prohibit any other operations via string search
     let upper_sql = sql_trimmed.to_uppercase();
-    if upper_sql.contains("INSERT") || upper_sql.contains("UPDATE") || upper_sql.contains("DELETE") || upper_sql.contains("DROP") || upper_sql.contains("ALTER") {
+    if upper_sql.contains("INSERT")
+        || upper_sql.contains("UPDATE")
+        || upper_sql.contains("DELETE")
+        || upper_sql.contains("DROP")
+        || upper_sql.contains("ALTER")
+    {
         return Err("Query contains forbidden operations.".to_string());
     }
 
@@ -88,22 +96,23 @@ pub fn query_database_for_ai(state: State<'_, DbState>, sql: String) -> Result<V
         || upper_sql.contains("OTP_TOKENS")
         || upper_sql.contains("SQLITE_MASTER")
         || upper_sql.contains("SQLITE_SCHEMA")
-        || upper_sql.contains("PRAGMA") {
+        || upper_sql.contains("PRAGMA")
+    {
         return Err("Access to sensitive system tables is forbidden.".to_string());
     }
 
     let connection = state.connection.lock().map_err(db_error)?;
     let mut stmt = connection.prepare(sql_trimmed).map_err(db_error)?;
-    
+
     let column_names: Vec<String> = stmt.column_names().iter().map(|&s| s.to_string()).collect();
     let column_count = column_names.len();
-    
+
     let mut rows = stmt.query([]).map_err(db_error)?;
     let mut results = Vec::new();
-    
+
     while let Some(row) = rows.next().map_err(db_error)? {
         let mut row_obj = serde_json::Map::new();
-        
+
         for (i, col_name) in column_names.iter().enumerate().take(column_count) {
             let value = match row.get_ref(i).map_err(db_error)? {
                 rusqlite::types::ValueRef::Null => Value::Null,
@@ -112,32 +121,33 @@ pub fn query_database_for_ai(state: State<'_, DbState>, sql: String) -> Result<V
                 rusqlite::types::ValueRef::Text(t) => {
                     let text = std::str::from_utf8(t).unwrap_or("");
                     json!(text)
-                },
+                }
                 rusqlite::types::ValueRef::Blob(b) => {
                     json!(format!("<blob {} bytes>", b.len()))
                 }
             };
             row_obj.insert(col_name.clone(), value);
         }
-        
+
         results.push(Value::Object(row_obj));
-        
+
         // Safety limit to avoid exhausting tokens / memory
         if results.len() >= 500 {
             break;
         }
     }
-    
+
     Ok(results)
 }
 
 #[tauri::command]
 pub fn get_ai_sessions(state: State<'_, DbState>) -> Result<Vec<AiSession>, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     let mut stmt = connection
         .prepare("SELECT id, title, tag, created_at, updated_at FROM ai_sessions ORDER BY updated_at DESC")
         .map_err(db_error)?;
-    
+
     let rows = stmt
         .query_map([], |row| {
             Ok(AiSession {
@@ -158,7 +168,11 @@ pub fn get_ai_sessions(state: State<'_, DbState>) -> Result<Vec<AiSession>, Stri
 }
 
 #[tauri::command]
-pub fn get_ai_session_messages(state: State<'_, DbState>, session_id: String) -> Result<Vec<AiSavedMessage>, String> {
+pub fn get_ai_session_messages(
+    state: State<'_, DbState>,
+    session_id: String,
+) -> Result<Vec<AiSavedMessage>, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     let mut stmt = connection
         .prepare("SELECT id, session_id, role, content, metadata, timestamp FROM ai_messages WHERE session_id = ?1 ORDER BY timestamp ASC")
@@ -185,7 +199,10 @@ pub fn get_ai_session_messages(state: State<'_, DbState>, session_id: String) ->
 }
 
 #[tauri::command]
-pub fn get_ai_generated_documents(state: State<'_, DbState>) -> Result<Vec<AiGeneratedDocument>, String> {
+pub fn get_ai_generated_documents(
+    state: State<'_, DbState>,
+) -> Result<Vec<AiGeneratedDocument>, String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     let mut stmt = connection
         .prepare(
@@ -265,6 +282,7 @@ pub fn save_ai_message(
     tag: Option<String>,
     message: AiSavedMessage,
 ) -> Result<(), String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -325,9 +343,13 @@ pub fn save_ai_message(
 
 #[tauri::command]
 pub fn delete_ai_session(state: State<'_, DbState>, session_id: String) -> Result<(), String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     connection
-        .execute("DELETE FROM ai_messages WHERE session_id = ?1", params![session_id])
+        .execute(
+            "DELETE FROM ai_messages WHERE session_id = ?1",
+            params![session_id],
+        )
         .map_err(db_error)?;
     connection
         .execute("DELETE FROM ai_sessions WHERE id = ?1", params![session_id])
@@ -336,7 +358,12 @@ pub fn delete_ai_session(state: State<'_, DbState>, session_id: String) -> Resul
 }
 
 #[tauri::command]
-pub fn rename_ai_session(state: State<'_, DbState>, session_id: String, new_title: String) -> Result<(), String> {
+pub fn rename_ai_session(
+    state: State<'_, DbState>,
+    session_id: String,
+    new_title: String,
+) -> Result<(), String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     connection
         .execute(
@@ -349,6 +376,7 @@ pub fn rename_ai_session(state: State<'_, DbState>, session_id: String, new_titl
 
 #[tauri::command]
 pub fn clear_all_ai_sessions(state: State<'_, DbState>) -> Result<(), String> {
+    state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
     connection
         .execute("DELETE FROM ai_messages", [])

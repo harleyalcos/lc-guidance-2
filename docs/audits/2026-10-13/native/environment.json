@@ -1,0 +1,14 @@
+{
+  "sourceCommit": "18e2692",
+  "version": "0.1.10",
+  "nativePlatform": "macOS",
+  "build": "debug",
+  "applicationCopy": "/tmp/lc-guidance-native-audit-cJ0ELO",
+  "database": "/tmp/lc-guidance-native-audit-cJ0ELO/src-tauri/db/guidance.db",
+  "applicationStorage": "/Users/harleyalcos/Library/Application Support/local.guidance.audit.cj0elo",
+  "sourceChanges": "None; isolation identifier and window title only",
+  "initialCases": 0,
+  "initialConfigKeys": 0,
+  "liveEmail": "not used",
+  "uiMethod": "cua_repl native accessibility and screenshots"
+}

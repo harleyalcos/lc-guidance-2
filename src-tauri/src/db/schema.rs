@@ -3,6 +3,26 @@ use rusqlite::Connection;
 use super::DbResult;
 
 pub fn initialize_schema(connection: &Connection) -> DbResult<()> {
+    let version: i64 = connection.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    if version > 1 {
+        return Err("This database requires a newer app version.".into());
+    }
+    connection.execute_batch("SAVEPOINT guidance_schema_upgrade")?;
+    match initialize_schema_inner(connection) {
+        Ok(()) => {
+            connection.execute_batch("RELEASE guidance_schema_upgrade")?;
+            Ok(())
+        }
+        Err(error) => {
+            let _ = connection.execute_batch(
+                "ROLLBACK TO guidance_schema_upgrade; RELEASE guidance_schema_upgrade",
+            );
+            Err(error)
+        }
+    }
+}
+
+fn initialize_schema_inner(connection: &Connection) -> DbResult<()> {
     connection.execute_batch(
         r#"
 CREATE TABLE IF NOT EXISTS cases (
@@ -28,6 +48,8 @@ CREATE TABLE IF NOT EXISTS cases (
   update_history TEXT NOT NULL DEFAULT '[]',
   school_year TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS case_save_requests (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT NOT NULL);
 
 CREATE TABLE IF NOT EXISTS app_config (
   key   TEXT PRIMARY KEY,
@@ -119,6 +141,14 @@ CREATE INDEX IF NOT EXISTS idx_ai_messages_session_id ON ai_messages(session_id)
             r#"
 ALTER TABLE cases ADD COLUMN date_filed TEXT NOT NULL DEFAULT '';
 UPDATE cases SET date_filed = date WHERE date_filed = '';
+"#,
+        )?;
+    }
+
+    if !has_middle_initial {
+        connection.execute_batch(
+            r#"
+ALTER TABLE cases ADD COLUMN middle_initial TEXT NOT NULL DEFAULT '';
 "#,
         )?;
     }
@@ -260,14 +290,6 @@ BEGIN
 END;
 "#,
     )?;
-
-    if !has_middle_initial {
-        connection.execute_batch(
-            r#"
-ALTER TABLE cases ADD COLUMN middle_initial TEXT NOT NULL DEFAULT '';
-"#,
-        )?;
-    }
 
     if !has_description {
         connection.execute_batch(
@@ -417,8 +439,30 @@ CREATE INDEX IF NOT EXISTS idx_cases_group_id ON cases(group_id);
 CREATE INDEX IF NOT EXISTS idx_cases_school_year ON cases(school_year);
 CREATE INDEX IF NOT EXISTS idx_cases_date ON cases(date);
 CREATE INDEX IF NOT EXISTS idx_cases_progress ON cases(progress);
+CREATE INDEX IF NOT EXISTS idx_cases_import_match ON cases(
+  LOWER(TRIM(first_name)), LOWER(TRIM(last_name)), LOWER(TRIM(middle_initial)),
+  LOWER(TRIM(level)), LOWER(TRIM(section)), LOWER(TRIM(date)), LOWER(TRIM(adviser)),
+  LOWER(TRIM("case")), LOWER(TRIM(sanction)), LOWER(TRIM(progress))
+);
 "#,
     )?;
+
+    connection.execute_batch(r#"
+PRAGMA user_version = 1;
+UPDATE cases SET level = 'Grade ' || CAST(TRIM(level) AS INTEGER)
+WHERE TRIM(level) IN ('7','8','9','10','11','12');
+UPDATE cases SET students = (
+  SELECT json_group_array(json_set(value, '$.level', CASE
+    WHEN TRIM(json_extract(value, '$.level')) IN ('7','8','9','10','11','12') THEN 'Grade ' || CAST(json_extract(value, '$.level') AS INTEGER)
+    ELSE json_extract(value, '$.level') END)) FROM json_each(cases.students)
+) WHERE json_valid(students) AND json_array_length(students) > 0;
+UPDATE cases SET update_history = (
+  SELECT json_group_array(CASE
+    WHEN json_extract(value, '$.timestamp') LIKE '%ZT00:00:00.000Z' THEN
+      json_set(value, '$.timestamp', substr(json_extract(value, '$.timestamp'), 1, length(json_extract(value, '$.timestamp')) - 14))
+    ELSE json(value) END) FROM json_each(cases.update_history)
+) WHERE json_valid(update_history) AND json_array_length(update_history) > 0;
+"#)?;
 
     Ok(())
 }

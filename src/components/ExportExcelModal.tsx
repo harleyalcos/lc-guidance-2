@@ -1,3 +1,4 @@
+import { normalizeGrade, caseDay } from "../utils/caseValues";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { CaseRecord } from "../types";
@@ -72,19 +73,20 @@ const DEFAULT_COLUMNS: ExportColumns = {
 };
 
 const STANDARD_COLUMN_LABELS: { key: keyof ExportColumns; label: string; desc: string }[] = [
-  { key: "fullName", label: "Full Name", desc: "Student full name(s)" },
+  { key: "fullName", label: "Full Name", desc: "Respondent full name(s)" },
   { key: "date", label: "Date", desc: "Case date" },
   { key: "case", label: "Case Category", desc: "Type of incident / case" },
   { key: "sanction", label: "Sanction", desc: "Applied sanction" },
   { key: "progress", label: "Progress Status", desc: "Pending, Resolved, Closed, Reprimand" },
   { key: "level", label: "Grade Level", desc: "Grade 7 to 12" },
+  { key: "section", label: "Section", desc: "Class section" },
   { key: "adviser", label: "Adviser", desc: "Class adviser name" },
 ];
 
 const ADDITIONAL_COLUMN_LABELS: { key: keyof ExportColumns; label: string; desc: string }[] = [
   { key: "caseId", label: "Case ID", desc: "Formatted case reference (e.g. #0042)" },
   { key: "title", label: "Case Title", desc: "Title / subject of group incident" },
-  { key: "dateFiled", label: "Date", desc: "Date & time record was logged" },
+  { key: "dateFiled", label: "Date Filed", desc: "Date & time record was logged" },
   { key: "description", label: "Description", desc: "Full case narrative / details" },
   { key: "role", label: "Student Roles", desc: "Respondent, Complainant / Subject" },
   { key: "reportingStudent", label: "Reporting Student", desc: "Student who reported the case" },
@@ -160,7 +162,7 @@ export default function ExportExcelModal({
     return cases.filter((c) => {
       // 1. Grade level scope
       if (scope === "specific") {
-        if (!c.level || c.level.trim().toLowerCase() !== selectedGrade.toLowerCase()) {
+        if (!c.level || normalizeGrade(c.level) !== normalizeGrade(selectedGrade)) {
           return false;
         }
       }
@@ -174,7 +176,7 @@ export default function ExportExcelModal({
 
       // 3. Date range filter
       if (startDate || endDate) {
-        const caseDateStr = c.date;
+        const caseDateStr = caseDay(c.date || c.date_filed);
         if (caseDateStr) {
           if (startDate && caseDateStr < startDate) return false;
           if (endDate && caseDateStr > endDate) return false;
@@ -319,7 +321,7 @@ export default function ExportExcelModal({
       />
 
       {/* Modal Dialog */}
-      <div
+      <div role="dialog" aria-modal="true" tabIndex={-1}
         className={`relative z-10 bg-surface border border-outline-variant rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden ${
           isClosing ? "modal-panel-exit" : "modal-panel-enter"
         }`}
@@ -616,7 +618,7 @@ export default function ExportExcelModal({
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-on-surface flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-primary text-[15px]">file_upload</span>
-                  <span>Standard Importable Columns (Checked by Default)</span>
+                  <span>Standard Spreadsheet Columns (Checked by Default)</span>
                 </span>
                 <span className="text-[10px] text-secondary bg-surface-container px-2 py-0.5 rounded-full border border-outline-variant font-mono">
                   Default 8
@@ -636,10 +638,11 @@ export default function ExportExcelModal({
                       }`}
                     >
                       <input
+                        aria-label={col.label}
+                        onClick={(e) => e.stopPropagation()}
                         type="checkbox"
                         checked={isChecked}
-                        onChange={(e) => {
-                          e.stopPropagation();
+                        onChange={() => {
                           toggleColumn(col.key);
                         }}
                         className="w-4 h-4 rounded text-primary focus:ring-primary accent-primary cursor-pointer"
@@ -684,10 +687,11 @@ export default function ExportExcelModal({
                       }`}
                     >
                       <input
+                        aria-label={col.label}
+                        onClick={(e) => e.stopPropagation()}
                         type="checkbox"
                         checked={isChecked}
-                        onChange={(e) => {
-                          e.stopPropagation();
+                        onChange={() => {
                           toggleColumn(col.key);
                         }}
                         className="w-4 h-4 rounded text-primary focus:ring-primary accent-primary cursor-pointer"

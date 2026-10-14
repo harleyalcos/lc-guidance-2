@@ -1,5 +1,5 @@
-use rusqlite::{params, Row, OptionalExtension};
 use crate::models::{CasePayload, CaseRecord};
+use rusqlite::{params, OptionalExtension, Row};
 
 pub struct CaseRepository;
 
@@ -44,16 +44,13 @@ FROM cases
 
         if let Some(ref year) = school_year {
             if !year.is_empty() && year != "all" {
-                let p1 = params_vec.len() + 1;
-                let p2 = params_vec.len() + 2;
-                conditions.push(format!("(strftime('%Y', date) = ?{} OR school_year = ?{} OR date LIKE ?{} OR ?{} LIKE '%' || school_year || '%')", p1, p1, p2, p1));
-                let prefix = if year.len() >= 4 {
-                    format!("{}%", &year[0..4])
+                let p = params_vec.len() + 1;
+                if year.len() == 4 && year.chars().all(|c| c.is_ascii_digit()) {
+                    conditions.push(format!("substr(date, 1, 4) = ?{}", p));
                 } else {
-                    format!("{}%", year)
-                };
+                    conditions.push(format!("school_year = ?{}", p));
+                }
                 params_vec.push(Box::new(year.clone()));
-                params_vec.push(Box::new(prefix));
             }
         }
 
@@ -84,12 +81,18 @@ FROM cases
         Ok(cases)
     }
 
-    pub fn find_by_id(connection: &rusqlite::Connection, id: i64) -> Result<Option<CaseRecord>, String> {
-        connection.query_row(
-            "SELECT * FROM cases WHERE id = ?1 LIMIT 1",
-            params![id],
-            Self::map_case
-        ).optional().map_err(|e| e.to_string())
+    pub fn find_by_id(
+        connection: &rusqlite::Connection,
+        id: i64,
+    ) -> Result<Option<CaseRecord>, String> {
+        connection
+            .query_row(
+                "SELECT * FROM cases WHERE id = ?1 LIMIT 1",
+                params![id],
+                Self::map_case,
+            )
+            .optional()
+            .map_err(|e| e.to_string())
     }
 
     pub fn find_exact_duplicate(
@@ -105,38 +108,54 @@ FROM cases
         sanction: &str,
         progress: &str,
     ) -> Result<Option<CaseRecord>, String> {
-        connection.query_row(
-            r#"SELECT * FROM cases 
-            WHERE LOWER(TRIM(first_name)) = LOWER(TRIM(?1)) 
-            AND LOWER(TRIM(last_name)) = LOWER(TRIM(?2)) 
+        connection
+            .query_row(
+                r#"SELECT * FROM cases
+            WHERE LOWER(TRIM(first_name)) = LOWER(TRIM(?1))
+            AND LOWER(TRIM(last_name)) = LOWER(TRIM(?2))
             AND LOWER(TRIM(middle_initial)) = LOWER(TRIM(?3))
             AND LOWER(TRIM(level)) = LOWER(TRIM(?4))
             AND LOWER(TRIM(section)) = LOWER(TRIM(?5))
-            AND LOWER(TRIM(date)) = LOWER(TRIM(?6)) 
+            AND LOWER(TRIM(date)) = LOWER(TRIM(?6))
             AND LOWER(TRIM(adviser)) = LOWER(TRIM(?7))
-            AND LOWER(TRIM("case")) = LOWER(TRIM(?8)) 
+            AND LOWER(TRIM("case")) = LOWER(TRIM(?8))
             AND LOWER(TRIM(sanction)) = LOWER(TRIM(?9))
             AND LOWER(TRIM(progress)) = LOWER(TRIM(?10))
             LIMIT 1"#,
-            params![first_name, last_name, middle_initial, level, section, date, adviser, case_type, sanction, progress],
-            Self::map_case
-        ).optional().map_err(|e| e.to_string())
+                params![
+                    first_name,
+                    last_name,
+                    middle_initial,
+                    level,
+                    section,
+                    date,
+                    adviser,
+                    case_type,
+                    sanction,
+                    progress
+                ],
+                Self::map_case,
+            )
+            .optional()
+            .map_err(|e| e.to_string())
     }
 
-
-    pub fn insert(
-        connection: &rusqlite::Connection,
-        payload: &CasePayload,
-    ) -> Result<i64, String> {
+    pub fn insert(connection: &rusqlite::Connection, payload: &CasePayload) -> Result<i64, String> {
+        let payload = payload.normalized()?;
         let primary_student = payload
             .students
             .first()
             .ok_or_else(|| "At least one student is required".to_string())?;
 
-        let initial_history = format!(
-            "[{{\"timestamp\":\"{}T00:00:00.000Z\",\"action\":\"Case created\"}}]",
-            payload.date_filed
-        );
+        let timestamp = chrono::DateTime::parse_from_rfc3339(&payload.date_filed)
+            .map(|d| d.to_rfc3339())
+            .unwrap_or_else(|_| {
+                chrono::NaiveDate::parse_from_str(&payload.date_filed, "%Y-%m-%d")
+                    .map(|d| format!("{}T00:00:00Z", d))
+                    .unwrap_or_else(|_| chrono::Utc::now().to_rfc3339())
+            });
+        let initial_history =
+            serde_json::json!([{"timestamp":timestamp,"action":"Case created"}]).to_string();
 
         let case_year = if let Some(ref sy) = payload.school_year {
             if !sy.trim().is_empty() {
@@ -191,6 +210,7 @@ INSERT INTO cases (
         payload: &CasePayload,
         update_log: Option<String>,
     ) -> Result<(), String> {
+        let payload = payload.normalized()?;
         let primary_student = payload
             .students
             .first()
@@ -199,6 +219,30 @@ INSERT INTO cases (
         let students_json = serde_json::to_string(&payload.students)
             .map_err(|e| format!("Failed to serialize students: {}", e))?;
 
+        let previous = Self::find_by_id(connection, id)?
+            .ok_or_else(|| format!("Case with id {id} was not found"))?;
+        let case_year = payload
+            .school_year
+            .as_deref()
+            .filter(|y| !y.trim().is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                if previous.date == payload.date && !previous.school_year.is_empty() {
+                    previous.school_year.clone()
+                } else {
+                    Self::derive_school_year(&payload.date, &payload.date_filed)
+                }
+            });
+        let update_log = update_log.or_else(|| {
+            if previous.progress != payload.progress {
+                Some(format!(
+                    "Status changed from {} to {}",
+                    previous.progress, payload.progress
+                ))
+            } else {
+                Some("Case details updated".into())
+            }
+        });
         let timestamp = chrono::Utc::now().to_rfc3339();
 
         let rows_updated = connection
@@ -209,7 +253,8 @@ UPDATE cases SET
   sanction = ?6, progress = ?7, proofs = ?8, title = ?9,
   reporting_student = COALESCE(?10, reporting_student), group_id = ?11,
   first_name = ?12, last_name = ?13, middle_initial = ?14, level = ?15, section = ?16, adviser = ?17,
-  update_history = CASE 
+  school_year = ?21,
+  update_history = CASE
       WHEN ?18 IS NOT NULL THEN json_insert(update_history, '$[#]', json_object('timestamp', ?19, 'action', ?18))
       ELSE update_history
   END
@@ -235,7 +280,8 @@ WHERE id = ?20
                     primary_student.adviser,
                     update_log,
                     timestamp,
-                    id
+                    id,
+                    case_year
                 ],
             )
             .map_err(|e| e.to_string())?;
@@ -251,7 +297,7 @@ WHERE id = ?20
         let rows_affected = connection
             .execute("DELETE FROM cases WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
-        
+
         if rows_affected > 0 {
             Ok(())
         } else {
@@ -280,7 +326,7 @@ WHERE id = ?20
             }
         } else {
             let mut stmt = connection
-                .prepare("SELECT DISTINCT strftime('%Y-%m', date) FROM cases WHERE (strftime('%Y', date) = ?1 OR school_year = ?1) AND date != '' ORDER BY date ASC")
+                .prepare("SELECT DISTINCT strftime('%Y-%m', date) FROM cases WHERE ((length(?1) = 4 AND substr(date, 1, 4) = ?1) OR (length(?1) != 4 AND school_year = ?1)) AND date != '' ORDER BY date ASC")
                 .map_err(|e| format!("Failed to prepare query: {}", e))?;
             let rows = stmt
                 .query_map(params![school_year], |row| row.get::<_, String>(0))
@@ -304,7 +350,10 @@ WHERE id = ?20
             date_filed.trim()
         };
 
-        if let Ok(d) = chrono::NaiveDate::parse_from_str(target_date, "%Y-%m-%d") {
+        if let Ok(d) = chrono::NaiveDate::parse_from_str(
+            target_date.get(..10).unwrap_or(target_date),
+            "%Y-%m-%d",
+        ) {
             let year = chrono::Datelike::year(&d);
             let month = chrono::Datelike::month(&d);
             if month >= 7 {
@@ -337,10 +386,22 @@ mod tests {
 
     #[test]
     fn test_derive_school_year() {
-        assert_eq!(CaseRepository::derive_school_year("2024-08-15", ""), "2024-2025");
-        assert_eq!(CaseRepository::derive_school_year("2025-03-10", ""), "2024-2025");
-        assert_eq!(CaseRepository::derive_school_year("08/15/2024", ""), "2024-2025");
-        assert_eq!(CaseRepository::derive_school_year("03/10/2025", ""), "2024-2025");
+        assert_eq!(
+            CaseRepository::derive_school_year("2024-08-15", ""),
+            "2024-2025"
+        );
+        assert_eq!(
+            CaseRepository::derive_school_year("2025-03-10", ""),
+            "2024-2025"
+        );
+        assert_eq!(
+            CaseRepository::derive_school_year("08/15/2024", ""),
+            "2024-2025"
+        );
+        assert_eq!(
+            CaseRepository::derive_school_year("03/10/2025", ""),
+            "2024-2025"
+        );
     }
 
     #[test]
@@ -350,6 +411,7 @@ mod tests {
 
         let payload = CasePayload {
             students: vec![StudentInfo {
+                participant_id: None,
                 first_name: "Juan".to_string(),
                 last_name: "Dela Cruz".to_string(),
                 middle_initial: "P".to_string(),
@@ -376,13 +438,22 @@ mod tests {
         assert!(case_id > 0);
 
         // Filter by school year 2024-2025
-        let cases_sy = CaseRepository::get_cases(&conn, Some("2024-2025".to_string()), None).unwrap();
-        assert_eq!(cases_sy.len(), 1, "Should find case when filtering by academic year 2024-2025");
+        let cases_sy =
+            CaseRepository::get_cases(&conn, Some("2024-2025".to_string()), None).unwrap();
+        assert_eq!(
+            cases_sy.len(),
+            1,
+            "Should find case when filtering by academic year 2024-2025"
+        );
         assert_eq!(cases_sy[0].school_year, "2024-2025");
 
         // Filter by calendar year 2024
         let cases_cal = CaseRepository::get_cases(&conn, Some("2024".to_string()), None).unwrap();
-        assert_eq!(cases_cal.len(), 1, "Should find case when filtering by calendar year 2024");
+        assert_eq!(
+            cases_cal.len(),
+            1,
+            "Should find case when filtering by calendar year 2024"
+        );
     }
 
     #[test]
@@ -392,6 +463,7 @@ mod tests {
 
         let mut p1 = CasePayload {
             students: vec![StudentInfo {
+                participant_id: None,
                 first_name: "Student".to_string(),
                 last_name: "One".to_string(),
                 middle_initial: "".to_string(),
@@ -419,7 +491,8 @@ mod tests {
         p1.students[0].first_name = "StudentTwo".to_string();
         CaseRepository::insert(&conn, &p1).unwrap();
 
-        let group_cases = CaseRepository::get_cases(&conn, None, Some("GRP-1001".to_string())).unwrap();
+        let group_cases =
+            CaseRepository::get_cases(&conn, None, Some("GRP-1001".to_string())).unwrap();
         assert_eq!(group_cases.len(), 1);
         assert_eq!(group_cases[0].group_id.as_deref(), Some("GRP-1001"));
     }
@@ -431,6 +504,7 @@ mod tests {
 
         let payload = CasePayload {
             students: vec![StudentInfo {
+                participant_id: None,
                 first_name: "Maria".to_string(),
                 last_name: "Clara".to_string(),
                 middle_initial: "".to_string(),
@@ -467,9 +541,13 @@ mod tests {
             "Bullying",
             "Written Reprimand",
             "Pending",
-        ).unwrap();
+        )
+        .unwrap();
 
-        assert!(dup.is_some(), "Duplicate detection should match exact record");
+        assert!(
+            dup.is_some(),
+            "Duplicate detection should match exact record"
+        );
     }
 
     #[test]
@@ -495,7 +573,10 @@ mod tests {
         // Testing the query filter logic
         let test_queries = [
             ("SELECT * FROM app_config", true),
-            ("SELECT value FROM app_config WHERE key = 'app_pin_hash'", true),
+            (
+                "SELECT value FROM app_config WHERE key = 'app_pin_hash'",
+                true,
+            ),
             ("SELECT * FROM otp_tokens", true),
             ("SELECT * FROM sqlite_master", true),
             ("SELECT id, title FROM cases", false),
@@ -503,9 +584,9 @@ mod tests {
 
         for (sql, should_block) in test_queries {
             let upper = sql.to_uppercase();
-            let is_blocked = upper.contains("APP_CONFIG") 
-                || upper.contains("OTP_TOKENS") 
-                || upper.contains("SQLITE_MASTER") 
+            let is_blocked = upper.contains("APP_CONFIG")
+                || upper.contains("OTP_TOKENS")
+                || upper.contains("SQLITE_MASTER")
                 || upper.contains("SQLITE_SCHEMA")
                 || upper.contains("PRAGMA");
             assert_eq!(is_blocked, should_block, "Query check failed for: {}", sql);

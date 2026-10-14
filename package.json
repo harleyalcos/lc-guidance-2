@@ -1,15 +1,20 @@
 {
   "name": "lc-guidance",
   "private": true,
-  "version": "0.1.10",
+  "version": "0.1.11",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@fontsource/courier-prime": "^5.3.0",
+    "@fontsource/material-symbols-outlined": "^5.3.9",
+    "@fontsource/public-sans": "^5.3.0",
+    "@fontsource/source-serif-4": "^5.3.1",
     "@react-pdf/renderer": "^4.9.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.1",
@@ -31,10 +36,19 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "autoprefixer": "^10.5.0",
+    "happy-dom": "^21.0.1",
     "knip": "^6.29.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vitest": "^5.0.4"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    },
+    "postcss-selector-parser": "^7.1.6",
+    "esbuild": "^0.28.1"
   }
 }

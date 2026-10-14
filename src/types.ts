@@ -22,6 +22,7 @@ export interface CaseRecord {
 }
 
 export interface StudentInfo {
+  participantId?: string;
   firstName: string;
   lastName: string;
   middleInitial: string;
@@ -33,6 +34,7 @@ export interface StudentInfo {
 }
 
 export interface ImportRow {
+  source_row?: number;
   id: string;
   full_name: string;
   first_name: string;

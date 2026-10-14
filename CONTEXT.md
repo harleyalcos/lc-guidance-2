@@ -4,3 +4,5 @@
 - **CasePayload**: The structured data transfer object (DTO) submitted from the frontend to create or update a Case.
 - **StudentInfo**: A strongly-typed representation of a student involved in a Case, ensuring the boundary enforces structured data rather than raw JSON strings.
 - **ImportRow**: A unified model representing a row in an Excel import. It encapsulates both the raw data and its own validation logic (`validate()`).
+
+- **Participant ID**: A stable identifier for a student within an incident. Shared participants keep the same ID across linked Cases; distinct students may have identical names.

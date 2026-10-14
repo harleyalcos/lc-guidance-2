@@ -116,7 +116,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
     try {
       const selected = await open({
         multiple: true,
-        filters: [{ name: "Excel", extensions: ["xlsx"] }]
+        filters: [{ name: "Excel", extensions: ["xlsx", "xls"] }]
       });
 
       if (!selected) return;
@@ -139,7 +139,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
       }
 
       // Starting an import from the catalog always starts fresh with the selected file(s)
-      const combinedRows = allNewRows;
+      const combinedRows = await invoke<any[]>("validate_import_rows", { rows: allNewRows });
       const combinedFilename = newFilenames.join(", ");
 
       closeWithAnimation(() => {
@@ -175,7 +175,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
       )}
 
       {toast && (
-        <div className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
+        <div role="status" aria-live="polite" className={`app-toast fixed bottom-5 right-5 z-[99999999] flex items-start gap-2 rounded-xl px-4 py-3 shadow-xl transition-[transform,opacity] duration-1000 ease-out ${
           toast.type === "success"
             ? "border border-primary/30 bg-[#EEF2FC] dark:bg-[#1A233D] text-[#002F87] dark:text-[#b4c5ff]"
             : "border border-error/30 bg-error-container text-on-error-container"
@@ -194,7 +194,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
           }`}
           onClick={() => closeWithAnimation()}
         />
-        <div 
+        <div role="dialog" aria-modal="true" tabIndex={-1}
           className={`relative z-10 bg-surface border border-outline-variant rounded-3xl w-full max-w-lg shadow-xl flex flex-col overflow-hidden ${
             isClosing ? "modal-panel-exit" : "modal-panel-enter"
           }`}
@@ -202,14 +202,14 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
         >
           <div className="flex justify-between items-center px-6 py-5 border-b border-outline-variant bg-surface-container-low">
             <h2 className="text-xl font-semibold text-on-surface">Import Cases</h2>
-            <button 
+            <button
               onClick={() => closeWithAnimation()}
               className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-variant text-on-surface-variant transition-colors"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
           </div>
-          
+
           <div className="p-6">
             <div className="flex flex-col gap-4">
               {existingPendingCount > 0 && (
@@ -247,7 +247,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
               )}
 
               <p className="text-sm text-on-surface-variant">
-                Import cases using the exact database export Excel (.xlsx) format. Below is how the sheet should look like for seamless importing:
+                Import cases from Excel (.xlsx or .xls) using the required columns shown below. Below is how the sheet should look like for seamless importing:
               </p>
 
               {/* Table Preview */}
@@ -257,7 +257,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
                   <table className="min-w-full divide-y divide-outline-variant text-[11px] font-mono border-collapse">
                     <thead className="bg-surface-container">
                       <tr className="divide-x divide-outline-variant">
-                        {["Full Name", "Date", "Case", "Sanction", "Progress", "Section", "Adviser"].map((col) => (
+                        {["Full Name", "Date", "Case", "Sanction", "Progress", "Grade", "Section", "Adviser"].map((col) => (
                           <th key={col} className="px-3 py-2 text-left font-bold text-secondary whitespace-nowrap">
                             {col}
                           </th>
@@ -271,6 +271,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
                         <td className="px-3 py-2 text-on-surface-variant">Truancy</td>
                         <td className="px-3 py-2 text-on-surface-variant">Suspension</td>
                         <td className="px-3 py-2 text-on-surface-variant">Resolved</td>
+                        <td className="px-3 py-2 text-on-surface-variant">Grade 11</td>
                         <td className="px-3 py-2 text-on-surface-variant">STEM</td>
                         <td className="px-3 py-2 text-on-surface-variant last:border-r-0">Mrs. Cruz</td>
                       </tr>

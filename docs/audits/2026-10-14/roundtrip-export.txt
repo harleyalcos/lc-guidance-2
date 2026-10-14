@@ -1,0 +1,98 @@
+The following is a diff from the previous accessibility tree for Window: "Guidance Office — Release Fixes Test" with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 119, 127-238
+~112 standard window Guidance Office — Release Fixes Test, Secondary Actions: Raise
+~	113 scroll area
+~		114 HTML content Description: Laguna College Guidance Office, URL: localhost:1420/#/import-review
+~			115 container
+~				116 button (expanded) Collapse sidebar, Secondary Actions: Collapse
+~				117 image Laguna College Logo
+~				118 heading Laguna College, Value: 1
++					119 text Laguna College
+~				120 text GUIDANCE OFFICE
+~				121 link dashboard Dashboard, Value: localhost:1420/#/
+~				122 link pending_actions Pending Cases, Value: localhost:1420/#/pending
+~				123 link folder_open Case Catalog, Value: localhost:1420/#/catalog
+~				124 link assessment Reports, Value: localhost:1420/#/reports
+~				125 link smart_toy Guidance AI BETA, Value: localhost:1420/#/ai
+~				126 link settings Settings, Value: localhost:1420/#/account
++				127 button logout Sign Out
++			128 container
++				129 button arrow_back, Help: Go Back
++				130 heading Import Review cases_export_2026-10-14 (1).xlsx, Value: 2
++					131 text Import Review cases_export_2026-10-14 (1).xlsx
++				132 button delete_sweep Discard Session, Help: Discard all remaining rows and cancel this import session
++				133 button auto_fix_high AI Categorize, Help: Automatically standardize and map case categories using AI and guidance classification
++				134 button add Add More Files, Help: Import additional Excel spreadsheet files into this review list
++				135 button (disabled) publish Import All Ready Rows (0)
++				136 button Issues 0
++				137 button Duplicates 7
++				138 button Ready to Import 0
++				139 button delete_sweep Delete All Duplicates (7), Help: Delete all rows under Duplicates
++				140 table
++					141 row (selectable) ROW
+STUDENT NAME
+DATE
+CASE TYPE
+DATABASE MATCH
+ACTIONS
++					142 row (selectable)
++						143 cell (selectable) 2
++						144 cell (selectable) Release, Taylor
++						145 cell (selectable) 2026-10-14T01:37
++						146 cell (selectable) Bullying
++						147 cell (selectable) expand_more Compare Case, Value: Matches Existing Case
++						148 cell (selectable) edit_note Edit Details
+delete Disregard
++					149 row (selectable)
++						150 cell (selectable) 3
++						151 cell (selectable) Release, Morgan
++						152 cell (selectable) 2026-10-14T01:37
++						153 cell (selectable) Bullying
++						154 cell (selectable) expand_more Compare Case, Value: Matches Existing Case
++						155 cell (selectable) edit_note Edit Details
+delete Disregard
++					156 row (selectable)
++						157 cell (selectable) 4
++						158 cell (selectable) Separate, Evan
++						159 cell (selectable) 2026-10-02
++						160 cell (selectable) Tardiness
++						161 cell (selectable) expand_more Compare Case, Value: Matches Existing Case
++						162 cell (selectable) edit_note Edit Details
+delete Disregard
++					163 row (selectable)
++						164 cell (selectable) 5
++						165 cell (selectable) Separate, Dana
++						166 cell (selectable) 2026-10-02
++						167 cell (selectable) Tardiness
++						168 cell (selectable) expand_more Compare Case, Value: Matches Existing Case
++						169 cell (selectable) edit_note Edit Details
+delete Disregard
++					170 row (selectable)
++						171 cell (selectable) 6
++						172 cell (selectable) Audit, Cara
++						173 cell (selectable) 2026-10-01
++						174 cell (selectable) Family Problems
++						175 cell (selectable) expand_more Compare Case, Value: Matches Existing Case
++						176 cell (selectable) edit_note Edit Details
+delete Disregard
++					177 row (selectable)
++						178 cell (selectable) 7
++						179 cell (selectable) Audit, Ben
++						180 cell (selectable) 2025-03-10
++						181 cell (selectable) Tardiness
++						182 cell (selectable) expand_more Compare Case, Value: Matches Existing Case
++						183 cell (selectable) edit_note Edit Details
+delete Disregard
++					184 row (selectable)
++						185 cell (selectable) 8
++						186 cell (selectable) Audit, Alice
++						187 cell (selectable) 2024-08-15
++						188 cell (selectable) Bullying
++						189 cell (selectable) expand_more Compare Case, Value: Matches Existing Case
++						190 cell (selectable) edit_note Edit Details
+delete Disregard
++	191 close button
++	192 full screen button Help: this button also has an action to zoom the window, Secondary Actions: zoom the window
++	193 minimize button
++	194 text Guidance Office — Release Fixes Test
+The focused UI element is 114 HTML content Description: Laguna College Guidance Office, URL: localhost:1420/#/import-review

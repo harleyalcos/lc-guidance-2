@@ -1,0 +1,26 @@
+   Compiling lc-guidance v0.1.10 (/Users/harleyalcos/Documents/CSBS/lc-guidance-2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.83s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/lc_guidance_lib-2b274a4a05d8c8d8)
+
+running 7 tests
+test db::repository::tests::test_derive_school_year ... ok
+test db::repository::tests::test_app_config_school_year ... ok
+test db::repository::tests::test_ai_query_blocks_sensitive_tables ... ok
+test db::repository::tests::test_export_csv_includes_all_columns ... ok
+test db::repository::tests::test_duplicate_detection_normalized_dates ... ok
+test db::repository::tests::test_insert_and_filter_by_academic_year ... ok
+test db::repository::tests::test_filter_by_group_id ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/main.rs (src-tauri/target/debug/deps/lc_guidance-bce08e6b6905a9b0)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests lc_guidance_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

@@ -1,0 +1,31 @@
+[
+  {
+    "folder": "backup_manual_2026-10-13_19-14-18",
+    "integrity": "ok",
+    "cases": 9,
+    "csv_records": 9,
+    "csv_headers": [
+      "id",
+      "students",
+      "date",
+      "date_filed",
+      "case",
+      "description",
+      "sanction",
+      "progress",
+      "proofs",
+      "first_name",
+      "last_name",
+      "middle_initial",
+      "level",
+      "section",
+      "adviser",
+      "title",
+      "reporting_student",
+      "group_id",
+      "student_roles",
+      "update_history",
+      "school_year"
+    ]
+  }
+]

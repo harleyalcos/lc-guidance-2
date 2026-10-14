@@ -1,3 +1,4 @@
+import { useDialogAccessibility } from "./hooks/useDialogAccessibility";
 import { useEffect, useState } from "react";
 import { HashRouter as Router, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -56,6 +57,8 @@ function AppRoutes() {
 }
 
 function App() {
+  useDialogAccessibility();
+  const [startupError, setStartupError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
 
@@ -72,24 +75,19 @@ function App() {
   useEffect(() => {
     getVersion()
       .then((currentVersion) => {
-        const lastVersion = localStorage.getItem("lc_app_version");
-        if (lastVersion && lastVersion !== currentVersion) {
-          localStorage.removeItem("lc_pending_import_rows");
-          localStorage.removeItem("lc_pending_import_filename");
-          window.dispatchEvent(new Event("storage"));
-          window.dispatchEvent(new Event("pending:changed"));
-        }
+        // Staged work is revalidated on resume rather than discarded on update.
         localStorage.setItem("lc_app_version", currentVersion);
       })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    invoke<boolean>("check_setup_complete")
+    invoke("sign_out").then(() => invoke<boolean>("check_setup_complete"))
       .then(setIsSetupComplete)
-      .catch(() => setIsSetupComplete(false));
+      .catch((error) => setStartupError(String(error)));
   }, []);
 
+  if (startupError) return <div role="alert" className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-background text-on-surface"><h1 className="text-xl font-bold">Unable to open the guidance database</h1><p>{startupError}</p><button className="btn-primary" onClick={() => window.location.reload()}>Retry</button><p>Keep your database and backups. Contact the school IT staff if retry does not help.</p></div>;
   if (isSetupComplete === null) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background text-on-surface">

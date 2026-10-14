@@ -1,0 +1,82 @@
+The following is a diff from the previous accessibility tree for Window: "Guidance Office — Release Fixes Test" with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 78-85
+~			75 container
+~				76 button (expanded) Collapse sidebar, Secondary Actions: Collapse
+~				77 image Laguna College Logo
++				78 heading Laguna College, Value: 1
++					79 text Laguna College
++				80 text GUIDANCE OFFICE
++				81 link dashboard Dashboard, Value: localhost:1420/#/
++				82 link pending_actions Pending Cases, Value: localhost:1420/#/pending
++				83 link folder_open Case Catalog, Value: localhost:1420/#/catalog
++				84 link assessment Reports, Value: localhost:1420/#/reports
++				85 link smart_toy Guidance AI BETA, Value: localhost:1420/#/ai
++				86 link settings Settings, Value: localhost:1420/#/account
++				87 button logout Sign Out
++			88 container
++				89 heading Settings, Value: 2
++					90 text Settings
++				91 button pending 7 Pending Imports, Help: Click to resume pending imports review
++			92 container
++				93 heading Settings, Value: 1
++					94 text Settings
++				95 button tune General Settings
++				96 button backup Backup & Recovery
++				97 text check_circle
++				98 heading Last backup: 2026-10-14 01:44, Value: 3
++					99 text Last backup: 2026-10-14 01:44
++				100 text Automatic backups: Daily. Scheduled backups run while the app is open.
++				101 button backup Backup Now
++				102 heading Backup History, Value: 3
++					103 text Backup History
++				104 table
++					105 row (selectable) DATE & TIME
+TYPE
+FILE SIZE
+ACTION
++					106 row (selectable)
++						107 cell (selectable) 2026-10-14 01:44
++						108 cell (selectable) SAFETY
++						109 cell (selectable) 88.7 KB
++						110 cell (selectable) settings_backup_restore Restore
+delete
++					111 row (selectable)
++						112 cell (selectable) 2026-10-14 01:43
++						113 cell (selectable) MANUAL
++						114 cell (selectable) 88.7 KB
++						115 cell (selectable) settings_backup_restore Restore
+delete
++					116 row (selectable)
++						117 cell (selectable) 2026-10-14 01:36
++						118 cell (selectable) SAFETY
++						119 cell (selectable) 77.5 KB
++						120 cell (selectable) settings_backup_restore Restore
+delete
++					121 row (selectable)
++						122 cell (selectable) 2026-10-14 01:35
++						123 cell (selectable) SAFETY
++						124 cell (selectable) 76.2 KB
++						125 cell (selectable) settings_backup_restore Restore
+delete
++					126 row (selectable)
++						127 cell (selectable) 2026-10-14 01:25
++						128 cell (selectable) AUTOMATIC
++						129 cell (selectable) 76.2 KB
++						130 cell (selectable) settings_backup_restore Restore
+delete
++				131 text settings
++				132 heading Backup Settings, Value: 3
++					133 text Backup Settings
++				134 heading Automatic Backups, Value: 4
++					135 text Automatic Backups
++				136 text Run scheduled backups while the app is open. Manual and safety backups are retained until you delete them.
++				137 toggle button Automatic backups, Value: on
++				138 text Frequency
++				139 pop up button Backup frequency, Value: Daily
++				140 text expand_more Retention Policy Keep last
++				141 number field (settable) Automatic backups to retain, Value: 7
++					142 stepper 0
++						143 unknown
++						144 unknown
++				145 text automatic backups
+The focused UI element is 146 button settings_backup_restore Restore

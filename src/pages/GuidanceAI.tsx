@@ -512,6 +512,7 @@ export default function GuidanceAI() {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?alt=sse&key=${apiKey}`,
         {
+          signal: AbortSignal.timeout(90_000),
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

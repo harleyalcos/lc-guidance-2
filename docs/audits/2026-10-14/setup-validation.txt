@@ -1,0 +1,4 @@
+The following is a diff from the previous accessibility tree for Window: "Guidance Office — Release Fixes Test" with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
++			30 container
++				31 text error Create a 6-digit login PIN.
+The focused UI element is 2 HTML content Description: Laguna College Guidance Office, URL: localhost:1420/

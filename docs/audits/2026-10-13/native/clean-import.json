@@ -1,0 +1,106 @@
+{
+  "checkpoint": "clean-import",
+  "database": "/tmp/lc-guidance-native-audit-cJ0ELO/src-tauri/db/guidance.db",
+  "integrity": "ok",
+  "setup_complete": true,
+  "case_count": 3,
+  "cases": [
+    {
+      "id": 1,
+      "first_name": "Alice",
+      "last_name": "Audit",
+      "level": "Grade 7",
+      "date": "2024-08-15",
+      "date_filed": "2024-08-15",
+      "case": "Bullying",
+      "sanction": "Verbal Warning",
+      "progress": "Pending",
+      "group_id": null,
+      "school_year": "2024-2025",
+      "students": [
+        {
+          "firstName": "Alice",
+          "lastName": "Audit",
+          "middleInitial": "",
+          "level": "Grade 7",
+          "section": "A",
+          "adviser": "Test Teacher",
+          "role": "Respondent",
+          "sanction": null
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2024-08-15T00:00:00.000Z",
+          "action": "Case created"
+        }
+      ],
+      "proof_count": 0
+    },
+    {
+      "id": 2,
+      "first_name": "Ben",
+      "last_name": "Audit",
+      "level": "7",
+      "date": "2025-03-10",
+      "date_filed": "2025-03-10",
+      "case": "Tardiness",
+      "sanction": "Written Reprimand",
+      "progress": "Resolved",
+      "group_id": null,
+      "school_year": "2024-2025",
+      "students": [
+        {
+          "firstName": "Ben",
+          "lastName": "Audit",
+          "middleInitial": "",
+          "level": "7",
+          "section": "B",
+          "adviser": "Test Teacher",
+          "role": "Respondent",
+          "sanction": null
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2025-03-10T00:00:00.000Z",
+          "action": "Case created"
+        }
+      ],
+      "proof_count": 0
+    },
+    {
+      "id": 3,
+      "first_name": "Cara",
+      "last_name": "Audit",
+      "level": "Grade 10",
+      "date": "2026-10-01",
+      "date_filed": "2026-10-01",
+      "case": "Family Problems",
+      "sanction": "",
+      "progress": "Pending",
+      "group_id": null,
+      "school_year": "2026-2027",
+      "students": [
+        {
+          "firstName": "Cara",
+          "lastName": "Audit",
+          "middleInitial": "",
+          "level": "Grade 10",
+          "section": "C",
+          "adviser": "Test Teacher",
+          "role": "Respondent",
+          "sanction": null
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2026-10-01T00:00:00.000Z",
+          "action": "Case created"
+        }
+      ],
+      "proof_count": 0
+    }
+  ],
+  "ai_session_count": 0
+}

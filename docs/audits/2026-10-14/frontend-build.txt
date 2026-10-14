@@ -1,0 +1,67 @@
+
+> lc-guidance@0.1.11 build
+> tsc && vite build
+
+vite v7.3.5 building client environment for production...
+transforming...
+✓ 536 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                            0.48 kB │ gzip:     0.31 kB
+dist/assets/public-sans-vietnamese-500-normal-DjztbcKe.woff2               4.50 kB
+dist/assets/public-sans-vietnamese-400-normal-TxZB8OSn.woff2               4.52 kB
+dist/assets/public-sans-vietnamese-500-normal-CXYe29CY.woff                5.94 kB
+dist/assets/public-sans-vietnamese-400-normal-BO1meqcx.woff                5.94 kB
+dist/assets/source-serif-4-vietnamese-400-normal-DFDfvBrN.woff2            6.30 kB
+dist/assets/source-serif-4-vietnamese-600-normal-B33FcZBi.woff2            6.37 kB
+dist/assets/source-serif-4-cyrillic-ext-400-normal-CWV284fw.woff2          7.15 kB
+dist/assets/source-serif-4-cyrillic-ext-600-normal-D_E8FDgP.woff2          7.29 kB
+dist/assets/source-serif-4-greek-400-normal-Cw5-AHNN.woff2                 7.92 kB
+dist/assets/source-serif-4-vietnamese-400-normal-9XEw6Pmr.woff             8.10 kB
+dist/assets/source-serif-4-greek-600-normal-DdRkKr-1.woff2                 8.13 kB
+dist/assets/source-serif-4-cyrillic-ext-400-normal-CYkrUebz.woff           8.17 kB
+dist/assets/source-serif-4-vietnamese-600-normal-CKUOBVO_.woff             8.23 kB
+dist/assets/source-serif-4-cyrillic-ext-600-normal-h2VnbV3V.woff           8.32 kB
+dist/assets/courier-prime-latin-ext-400-normal-CKOCNFvK.woff               9.04 kB
+dist/assets/courier-prime-latin-ext-700-normal-BIFoAzHx.woff               9.28 kB
+dist/assets/source-serif-4-greek-400-normal-D_DO3bho.woff                  9.28 kB
+dist/assets/source-serif-4-greek-600-normal-OkzgCkGB.woff                  9.57 kB
+dist/assets/public-sans-latin-ext-500-normal-DC-z7ASZ.woff2               10.45 kB
+dist/assets/public-sans-latin-ext-400-normal-mk90oQqJ.woff2               10.45 kB
+dist/assets/courier-prime-latin-ext-400-normal-B-EsvyE4.woff2             12.74 kB
+dist/assets/courier-prime-latin-ext-700-normal-ByMJlNdM.woff2             12.93 kB
+dist/assets/source-serif-4-cyrillic-400-normal-C44pakCn.woff2             14.17 kB
+dist/assets/public-sans-latin-ext-400-normal-B02wwOdZ.woff                14.20 kB
+dist/assets/public-sans-latin-ext-500-normal-BHCCp-na.woff                14.20 kB
+dist/assets/courier-prime-latin-400-normal-BAlbUm6l.woff                  14.38 kB
+dist/assets/public-sans-latin-400-normal-8Rpg0ruU.woff2                   14.63 kB
+dist/assets/public-sans-latin-500-normal-NlrCPXnF.woff2                   14.66 kB
+dist/assets/courier-prime-latin-700-normal-CVvp4Sof.woff                  14.68 kB
+dist/assets/source-serif-4-cyrillic-600-normal-BDP5YDHD.woff2             14.78 kB
+dist/assets/source-serif-4-cyrillic-400-normal-DEwCKrdL.woff              15.91 kB
+dist/assets/source-serif-4-cyrillic-600-normal-CHh5eQWW.woff              16.49 kB
+dist/assets/source-serif-4-latin-ext-400-normal-B5LksYz5.woff2            17.84 kB
+dist/assets/source-serif-4-latin-ext-600-normal-pa-C5Dkf.woff2            18.33 kB
+dist/assets/public-sans-latin-400-normal-SBbinRkI.woff                    18.49 kB
+dist/assets/public-sans-latin-500-normal-vCxiVFAq.woff                    18.52 kB
+dist/assets/courier-prime-latin-400-normal-BbyBr73r.woff2                 18.64 kB
+dist/assets/courier-prime-latin-700-normal-D1YCjmaD.woff2                 19.35 kB
+dist/assets/source-serif-4-latin-400-normal-DJ5YJwmz.woff2                20.09 kB
+dist/assets/source-serif-4-latin-600-normal-DouSKlru.woff2                21.53 kB
+dist/assets/source-serif-4-latin-ext-400-normal-DKmgyNre.woff             21.96 kB
+dist/assets/source-serif-4-latin-ext-600-normal-B2fExS53.woff             22.57 kB
+dist/assets/source-serif-4-latin-400-normal-C1O10bxN.woff                 24.11 kB
+dist/assets/source-serif-4-latin-600-normal-DeJomR3S.woff                 25.72 kB
+dist/assets/material-symbols-outlined-latin-400-normal-BhEvR8fk.woff2    323.33 kB
+dist/assets/lc-official-logo-BzvEJsOQ.jpg                                344.87 kB
+dist/assets/material-symbols-outlined-latin-400-normal-QdgSk6Ss.woff     379.56 kB
+dist/assets/lc-logo-Bf9SPLIY.png                                         470.97 kB
+dist/assets/guidance-logo-3N2i5VpB.png                                 1,389.56 kB
+dist/assets/index-sKvb_0Qw.css                                           106.40 kB │ gzip:    18.80 kB
+dist/assets/index-D5f8Os5L.js                                          4,299.93 kB │ gzip: 1,305.76 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 6.29s

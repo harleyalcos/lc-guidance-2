@@ -23,3 +23,9 @@ src-tauri/db/
 *.njsproj
 *.sln
 *.sw?
+
+# Local audit build output
+docs/audits/**/target/
+
+# Downloaded Windows acceptance installers
+/release-artifacts/

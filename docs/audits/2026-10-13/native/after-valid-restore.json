@@ -1,0 +1,358 @@
+{
+  "checkpoint": "after-valid-restore",
+  "database": "/tmp/lc-guidance-native-audit-cJ0ELO/src-tauri/db/guidance.db",
+  "integrity": "ok",
+  "setup_complete": true,
+  "case_count": 9,
+  "cases": [
+    {
+      "id": 1,
+      "first_name": "Alice",
+      "last_name": "Audit",
+      "level": "Grade 7",
+      "date": "2024-08-15",
+      "date_filed": "2024-08-15",
+      "case": "Bullying",
+      "sanction": "Verbal Warning",
+      "progress": "Pending",
+      "group_id": null,
+      "school_year": "2024-2025",
+      "students": [
+        {
+          "firstName": "Alice",
+          "lastName": "Audit",
+          "middleInitial": "",
+          "level": "Grade 7",
+          "section": "A",
+          "adviser": "Test Teacher",
+          "role": "Respondent",
+          "sanction": null
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2024-08-15T00:00:00.000Z",
+          "action": "Case created"
+        }
+      ],
+      "proof_count": 0
+    },
+    {
+      "id": 2,
+      "first_name": "Ben",
+      "last_name": "Audit",
+      "level": "7",
+      "date": "2025-03-10",
+      "date_filed": "2025-03-10",
+      "case": "Tardiness",
+      "sanction": "Written Reprimand",
+      "progress": "Resolved",
+      "group_id": null,
+      "school_year": "2024-2025",
+      "students": [
+        {
+          "firstName": "Ben",
+          "lastName": "Audit",
+          "middleInitial": "",
+          "level": "7",
+          "section": "B",
+          "adviser": "Test Teacher",
+          "role": "Respondent",
+          "sanction": null
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2025-03-10T00:00:00.000Z",
+          "action": "Case created"
+        }
+      ],
+      "proof_count": 0
+    },
+    {
+      "id": 3,
+      "first_name": "Cara",
+      "last_name": "Audit",
+      "level": "Grade 10",
+      "date": "2026-10-01",
+      "date_filed": "2026-10-01",
+      "case": "Family Problems",
+      "sanction": "",
+      "progress": "Pending",
+      "group_id": null,
+      "school_year": "2026-2027",
+      "students": [
+        {
+          "firstName": "Cara",
+          "lastName": "Audit",
+          "middleInitial": "",
+          "level": "Grade 10",
+          "section": "C",
+          "adviser": "Test Teacher",
+          "role": "Respondent",
+          "sanction": null
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2026-10-01T00:00:00.000Z",
+          "action": "Case created"
+        }
+      ],
+      "proof_count": 0
+    },
+    {
+      "id": 4,
+      "first_name": "Dana",
+      "last_name": "Separate",
+      "level": "Grade 8",
+      "date": "2026-10-02",
+      "date_filed": "2026-10-02",
+      "case": "Tardiness",
+      "sanction": "Warning",
+      "progress": "Pending",
+      "group_id": "f54d56e1-ef04-4a77-a4ef-75e655d97f0d",
+      "school_year": "2026-2027",
+      "students": [
+        {
+          "firstName": "Dana",
+          "lastName": "Separate",
+          "middleInitial": "",
+          "level": "Grade 8",
+          "section": "A",
+          "adviser": "Test Teacher",
+          "role": "Respondent",
+          "sanction": null
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2026-10-02T00:00:00.000Z",
+          "action": "Case created"
+        }
+      ],
+      "proof_count": 0
+    },
+    {
+      "id": 5,
+      "first_name": "Evan",
+      "last_name": "Separate",
+      "level": "Grade 9",
+      "date": "2026-10-02",
+      "date_filed": "2026-10-02",
+      "case": "Tardiness",
+      "sanction": "Warning",
+      "progress": "Pending",
+      "group_id": "f54d56e1-ef04-4a77-a4ef-75e655d97f0d",
+      "school_year": "2026-2027",
+      "students": [
+        {
+          "firstName": "Evan",
+          "lastName": "Separate",
+          "middleInitial": "",
+          "level": "Grade 9",
+          "section": "B",
+          "adviser": "Different Teacher",
+          "role": "Respondent",
+          "sanction": null
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2026-10-02T00:00:00.000Z",
+          "action": "Case created"
+        }
+      ],
+      "proof_count": 0
+    },
+    {
+      "id": 6,
+      "first_name": "Dana",
+      "last_name": "Separate",
+      "level": "Grade 8",
+      "date": "2026-10-02",
+      "date_filed": "2026-10-02",
+      "case": "Tardiness",
+      "sanction": "Warning",
+      "progress": "Pending",
+      "group_id": "efd55420-fbed-4247-8c19-368ce5f43e11",
+      "school_year": "2026-2027",
+      "students": [
+        {
+          "firstName": "Dana",
+          "lastName": "Separate",
+          "middleInitial": "",
+          "level": "Grade 8",
+          "section": "A",
+          "adviser": "Test Teacher",
+          "role": "Respondent",
+          "sanction": ""
+        },
+        {
+          "firstName": "Jamie",
+          "lastName": "Subjectaudit",
+          "middleInitial": "",
+          "level": "Grade 8",
+          "section": "B",
+          "adviser": "Test Teacher",
+          "role": "Complainant / Subject",
+          "sanction": ""
+        },
+        {
+          "firstName": "Jamie",
+          "lastName": "Subjectaudit",
+          "middleInitial": "",
+          "level": "Grade 8",
+          "section": "B",
+          "adviser": "Test Teacher",
+          "role": "Complainant / Subject",
+          "sanction": ""
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2026-10-02T00:00:00.000Z",
+          "action": "Case created"
+        },
+        {
+          "timestamp": "2026-10-13T11:08:35.561588+00:00",
+          "action": "Added complainant Jamie Subjectaudit"
+        },
+        {
+          "timestamp": "2026-10-13T11:08:55.096111+00:00",
+          "action": "{\"text\":\"Group case details were updated.\",\"diffs\":[{\"label\":\"Group Edit\",\"oldVal\":\"Group Incident - Tardiness\",\"newVal\":\"Group Incident - Tardiness\"}]}"
+        }
+      ],
+      "proof_count": 0
+    },
+    {
+      "id": 7,
+      "first_name": "Evan",
+      "last_name": "Separate",
+      "level": "Grade 9",
+      "date": "2026-10-02",
+      "date_filed": "2026-10-02",
+      "case": "Tardiness",
+      "sanction": "Warning",
+      "progress": "Pending",
+      "group_id": "efd55420-fbed-4247-8c19-368ce5f43e11",
+      "school_year": "2026-2027",
+      "students": [
+        {
+          "firstName": "Evan",
+          "lastName": "Separate",
+          "middleInitial": "",
+          "level": "Grade 9",
+          "section": "B",
+          "adviser": "Different Teacher",
+          "role": "Respondent",
+          "sanction": ""
+        },
+        {
+          "firstName": "Jamie",
+          "lastName": "Subjectaudit",
+          "middleInitial": "",
+          "level": "Grade 8",
+          "section": "B",
+          "adviser": "Test Teacher",
+          "role": "Complainant / Subject",
+          "sanction": ""
+        },
+        {
+          "firstName": "Jamie",
+          "lastName": "Subjectaudit",
+          "middleInitial": "",
+          "level": "Grade 8",
+          "section": "B",
+          "adviser": "Test Teacher",
+          "role": "Complainant / Subject",
+          "sanction": ""
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2026-10-02T00:00:00.000Z",
+          "action": "Case created"
+        },
+        {
+          "timestamp": "2026-10-13T11:08:35.557856+00:00",
+          "action": "Added complainant Jamie Subjectaudit"
+        },
+        {
+          "timestamp": "2026-10-13T11:08:55.091504+00:00",
+          "action": "{\"text\":\"Group case details were updated.\",\"diffs\":[{\"label\":\"Group Edit\",\"oldVal\":\"Group Incident - Tardiness\",\"newVal\":\"Group Incident - Tardiness\"}]}"
+        }
+      ],
+      "proof_count": 0
+    },
+    {
+      "id": 8,
+      "first_name": "Frank",
+      "last_name": "Audit",
+      "level": "Grade 7",
+      "date": "2025-02-28",
+      "date_filed": "2025-02-28",
+      "case": "Bullying",
+      "sanction": "",
+      "progress": "Pending",
+      "group_id": null,
+      "school_year": "2024-2025",
+      "students": [
+        {
+          "firstName": "Frank",
+          "lastName": "Audit",
+          "middleInitial": "",
+          "level": "Grade 7",
+          "section": "A",
+          "adviser": "Test Teacher",
+          "role": "Respondent",
+          "sanction": null
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2025-02-28T00:00:00.000Z",
+          "action": "Case created"
+        }
+      ],
+      "proof_count": 0
+    },
+    {
+      "id": 9,
+      "first_name": "Harper",
+      "last_name": "Manualaudit",
+      "level": "Grade 7",
+      "date": "2026-10-13T19:04",
+      "date_filed": "2026-10-13T11:05:47.357Z",
+      "case": "Bullying",
+      "sanction": "Verbal Warning",
+      "progress": "Resolved",
+      "group_id": null,
+      "school_year": "2026-2027",
+      "students": [
+        {
+          "firstName": "Harper",
+          "lastName": "Manualaudit",
+          "middleInitial": "",
+          "level": "Grade 7",
+          "section": "",
+          "adviser": "Test Teacher",
+          "role": "Respondent",
+          "sanction": null
+        }
+      ],
+      "update_history": [
+        {
+          "timestamp": "2026-10-13T11:05:47.357ZT00:00:00.000Z",
+          "action": "Case created"
+        },
+        {
+          "timestamp": "2026-10-13T11:06:34.584197+00:00",
+          "action": "{\"text\":\"Updated Description.\",\"diffs\":[{\"label\":\"Description\",\"oldVal\":\"Previous description\",\"newVal\":\"Updated description\"}]}"
+        }
+      ],
+      "proof_count": 1
+    }
+  ],
+  "ai_session_count": 0
+}

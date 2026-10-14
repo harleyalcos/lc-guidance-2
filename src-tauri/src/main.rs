@@ -15,15 +15,24 @@ fn main() {
             let connection = db::open_db(&db_path)?;
             db::schema::initialize_schema(&connection)?;
 
-            #[cfg(not(debug_assertions))]
+            let mut state = db::DbState::new(connection);
+            state.backup_dir = Some(app.path().app_data_dir()?.join("backups"));
             {
-                let app_data_dir = app.path().app_data_dir()?;
-                let backup_dir = app_data_dir.join("backups");
-                std::fs::create_dir_all(&backup_dir)?;
-                db::backup::run_backup(&db_path, &backup_dir, &connection)?;
+                let connection = state
+                    .connection
+                    .lock()
+                    .map_err(|_| "Database unavailable")?;
+                db::backup::run_scheduled(&state, &connection, false);
             }
-
-            app.manage(db::DbState::new(connection));
+            app.manage(state);
+            let handle = app.handle().clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+                let state = handle.state::<db::DbState>();
+                if let Ok(connection) = state.connection.lock() {
+                    db::backup::run_scheduled(&state, &connection, false);
+                };
+            });
 
             Ok(())
         })
@@ -38,6 +47,8 @@ fn main() {
             commands::complete_setup,
             commands::test_smtp,
             commands::verify_pin,
+            commands::get_session,
+            commands::sign_out,
             commands::request_otp,
             commands::verify_otp,
             commands::request_recovery_email_otp,
@@ -50,6 +61,8 @@ fn main() {
             commands::get_recovery_email,
             commands::update_recovery_email,
             commands::get_backups,
+            commands::get_backup_policy,
+            commands::set_backup_policy,
             commands::create_backup,
             commands::restore_backup,
             commands::delete_backup,
@@ -59,6 +72,8 @@ fn main() {
             commands::batch_import_cases,
             commands::generate_import_template,
             commands::validate_import_row,
+            commands::validate_import_rows,
+            commands::apply_case_changes,
             commands::export_db_file,
             commands::import_db_file,
             commands::get_gemini_api_key,

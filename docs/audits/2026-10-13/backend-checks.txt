@@ -1,0 +1,103 @@
+   Compiling guidance-rollout-audit v0.0.0 (/Users/harleyalcos/Documents/CSBS/lc-guidance-2/docs/audits/2026-10-13/harness)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.58s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/guidance_rollout_audit-acafbce3cd9aae60)
+
+running 15 tests
+test tests::expired_verified_otp_cannot_change_recovery_email ... FAILED
+test tests::academic_filter_excludes_previous_school_year ... FAILED
+test tests::editing_date_updates_school_year ... FAILED
+test tests::new_case_datetime_derives_january_academic_year ... FAILED
+test tests::confidential_database_reads_require_login ... FAILED
+test tests::creation_history_has_valid_timestamp ... FAILED
+test tests::app_default_excel_export_can_be_imported ... FAILED
+test tests::numeric_import_grade_is_canonical_for_grade_filters ... FAILED
+test tests::excel_same_date_and_type_do_not_imply_same_incident ... FAILED
+test tests::imported_dates_and_invalid_dates_are_checked ... ok
+test tests::import_validation_returns_matching_students_and_primary_name ... ok
+test tests::ordinary_case_crud_and_group_filter_work ... ok
+test tests::write_synthetic_browser_fixtures ... ok
+test tests::complete_setup_cannot_overwrite_initialized_account ... FAILED
+test tests::reset_removes_confidential_ai_history ... FAILED
+
+failures:
+
+---- tests::expired_verified_otp_cannot_change_recovery_email stdout ----
+
+thread 'tests::expired_verified_otp_cannot_change_recovery_email' panicked at src/lib.rs:84:9:
+assertion failed: commands::update_recovery_email(app.state(), "attacker@example.test".into(),
+        None).is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- tests::academic_filter_excludes_previous_school_year stdout ----
+
+thread 'tests::academic_filter_excludes_previous_school_year' panicked at src/lib.rs:30:9:
+A March 2025 case from AY 2024-2025 must not appear in AY 2025-2026
+
+---- tests::editing_date_updates_school_year stdout ----
+
+thread 'tests::editing_date_updates_school_year' panicked at src/lib.rs:43:9:
+assertion `left == right` failed
+  left: "2024-2025"
+ right: "2026-2027"
+
+---- tests::new_case_datetime_derives_january_academic_year stdout ----
+
+thread 'tests::new_case_datetime_derives_january_academic_year' panicked at src/lib.rs:35:9:
+assertion `left == right` failed
+  left: "2025-2026"
+ right: "2024-2025"
+
+---- tests::confidential_database_reads_require_login stdout ----
+
+thread 'tests::confidential_database_reads_require_login' panicked at src/lib.rs:142:9:
+Case records can be read before verifying any PIN
+
+---- tests::creation_history_has_valid_timestamp stdout ----
+
+thread 'tests::creation_history_has_valid_timestamp' panicked at src/lib.rs:53:9:
+Invalid creation timestamp: 2026-10-13T09:15:00.000ZT00:00:00.000Z
+
+---- tests::app_default_excel_export_can_be_imported stdout ----
+
+thread 'tests::app_default_excel_export_can_be_imported' panicked at src/lib.rs:136:9:
+The app rejects its own default export: Some("Invalid import format.\n\nColumn 1 should be 'Full Name' but got ''\nColumn 2 should be 'Date' but got 'LAGUNA COLLEGE'\nColumn 3 should be 'Case' but got ''\nColumn 4 should be 'Sanction' but got ''\nColumn 5 should be 'Progress' but got ''\nColumn 6 should be 'Grade' but got ''\nColumn 7 should be 'Section' but got ''\nColumn 8 should be 'Adviser' but got ''")
+
+---- tests::numeric_import_grade_is_canonical_for_grade_filters stdout ----
+
+thread 'tests::numeric_import_grade_is_canonical_for_grade_filters' panicked at src/lib.rs:68:9:
+assertion `left == right` failed
+  left: "7"
+ right: "Grade 7"
+
+---- tests::excel_same_date_and_type_do_not_imply_same_incident stdout ----
+
+thread 'tests::excel_same_date_and_type_do_not_imply_same_incident' panicked at src/lib.rs:110:9:
+Independent rows silently linked to a group: [Some("94c32ec3-60ed-4255-bccb-4a366c5d277a"), Some("94c32ec3-60ed-4255-bccb-4a366c5d277a")]
+
+---- tests::complete_setup_cannot_overwrite_initialized_account stdout ----
+
+thread 'tests::complete_setup_cannot_overwrite_initialized_account' panicked at src/lib.rs:76:9:
+Initialized account was overwritten without PIN or OTP
+
+---- tests::reset_removes_confidential_ai_history stdout ----
+
+thread 'tests::reset_removes_confidential_ai_history' panicked at src/lib.rs:95:9:
+AI case history survives application reset
+
+
+failures:
+    tests::academic_filter_excludes_previous_school_year
+    tests::app_default_excel_export_can_be_imported
+    tests::complete_setup_cannot_overwrite_initialized_account
+    tests::confidential_database_reads_require_login
+    tests::creation_history_has_valid_timestamp
+    tests::editing_date_updates_school_year
+    tests::excel_same_date_and_type_do_not_imply_same_incident
+    tests::expired_verified_otp_cannot_change_recovery_email
+    tests::new_case_datetime_derives_january_academic_year
+    tests::numeric_import_grade_is_canonical_for_grade_filters
+    tests::reset_removes_confidential_ai_history
+
+test result: FAILED. 4 passed; 11 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+
+error: test failed, to rerun pass `--lib`
