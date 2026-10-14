@@ -2,6 +2,8 @@
 
 Version **0.1.11**, branch `codex/release-readiness-fixes`. All 27 confirmed findings from the [baseline audit](../2026-10-13/ROLLOUT_READINESS.md) have implementation fixes. R23 remains withdrawn. The app is a **Windows acceptance candidate**; unconditional office deployment sign-off still requires the actual office PC, workbook and external services described in the [installation guide](../../release/GUIDANCE_OFFICE_INSTALLATION.md).
 
+Installer packaging was corrected after the first acceptance build: releases and updates now use `downloadBootstrapper`, matching the earlier small-installer behavior. The full WebView2 offline installer is no longer bundled. The existing tag-triggered automatic publishing behavior is restored. The earlier 227 MB acceptance artifact is superseded; use the rebuilt artifact from the latest branch check.
+
 ## Validation
 
 - **37 Rust tests pass** (7 existing + 30 release regressions), including authorization, OTP expiry/purpose/consumption, atomic saves/retries, import validation/duplicates, failed database replacement, backup scheduling/retention, reset and history. [Log](rust-tests.txt).
