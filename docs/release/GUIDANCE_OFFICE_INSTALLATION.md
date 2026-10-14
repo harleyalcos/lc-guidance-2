@@ -1,10 +1,10 @@
 # Guidance office installation and acceptance — 0.1.11
 
-Use the Windows acceptance installer from the release-checks workflow for a pilot. Publish the signed release installer only after the school completes the acceptance steps below. Acceptance builds disable updater signatures; the normal release workflow still requires the existing signing secrets and creates a draft release.
+Use the Windows acceptance installer from the release-checks workflow for a pilot. Complete the school acceptance steps below before tagging a production update. Acceptance builds disable updater signatures; the normal release workflow still requires the existing signing secrets and publishes the release automatically when a version tag is pushed.
 
 ## First installation
 
-1. Install under the Windows account that guidance staff will use. The installer includes the WebView2 offline installer. Verify installation using a standard account, launch the app, and check the screen at the office's normal scaling.
+1. Install under the Windows account that guidance staff will use. The small installer uses the existing WebView2 runtime; internet is required to download it only if it is missing. Verify installation using a standard account, launch the app, and check the screen at the office's normal scaling. The updater downloads the full small installer; the WebView2 offline installer is not bundled into releases or updates.
 2. Create a six-digit PIN and store it securely with the office's authorized custodian. Setup works without internet. Sign out and sign in again.
 3. Email recovery is optional. To enable it, use a Gmail sender with Google 2-Step Verification and a **16-character App Password**. In Settings, enter the sender, App Password, recovery address and current PIN. Send a test, confirm receipt in the recovery inbox, then save. Test Forgot PIN with synthetic data before relying on recovery. Codes expire and are single-use; use Resend or Back if needed.
 4. Gemini is optional. Leave the key empty until the school approves using it. AI requests can send the requested case context to Google's Gemini service. Ordinary filing, reports, Excel import and backups work without AI.
