@@ -1,0 +1,9 @@
+{
+  "checkpoint": "fresh-launch",
+  "database": "/tmp/lc-guidance-native-audit-cJ0ELO/src-tauri/db/guidance.db",
+  "integrity": "ok",
+  "setup_complete": false,
+  "case_count": 0,
+  "cases": [],
+  "ai_session_count": 0
+}

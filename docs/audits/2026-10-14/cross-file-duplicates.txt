@@ -1,0 +1,62 @@
+The following is a diff from the previous accessibility tree for Window: "Guidance Office — Release Fixes Test" with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 21, 28-81
+~14 standard window Guidance Office — Release Fixes Test, Secondary Actions: Raise
+~	15 scroll area
+~		16 HTML content Description: Laguna College Guidance Office, URL: localhost:1420/#/import-review
+~			17 container
+~				18 button (expanded) Collapse sidebar, Secondary Actions: Collapse
+~				19 image Laguna College Logo
+~				20 heading Laguna College, Value: 1
++					21 text Laguna College
+~				22 text GUIDANCE OFFICE
+~				23 link dashboard Dashboard, Value: localhost:1420/#/
+~				24 link pending_actions Pending Cases, Value: localhost:1420/#/pending
+~				25 link folder_open Case Catalog, Value: localhost:1420/#/catalog
+~				26 link assessment Reports, Value: localhost:1420/#/reports
+~				27 link smart_toy Guidance AI BETA, Value: localhost:1420/#/ai
++				28 link settings Settings, Value: localhost:1420/#/account
++				29 button logout Sign Out
++			30 container
++				31 button arrow_back, Help: Go Back
++				32 heading Import Review 02-independent-same-day.xlsx, 05-copy-independent-same-day.xlsx, Value: 2
++					33 text Import Review 02-independent-same-day.xlsx, 05-copy-independent-same-day.xlsx
++				34 button delete_sweep Discard Session, Help: Discard all remaining rows and cancel this import session
++				35 button auto_fix_high AI Categorize, Help: Automatically standardize and map case categories using AI and guidance classification
++				36 button add Add More Files, Help: Import additional Excel spreadsheet files into this review list
++				37 button publish Import All Ready Rows (2)
++				38 button Issues 0
++				39 button Duplicates 2
++				40 button Ready to Import 2
++				41 button delete_sweep Delete All Ready (2), Help: Delete all rows under Ready to Import
++				42 table
++					43 row (selectable) ROW
+STUDENT NAME
+DATE
+CASE TYPE
+STATUS
+ACTIONS
++					44 row (selectable)
++						45 cell (selectable) 2
++						46 cell (selectable) Separate, Dana
++						47 cell (selectable) 2026-10-02
++						48 cell (selectable) Tardiness
++						49 cell (selectable) check_circle
+Ready
++						50 cell (selectable) edit_note Edit Row
+delete Disregard
++					51 row (selectable)
++						52 cell (selectable) 3
++						53 cell (selectable) Separate, Evan
++						54 cell (selectable) 2026-10-02
++						55 cell (selectable) Tardiness
++						56 cell (selectable) check_circle
+Ready
++						57 cell (selectable) edit_note Edit Row
+delete Disregard
++			58 container
++				59 text info Added 2 rows from 05-copy-independent-same-day.xlsx
++	60 close button
++	61 full screen button Help: this button also has an action to zoom the window, Secondary Actions: zoom the window
++	62 minimize button
++	63 text Guidance Office — Release Fixes Test
+The focused UI element is 16 HTML content Description: Laguna College Guidance Office, URL: localhost:1420/#/import-review

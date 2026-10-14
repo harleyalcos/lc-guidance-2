@@ -5,6 +5,17 @@ const visible = (node: HTMLElement) => !!node.getClientRects().length && !node.c
 export function useDialogAccessibility() {
   useEffect(() => {
     const opened = new Map<HTMLElement, HTMLElement | null>();
+    let lastControl: HTMLElement | null = null;
+    const rememberControl = (event: Event) => {
+      if (event.target instanceof Element) {
+        lastControl = event.target.closest<HTMLElement>('button,input,select,textarea,a[href],[tabindex="0"]');
+        // WebKit does not focus mouse-clicked buttons by default. Focus the trigger
+        // before React opens its dialog so closing can return to that same control.
+        if (event.type === 'click' && lastControl?.matches('button,a[href],[role="button"]')) {
+          lastControl.focus({ preventScroll: true });
+        }
+      }
+    };
     const inerted = new Map<HTMLElement, boolean>();
     const dialogs = () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).filter(d => !!d.getClientRects().length);
     const reconcile = () => {
@@ -34,7 +45,11 @@ export function useDialogAccessibility() {
         top.setAttribute('aria-labelledby',heading.id);
       }
       const isNew = !opened.has(top);
-      if (isNew) opened.set(top, document.activeElement instanceof HTMLElement ? document.activeElement : null);
+      if (isNew) {
+        const focused = document.activeElement;
+        opened.set(top, focused instanceof HTMLElement && focused.matches(focusableSelector) && !top.contains(focused)
+          ? focused : lastControl);
+      }
       let current: HTMLElement = top;
       while (current.parentElement && current.parentElement !== document.documentElement) {
         for (const sibling of current.parentElement.children) {
@@ -72,9 +87,13 @@ export function useDialogAccessibility() {
     const observer = new MutationObserver(reconcile);
     observer.observe(document.body,{childList:true,subtree:true});
     document.addEventListener('keydown',keydown,true);
+    document.addEventListener('pointerdown',rememberControl,true);
+    document.addEventListener('click',rememberControl,true);
     reconcile();
     return () => {
       observer.disconnect(); document.removeEventListener('keydown',keydown,true);
+      document.removeEventListener('pointerdown',rememberControl,true);
+      document.removeEventListener('click',rememberControl,true);
       for (const [element, original] of inerted) element.inert = original;
     };
   },[]);

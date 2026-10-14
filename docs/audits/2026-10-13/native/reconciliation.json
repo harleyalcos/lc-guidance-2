@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-13",
+  "sourceCommit": "18e2692",
+  "supersededFinding": "R23",
+  "disposition": "withdrawn",
+  "reason": "Earlier browser check sampled the dialog during its exit animation. Actual native Excel save and subsequent closure passed.",
+  "originalBrowserOutputs": "Retained as historical evidence; modalStillVisible must not be treated as a current confirmed defect.",
+  "auditScriptChange": "Now awaits hidden state before checking modal visibility; corrected browser script has not been rerun.",
+  "nativeEvidence": ["native-workbook-inspection.json", "NATIVE_WALKTHROUGH.md"],
+  "releaseVerdict": "HOLD",
+  "remainingFindings": 27,
+  "p1": 17,
+  "p2": 10
+}

@@ -1,0 +1,36 @@
+The following is a diff from the previous accessibility tree for Window: "Guidance Office — Release Fixes Test" with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 205-216, 218-229, 231-247
+~				158 button visibility_off Hide Complainant, Help: Hide complainant details from view
+~				159 button picture_as_pdf Export PDF
++				202 button add Add a Student
++				203 button edit Edit
+~				167 text STUDENT INFORMATION
+~				204 container Click to view individual case details
++					205 text FULL NAME
++					206 container
++						207 text Release ,  Taylor
++					208 text GRADE
++					209 text Grade 8
++					210 text ADVISER
++					211 text —
++					212 text SANCTION TAKEN
++					213 container Counseling
++						214 text Counseling
++					215 text CASE STATUS
++					216 text PENDING
+~				217 container Click to view individual case details
++					218 text FULL NAME
++					219 container
++						220 text Release ,  Morgan
++					221 text GRADE
++					222 text Grade 7
++					223 text ADVISER
++					224 text Test Teacher
++					225 text SANCTION TAKEN
++					226 container Written Warning
++						227 text Written Warning
++					228 text CASE STATUS
++					229 text PENDING
+~				230 text FULL NAME Subject ,  Jamie Updated GRADE Grade 7 ADVISER — ROLE Complainant / Subject STATUS — CASE INFORMATION CASE TITLE Synthetic Release Group CASE TYPE Bullying DATE OCT 14, 2026, 1:37 AM DESCRIPTION Synthetic group for release verification.
+~				200 text 4 Records Group case details were updated. OCT 14, 2026, 1:40 AM Synthetic Release Group arrow_forward Synthetic Release Group Group case details were updated. OCT 14, 2026, 1:40 AM Synthetic Release Group arrow_forward Synthetic Release Group Case created OCT 14, 2026, 1:38 AM Case created OCT 14, 2026, 1:38 AM
+The focused UI element is 16 HTML content Description: Laguna College Guidance Office, URL: localhost:1420/#/group-case/44f1cde2-ae66-4c36-af19-de076683e0bb

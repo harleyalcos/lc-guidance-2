@@ -1,0 +1,98 @@
+{
+  "rows": 14,
+  "columns": 8,
+  "headerRows": [
+    {
+      "row": 1,
+      "values": [
+        null,
+        null,
+        "LAGUNA COLLEGE",
+        "LAGUNA COLLEGE",
+        "LAGUNA COLLEGE",
+        "LAGUNA COLLEGE",
+        "LAGUNA COLLEGE",
+        "LAGUNA COLLEGE",
+        "LAGUNA COLLEGE"
+      ]
+    },
+    {
+      "row": 2,
+      "values": [
+        null,
+        null,
+        "San Pablo City",
+        "San Pablo City",
+        "San Pablo City",
+        "San Pablo City",
+        "San Pablo City",
+        "San Pablo City",
+        "San Pablo City"
+      ]
+    },
+    {
+      "row": 3,
+      "values": [
+        null,
+        null,
+        "Guidance Office",
+        "Guidance Office",
+        "Guidance Office",
+        "Guidance Office",
+        "Guidance Office",
+        "Guidance Office",
+        "Guidance Office"
+      ]
+    },
+    {
+      "row": 4,
+      "values": []
+    },
+    {
+      "row": 5,
+      "values": [
+        null,
+        "Date of Export: 10/13/2026"
+      ]
+    },
+    {
+      "row": 6,
+      "values": [
+        null,
+        "Filters: None"
+      ]
+    },
+    {
+      "row": 7,
+      "values": []
+    },
+    {
+      "row": 8,
+      "values": [
+        null,
+        "Full Name",
+        "Date",
+        "Case",
+        "Sanction",
+        "Progress",
+        "Grade",
+        "Section",
+        "Adviser"
+      ]
+    },
+    {
+      "row": 9,
+      "values": [
+        null,
+        "Santos, Group1\nSantos, Shared Complainant",
+        "2026-10-13",
+        "Bullying",
+        "Warning",
+        "Pending",
+        "Grade 7",
+        "A",
+        "Teacher"
+      ]
+    }
+  ]
+}

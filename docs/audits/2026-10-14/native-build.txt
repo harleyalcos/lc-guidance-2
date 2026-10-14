@@ -1,0 +1,2 @@
+   Compiling lc-guidance v0.1.11 (/tmp/lc-guidance-native-audit-cJ0ELO/src-tauri)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 46.04s

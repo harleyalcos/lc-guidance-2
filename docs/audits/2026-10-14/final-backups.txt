@@ -1,0 +1,61 @@
+The following is a diff from the previous accessibility tree for Window: "Guidance Office — Release Fixes Test" with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 109-111, 114-141, 143-144, 146-147, 149, 153-155, 157-196
+~		25 HTML content Description: Laguna College Guidance Office, URL: localhost:1420/#/account?tab=backup
+~				108 text check_circle
++				109 heading Last backup: 2026-10-14 01:44, Value: 3
++					110 text Last backup: 2026-10-14 01:44
++				111 text Automatic backups: Daily. Scheduled backups run while the app is open.
+~				112 button backup Backup Now
++				113 heading Backup History, Value: 3
++					114 text Backup History
++				115 table
++					116 row (selectable) DATE & TIME
+TYPE
+FILE SIZE
+ACTION
++					117 row (selectable)
++						118 cell (selectable) 2026-10-14 01:44
++						119 cell (selectable) SAFETY
++						120 cell (selectable) 88.7 KB
++						121 cell (selectable) settings_backup_restore Restore
+delete
++					122 row (selectable)
++						123 cell (selectable) 2026-10-14 01:43
++						124 cell (selectable) MANUAL
++						125 cell (selectable) 88.7 KB
++						126 cell (selectable) settings_backup_restore Restore
+delete
++					127 row (selectable)
++						128 cell (selectable) 2026-10-14 01:36
++						129 cell (selectable) SAFETY
++						130 cell (selectable) 77.5 KB
++						131 cell (selectable) settings_backup_restore Restore
+delete
++					132 row (selectable)
++						133 cell (selectable) 2026-10-14 01:35
++						134 cell (selectable) SAFETY
++						135 cell (selectable) 76.2 KB
++						136 cell (selectable) settings_backup_restore Restore
+delete
++					137 row (selectable)
++						138 cell (selectable) 2026-10-14 01:25
++						139 cell (selectable) AUTOMATIC
++						140 cell (selectable) 76.2 KB
++						141 cell (selectable) settings_backup_restore Restore
+delete
+~				142 text settings
++				143 heading Backup Settings, Value: 3
++					144 text Backup Settings
+~				145 heading Automatic Backups, Value: 4
++					146 text Automatic Backups
++				147 text Run scheduled backups while the app is open. Manual and safety backups are retained until you delete them.
+~				148 toggle button Automatic backups, Value: on
++				149 text Frequency
+~				150 pop up button Backup frequency, Value: Daily
+~				151 text expand_more Retention Policy Keep last
+~				152 number field (settable) Automatic backups to retain, Value: 7
++					153 stepper 0
++						154 unknown
++						155 unknown
+~				156 text automatic backups
+The focused UI element is 25 HTML content Description: Laguna College Guidance Office, URL: localhost:1420/#/account?tab=backup

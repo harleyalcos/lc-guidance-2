@@ -588,10 +588,9 @@ export default function CaseDetails() {
       },
       updateLog
     });
-    setUploadedProofs(proofs);
-    setCaseRecord({ ...caseRecord, proofs: JSON.stringify(proofs) });
+    await loadCase();
     window.dispatchEvent(new Event("cases:changed"));
-  }, [caseRecord]);
+  }, [caseRecord, loadCase]);
 
   // Handle Proof Upload
   const handleUploadProof = (e: React.ChangeEvent<HTMLInputElement>) => {

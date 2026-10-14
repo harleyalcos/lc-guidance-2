@@ -1,0 +1,115 @@
+{
+  "rowCount": 17,
+  "headers": [
+    null,
+    "Full Name",
+    "Date",
+    "Case",
+    "Sanction",
+    "Progress",
+    "Grade",
+    "Section",
+    "Adviser"
+  ],
+  "records": [
+    [
+      null,
+      "Manualaudit, Harper",
+      "2026-10-13T19:04",
+      "Bullying",
+      "Verbal Warning",
+      "Resolved",
+      "Grade 7",
+      "",
+      "Test Teacher"
+    ],
+    [
+      null,
+      "Audit, Frank",
+      "2025-02-28",
+      "Bullying",
+      "",
+      "Pending",
+      "Grade 7",
+      "A",
+      "Test Teacher"
+    ],
+    [
+      null,
+      "Separate, Evan\nSubjectaudit, Jamie\nSubjectaudit, Jamie",
+      "2026-10-02",
+      "Tardiness",
+      "Warning",
+      "Pending",
+      "Grade 9",
+      "B",
+      "Different Teacher"
+    ],
+    [
+      null,
+      "Separate, Dana\nSubjectaudit, Jamie\nSubjectaudit, Jamie",
+      "2026-10-02",
+      "Tardiness",
+      "Warning",
+      "Pending",
+      "Grade 8",
+      "A",
+      "Test Teacher"
+    ],
+    [
+      null,
+      "Separate, Evan",
+      "2026-10-02",
+      "Tardiness",
+      "Warning",
+      "Pending",
+      "Grade 9",
+      "B",
+      "Different Teacher"
+    ],
+    [
+      null,
+      "Separate, Dana",
+      "2026-10-02",
+      "Tardiness",
+      "Warning",
+      "Pending",
+      "Grade 8",
+      "A",
+      "Test Teacher"
+    ],
+    [
+      null,
+      "Audit, Cara",
+      "2026-10-01",
+      "Family Problems",
+      "",
+      "Pending",
+      "Grade 10",
+      "C",
+      "Test Teacher"
+    ],
+    [
+      null,
+      "Audit, Ben",
+      "2025-03-10",
+      "Tardiness",
+      "Written Reprimand",
+      "Resolved",
+      "7",
+      "B",
+      "Test Teacher"
+    ],
+    [
+      null,
+      "Audit, Alice",
+      "2024-08-15",
+      "Bullying",
+      "Verbal Warning",
+      "Pending",
+      "Grade 7",
+      "A",
+      "Test Teacher"
+    ]
+  ]
+}

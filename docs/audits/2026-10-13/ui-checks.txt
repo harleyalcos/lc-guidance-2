@@ -1,0 +1,136 @@
+[
+  {
+    "name": "sign-in",
+    "violations": [
+      "region:4"
+    ]
+  },
+  {
+    "name": "/",
+    "pageErrors": [],
+    "violations": [
+      "color-contrast:1",
+      "heading-order:1"
+    ]
+  },
+  {
+    "name": "/catalog",
+    "pageErrors": [],
+    "violations": [
+      "empty-table-header:1"
+    ]
+  },
+  {
+    "name": "/pending",
+    "pageErrors": [],
+    "violations": [
+      "color-contrast:6"
+    ]
+  },
+  {
+    "name": "/reports",
+    "pageErrors": [],
+    "violations": []
+  },
+  {
+    "name": "/distribution",
+    "pageErrors": [],
+    "violations": []
+  },
+  {
+    "name": "/case/1",
+    "pageErrors": [],
+    "violations": [
+      "color-contrast:1"
+    ]
+  },
+  {
+    "name": "/group-case/audit-group",
+    "pageErrors": [],
+    "violations": [
+      "color-contrast:2"
+    ]
+  },
+  {
+    "name": "/account",
+    "pageErrors": [],
+    "violations": [
+      "label:1"
+    ]
+  },
+  {
+    "name": "/account?tab=backup",
+    "pageErrors": [],
+    "violations": [
+      "button-name:1",
+      "color-contrast:1",
+      "heading-order:1",
+      "label:1",
+      "select-name:1"
+    ]
+  },
+  {
+    "name": "/ai",
+    "pageErrors": [],
+    "violations": []
+  },
+  {
+    "name": "group edit preserves one shared complainant per record"
+  },
+  {
+    "name": "summary PDF generation and export",
+    "files": [
+      {
+        "filename": "Guidance_Report_10_12_2026.pdf",
+        "bytes": 1373475
+      }
+    ]
+  },
+  {
+    "name": "export workbook and modal dismissal",
+    "files": [
+      {
+        "filename": "cases_export_2026-10-13.xlsx",
+        "bytes": 1584728
+      }
+    ],
+    "modalStillVisible": true
+  },
+  {
+    "name": "Excel export includes incident time on end date"
+  },
+  {
+    "name": "import dialog text"
+  },
+  {
+    "name": "import review",
+    "violations": []
+  },
+  {
+    "name": "new case field inventory"
+  },
+  {
+    "name": "new case student form",
+    "violations": [
+      "empty-table-header:1",
+      "region:12"
+    ],
+    "escapeClosedModal": false
+  },
+  {
+    "name": "file ordinary case through four steps"
+  },
+  {
+    "name": "failed second group record leaves a partial group"
+  },
+  {
+    "name": "database error feedback",
+    "explicitError": false
+  },
+  {
+    "name": "first launch",
+    "violations": [
+      "region:10"
+    ]
+  }
+]

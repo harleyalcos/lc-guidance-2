@@ -1,0 +1,49 @@
+The following is a diff from the previous accessibility tree for Window: "Guidance Office — Release Fixes Test" with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 50-51, 55-65
+~		2 HTML content Description: Laguna College Guidance Office, URL: localhost:1420/#/group-case/44f1cde2-ae66-4c36-af19-de076683e0bb
+~				43 text ID: GC-2026- 0007
+~				44 button visibility Show Complainant, Help: Show complainant details
+~				46 button add Add a Student
+~				47 button edit Edit
+~				48 image Laguna College Logo
+~				49 heading LAGUNA COLLEGE, Value: 2
++					50 text LAGUNA COLLEGE
++				51 text San Pablo City Guidance Office
+~				52 image Guidance Office Logo
+~				53 text STUDENT INFORMATION
+~				54 container Click to view individual case details
++					55 text FULL NAME
++					56 container
++						57 text Release ,  Taylor
++					58 text GRADE
++					59 text Grade 8
++					60 text ADVISER
++					61 text —
++					62 text SANCTION TAKEN
++					63 container Counseling
++						64 text Counseling
++					65 text CASE STATUS
++					66 text RESOLVED
++				67 container Click to view individual case details
++					68 text FULL NAME
++					69 container
++						70 text Release ,  Morgan
++					71 text GRADE
++					72 text Grade 7
++					73 text ADVISER
++					74 text Test Teacher
++					75 text SANCTION TAKEN
++					76 container Counseling Follow-up
++						77 text Counseling Follow-up
++					78 text CASE STATUS
++					79 text PENDING
++				80 text FULL NAME Subject ,  Jamie Updated GRADE Grade 7 ADVISER — ROLE Complainant / Subject STATUS — CASE INFORMATION CASE TITLE Synthetic Release Group CASE TYPE Bullying DATE OCT 14, 2026, 1:37 AM DESCRIPTION Synthetic group for release verification.
++				81 heading attachment Documentation & Proofs, Value: 3
++					82 text attachment Documentation & Proofs
++				83 image audit-proof.png
++				84 text visibility
++				85 heading history Update History, Value: 3
++					86 text history Update History
++				87 text 8 Records Complainant / Subject details updated across group. OCT 14, 2026, 11:21 AM Previous info arrow_forward Updated info Updated Sanction. OCT 14, 2026, 11:21 AM Written Warning arrow_forward Counseling Follow-up Uploaded proof: audit-proof.png OCT 14, 2026, 2:08 AM Status changed from Pending to Resolved OCT 14, 2026, 1:41 AM Group case details were updated. OCT 14, 2026, 1:40 AM Synthetic Release Group arrow_forward Synthetic Release Group Group case details were updated. OCT 14, 2026, 1:40 AM Synthetic Release Group arrow_forward Synthetic Release Group Case created OCT 14, 2026, 1:38 AM Case created OCT 14, 2026, 1:38 AM
++		88 scroll bar (settable, float) 0
+The focused UI element is 2 HTML content Description: Laguna College Guidance Office, URL: localhost:1420/#/group-case/44f1cde2-ae66-4c36-af19-de076683e0bb
