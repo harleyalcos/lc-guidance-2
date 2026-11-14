@@ -971,11 +971,11 @@ mod tests {
 
     #[test]
     fn end_to_end_fresh_db_onboarding_case_lifecycle_and_backup_restore_commands() {
-        let dir = std::env::temp_dir().join(format!("lc-e2e-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let db_path = dir.join("guidance_cases.db");
+        let temp = Temporary::new();
+        let dir = &temp.0;
+        std::fs::create_dir_all(dir).unwrap();
         let backup_dir = dir.join("backups");
-        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
         initialize_schema(&conn).unwrap();
         let mut db_state = DbState::new(conn);
         db_state.backup_dir = Some(backup_dir.clone());
@@ -1123,6 +1123,6 @@ mod tests {
             1
         );
 
-        std::fs::remove_dir_all(dir).unwrap();
+        drop(app);
     }
 }
