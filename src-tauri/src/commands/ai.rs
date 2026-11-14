@@ -61,48 +61,131 @@ pub fn get_gemini_api_key(state: State<'_, DbState>) -> Result<String, String> {
 pub fn set_gemini_api_key(state: State<'_, DbState>, api_key: String) -> Result<(), String> {
     state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
+    let trimmed_key = api_key.trim();
 
     connection
         .execute(
             "INSERT INTO app_config (key, value) VALUES ('gemini_api_key', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            params![api_key],
+            params![trimmed_key],
         )
         .map_err(db_error)?;
 
     Ok(())
 }
 
+fn strip_sql_string_literals_and_comments(sql: &str) -> Result<String, String> {
+    let mut out = String::with_capacity(sql.len());
+    let mut chars = sql.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\'' {
+            out.push(' ');
+            let mut closed = false;
+            while let Some(inner) = chars.next() {
+                if inner == '\'' {
+                    if chars.peek() == Some(&'\'') {
+                        chars.next();
+                    } else {
+                        closed = true;
+                        break;
+                    }
+                }
+            }
+            if !closed {
+                return Err("Unterminated string literal in SQL query.".to_string());
+            }
+            out.push(' ');
+        } else if ch == '-' && chars.peek() == Some(&'-') {
+            for inner in chars.by_ref() {
+                if inner == '\n' {
+                    out.push('\n');
+                    break;
+                }
+            }
+        } else if ch == '/' && chars.peek() == Some(&'*') {
+            chars.next();
+            let mut closed = false;
+            while let Some(inner) = chars.next() {
+                if inner == '*' && chars.peek() == Some(&'/') {
+                    chars.next();
+                    closed = true;
+                    break;
+                }
+            }
+            if !closed {
+                return Err("Unterminated block comment in SQL query.".to_string());
+            }
+            out.push(' ');
+        } else {
+            out.push(ch);
+        }
+    }
+
+    Ok(out)
+}
+
 #[tauri::command]
 pub fn query_database_for_ai(state: State<'_, DbState>, sql: String) -> Result<Vec<Value>, String> {
     state.require_session()?;
-    let sql_trimmed = sql.trim();
+    let sql_trimmed = sql.trim().trim_end_matches(';').trim();
     if !sql_trimmed.to_uppercase().starts_with("SELECT") {
         return Err("Only SELECT queries are allowed for AI context.".to_string());
     }
 
-    // As an additional safety check, prohibit any other operations via string search
-    let upper_sql = sql_trimmed.to_uppercase();
-    if upper_sql.contains("INSERT")
-        || upper_sql.contains("UPDATE")
-        || upper_sql.contains("DELETE")
-        || upper_sql.contains("DROP")
-        || upper_sql.contains("ALTER")
-    {
-        return Err("Query contains forbidden operations.".to_string());
+    let stripped = strip_sql_string_literals_and_comments(sql_trimmed)?;
+    if stripped.contains(';') {
+        return Err("Multiple SQL statements are not allowed.".to_string());
     }
 
-    // Disallow querying sensitive tables and schemas
-    if upper_sql.contains("APP_CONFIG")
-        || upper_sql.contains("OTP_TOKENS")
-        || upper_sql.contains("SQLITE_MASTER")
-        || upper_sql.contains("SQLITE_SCHEMA")
-        || upper_sql.contains("PRAGMA")
-    {
-        return Err("Access to sensitive system tables is forbidden.".to_string());
+    let upper_stripped = stripped.to_uppercase();
+    for token in upper_stripped.split(|c: char| !c.is_ascii_alphanumeric() && c != '_') {
+        if token.is_empty() {
+            continue;
+        }
+        if matches!(
+            token,
+            "INSERT"
+                | "UPDATE"
+                | "DELETE"
+                | "DROP"
+                | "ALTER"
+                | "REPLACE"
+                | "CREATE"
+                | "ATTACH"
+                | "DETACH"
+                | "VACUUM"
+                | "REINDEX"
+                | "BEGIN"
+                | "COMMIT"
+                | "ROLLBACK"
+                | "SAVEPOINT"
+                | "RELEASE"
+        ) {
+            return Err("Query contains forbidden operations.".to_string());
+        }
+
+        if matches!(
+            token,
+            "AUTH_CONFIG"
+                | "APP_CONFIG"
+                | "OTP_TOKENS"
+                | "CASE_SAVE_REQUESTS"
+                | "APPLIED_CASE_REQUESTS"
+                | "SQLITE_MASTER"
+                | "SQLITE_SCHEMA"
+                | "SQLITE_TEMP_MASTER"
+                | "SQLITE_TEMP_SCHEMA"
+                | "PRAGMA"
+        ) {
+            return Err("Access to sensitive system tables is forbidden.".to_string());
+        }
     }
 
     let connection = state.connection.lock().map_err(db_error)?;
     let mut stmt = connection.prepare(sql_trimmed).map_err(db_error)?;
+    if !stmt.readonly() {
+        return Err("Query contains forbidden operations.".to_string());
+    }
 
     let column_names: Vec<String> = stmt.column_names().iter().map(|&s| s.to_string()).collect();
     let column_count = column_names.len();

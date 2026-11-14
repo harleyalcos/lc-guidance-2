@@ -497,6 +497,13 @@ pub fn get_all_school_years(state: State<'_, DbState>) -> Result<Vec<String>, St
         years.insert(0, current_calendar_year);
     }
 
+    if let Ok(Some(saved_year)) = get_config(&connection, "current_school_year") {
+        let trimmed = saved_year.trim();
+        if !trimmed.is_empty() && !years.iter().any(|y| y == trimmed) {
+            years.push(trimmed.to_string());
+        }
+    }
+
     years.sort_by(|a, b| b.cmp(a));
     years.dedup();
 
@@ -568,13 +575,28 @@ pub fn copy_generated_proof(
     dest_filename: String,
 ) -> Result<String, String> {
     state.require_session()?;
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let dest_path = std::path::Path::new(manifest_dir)
-        .parent()
-        .unwrap()
+    let trimmed_dest = dest_filename.trim();
+    if trimmed_dest.is_empty()
+        || trimmed_dest.contains("..")
+        || trimmed_dest.contains('/')
+        || trimmed_dest.contains('\\')
+    {
+        return Err("Invalid destination filename.".to_string());
+    }
+    let base_dir = state
+        .backup_dir
+        .as_ref()
+        .and_then(|dir| dir.parent().map(std::path::Path::to_path_buf))
+        .or_else(|| {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .map(std::path::Path::to_path_buf)
+        })
+        .ok_or_else(|| "Unable to resolve destination directory for proof asset.".to_string())?;
+    let dest_path = base_dir
         .join("src")
         .join("assets")
-        .join(&dest_filename);
+        .join(trimmed_dest);
 
     if let Some(parent) = dest_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -587,7 +609,7 @@ pub fn copy_generated_proof(
         )
     })?;
 
-    Ok(format!("Successfully copied to {:?}", dest_path))
+    Ok(dest_path.to_string_lossy().to_string())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -602,17 +624,26 @@ pub fn backup_timestamp(filename: &str) -> String {
     filename.split('_').skip(2).collect::<Vec<_>>().join("_")
 }
 
+fn resolve_backup_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    state: &DbState,
+) -> Result<std::path::PathBuf, String> {
+    if let Some(dir) = &state.backup_dir {
+        return Ok(dir.clone());
+    }
+    use tauri::Manager;
+    Ok(app.path().app_data_dir().map_err(db_error)?.join("backups"))
+}
+
 #[tauri::command]
-pub fn get_backups(
+pub fn get_backups<R: tauri::Runtime>(
     state: State<'_, DbState>,
-    app: tauri::AppHandle,
+    app: tauri::AppHandle<R>,
 ) -> Result<Vec<BackupRecord>, String> {
     state.require_session()?;
     use std::fs;
-    use tauri::Manager;
 
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let backup_dir = app_data_dir.join("backups");
+    let backup_dir = resolve_backup_dir(&app, &state)?;
 
     let mut backups = Vec::new();
     if backup_dir.exists() {
@@ -680,14 +711,13 @@ pub fn get_backups(
 }
 
 #[tauri::command]
-pub fn create_backup(
-    app: tauri::AppHandle,
+pub fn create_backup<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     state: State<'_, DbState>,
     is_manual: Option<bool>,
 ) -> Result<(), String> {
     state.require_session()?;
-    use tauri::Manager;
-    let directory = app.path().app_data_dir().map_err(db_error)?.join("backups");
+    let directory = resolve_backup_dir(&app, &state)?;
     let connection = state.connection.lock().map_err(db_error)?;
     let manual = is_manual.unwrap_or(true);
     crate::db::backup::snapshot(
@@ -702,13 +732,12 @@ pub fn create_backup(
 }
 
 #[tauri::command]
-pub fn restore_backup(
-    app: tauri::AppHandle,
+pub fn restore_backup<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     state: State<'_, DbState>,
     filename: String,
 ) -> Result<(), String> {
     state.require_session()?;
-    use tauri::Manager;
     if filename.contains("..")
         || filename.contains('/')
         || filename.contains(char::from(92))
@@ -716,7 +745,7 @@ pub fn restore_backup(
     {
         return Err("Invalid backup filename".into());
     }
-    let directory = app.path().app_data_dir().map_err(db_error)?.join("backups");
+    let directory = resolve_backup_dir(&app, &state)?;
     let mut connection = state.connection.lock().map_err(db_error)?;
     crate::db::recovery::replace_database(
         &mut connection,
@@ -728,21 +757,24 @@ pub fn restore_backup(
 }
 
 #[tauri::command]
-pub fn delete_backup(
+pub fn delete_backup<R: tauri::Runtime>(
     state: State<'_, DbState>,
-    app: tauri::AppHandle,
+    app: tauri::AppHandle<R>,
     filename: String,
 ) -> Result<(), String> {
     state.require_session()?;
     use std::fs;
-    use tauri::Manager;
 
-    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+    if filename.contains("..")
+        || filename.contains('/')
+        || filename.contains('\\')
+        || !filename.starts_with("backup_")
+    {
         return Err("Invalid backup filename".to_string());
     }
 
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let backup_dir = app_data_dir.join("backups").join(&filename);
+    let backup_root = resolve_backup_dir(&app, &state)?;
+    let backup_dir = backup_root.join(&filename);
 
     if !backup_dir.exists() {
         return Err(format!("Backup folder {} does not exist", filename));
@@ -831,8 +863,8 @@ pub fn save_pdf(
 }
 
 #[tauri::command]
-pub fn export_db_file(
-    _app: tauri::AppHandle,
+pub fn export_db_file<R: tauri::Runtime>(
+    _app: tauri::AppHandle<R>,
     state: State<'_, DbState>,
     dest_path: String,
 ) -> Result<(), String> {
@@ -847,14 +879,13 @@ pub fn export_db_file(
 }
 
 #[tauri::command]
-pub fn import_db_file(
-    app: tauri::AppHandle,
+pub fn import_db_file<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     state: State<'_, DbState>,
     src_path: String,
 ) -> Result<(), String> {
     state.require_session()?;
-    use tauri::Manager;
-    let directory = app.path().app_data_dir().map_err(db_error)?.join("backups");
+    let directory = resolve_backup_dir(&app, &state)?;
     let mut connection = state.connection.lock().map_err(db_error)?;
     crate::db::recovery::replace_database(
         &mut connection,

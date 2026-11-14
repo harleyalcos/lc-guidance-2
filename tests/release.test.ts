@@ -49,6 +49,16 @@ describe("guidance office report regressions", () => {
     expect(normalizeGrade(" 7 ")).toBe("Grade 7"); expect(normalizeGrade("grade 12")).toBe("Grade 12");
     expect(caseDay("10/13/2026")).toBe("2026-10-13"); expect(caseDay("2026-10-13T11:00:00Z")).toBe("2026-10-13");
   });
+  it("excludes legacy Complainant/Subject-only records from report filtering and summary totals", () => {
+    const respondentCase = record({ id: 1 });
+    const complainantOnlyCase = record({
+      id: 2,
+      students: JSON.stringify([{ ...student, role: "Complainant / Subject" }]),
+    });
+    const filtered = filterReportCases([respondentCase, complainantOnlyCase], config);
+    expect(filtered.map((c) => c.id)).toEqual([1]);
+    expect(calculateReportSummary(filtered).total).toBe(1);
+  });
 });
 describe("linked case save regressions", () => {
   it("keeps a shared complainant once while retaining distinct students", () => {

@@ -57,8 +57,12 @@ const parseProofs = (value: string): ProofItem[] => {
   }
 };
 
+const collapseSpaces = (str: string) => str.replace(/\s+/g, " ").trim();
+
 const capitalizeWords = (str: string) => {
-  return str
+  const cleaned = collapseSpaces(str);
+  if (!cleaned) return "";
+  return cleaned
     .toLowerCase()
     .split(" ")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -82,7 +86,16 @@ const normalizeRole = (value: string | undefined) => {
 const isComplainantSubject = (student: StudentInfo) => normalizeRole(student.role) === "Complainant / Subject";
 const isRespondent = (student: StudentInfo) => normalizeRole(student.role) === "Respondent";
 
-const normalizeGradeLevel = (value: string | undefined) => (value ? capitalizeWords(value).slice(0, GRADE_LEVEL_LIMIT) : "");
+const normalizeGradeLevel = (value: string | undefined) => {
+  if (!value) return "";
+  const cleaned = capitalizeWords(value).slice(0, GRADE_LEVEL_LIMIT);
+  const numOnly = cleaned.match(/^(\d+)$/);
+  if (numOnly) {
+    const n = Number(numOnly[1]);
+    if (n >= 7 && n <= 12) return `Grade ${n}`;
+  }
+  return cleaned;
+};
 const normalizeMiddleInitial = (value: string | undefined) => (value ? value.replace(/\s+/g, "").toUpperCase().slice(0, 3) : "");
 const normalizeCaseType = (value: string | undefined) => (value ? capitalizeWords(value).slice(0, CASE_TYPE_LIMIT) : "");
 

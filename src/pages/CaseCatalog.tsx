@@ -880,19 +880,22 @@ export default function CaseCatalog() {
   };
 
   const handleExportExcelWithOptions = async (options: ExportOptions) => {
-    const targetCases = cases.filter((c) => {
+    const targetCases = displayCases.filter((c) => {
       // 1. Scope filter
       if (options.scope === "specific") {
-        if (!c.level || normalizeGrade(c.level) !== normalizeGrade(options.selectedGrade)) {
+        const studentLevel = parseStudents(c.students)[0]?.level || c.level;
+        if (!studentLevel || normalizeGrade(studentLevel) !== normalizeGrade(options.selectedGrade)) {
           return false;
         }
       }
 
       // 2. Status filter
       if (options.selectedStatus !== "all" && options.selectedStatus !== "All Statuses") {
-        if (c.progress?.toLowerCase() !== options.selectedStatus.toLowerCase()) {
-          return false;
-        }
+        const statusLower = options.selectedStatus.toLowerCase();
+        if (statusLower === "pending" && !isPendingCase(c)) return false;
+        if (statusLower === "resolved" && !isResolvedCase(c)) return false;
+        if (statusLower === "closed" && !isClosedCase(c)) return false;
+        if (statusLower === "reprimand" && !isReprimandCase(c)) return false;
       }
 
       // 3. Date range filter
@@ -1931,7 +1934,7 @@ export default function CaseCatalog() {
       <ExportExcelModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
-        cases={cases}
+        cases={displayCases}
         initialStatusFilter={statusFilter}
         initialStartDate={startDate}
         initialEndDate={endDate}
