@@ -818,4 +818,311 @@ mod tests {
             assert_eq!(students[0]["sanction"], sanction);
         }
     }
+
+    #[test]
+    fn ai_sql_query_allows_update_history_and_string_literals_while_blocking_sensitive_tables_and_mutations() {
+        let app = app();
+        let mut p = payload("2026-10-13");
+        p.r#case = "Dropout prevention".into();
+        p.description = "Peer altercation during class".into();
+        commands::add_case(app.state(), p).unwrap();
+
+        // Must allow selecting update_history and querying 'Dropout prevention' or 'altercation'
+        let rows = commands::ai::query_database_for_ai(
+            app.state(),
+            "SELECT id, \"case\", description, update_history FROM cases WHERE \"case\" = 'Dropout prevention' AND description LIKE '%altercation%';".into(),
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["case"], "Dropout prevention");
+
+        // Must block sensitive tables (including auth_config, app_config, otp_tokens, case_save_requests)
+        for forbidden_sql in [
+            "SELECT * FROM auth_config",
+            "SELECT * FROM app_config",
+            "SELECT * FROM otp_tokens",
+            "SELECT * FROM case_save_requests",
+            "SELECT * FROM applied_case_requests",
+            "SELECT * FROM sqlite_master",
+        ] {
+            let err = commands::ai::query_database_for_ai(app.state(), forbidden_sql.into())
+                .unwrap_err();
+            assert!(
+                err.contains("forbidden") || err.contains("sensitive"),
+                "Expected sensitive table error for `{forbidden_sql}`, got: {err}"
+            );
+        }
+
+        // Must block mutating keywords and multi-statement queries
+        for mutating_sql in [
+            "UPDATE cases SET progress = 'Closed'",
+            "DROP TABLE cases",
+            "DELETE FROM cases",
+            "ALTER TABLE cases ADD COLUMN hacked TEXT",
+            "SELECT id FROM cases; DROP TABLE cases",
+            "PRAGMA writable_schema = 1",
+        ] {
+            assert!(
+                commands::ai::query_database_for_ai(app.state(), mutating_sql.into()).is_err(),
+                "Expected error for mutating/multi-statement SQL `{mutating_sql}`"
+            );
+        }
+    }
+
+    #[test]
+    fn ai_session_and_gemini_api_key_lifecycle_persists_cleanly() {
+        let app = app();
+        assert_eq!(
+            commands::ai::get_gemini_api_key(app.state()).unwrap(),
+            ""
+        );
+
+        // Whitespace around API key is trimmed on save
+        commands::ai::set_gemini_api_key(app.state(), "  AIzaSyTestKey123  ".into()).unwrap();
+        assert_eq!(
+            commands::ai::get_gemini_api_key(app.state()).unwrap(),
+            "AIzaSyTestKey123"
+        );
+
+        // Save user & assistant messages (with generated document metadata)
+        commands::ai::save_ai_message(
+            app.state(),
+            "sess-1".into(),
+            Some("First Session".into()),
+            Some("Queries".into()),
+            commands::ai::AiSavedMessage {
+                id: "msg-1".into(),
+                session_id: "sess-1".into(),
+                role: "user".into(),
+                content: "Draft a summary report".into(),
+                metadata: None,
+                timestamp: "2026-10-13T10:00:00Z".into(),
+            },
+        )
+        .unwrap();
+        let meta_json = r#"{"title":"Monthly Guidance Summary","reporting_period":"10/2026","scope":"Grade 7","status_filter":"Pending"}"#;
+        commands::ai::save_ai_message(
+            app.state(),
+            "sess-1".into(),
+            Some("First Session".into()),
+            Some("Reports".into()),
+            commands::ai::AiSavedMessage {
+                id: "msg-2".into(),
+                session_id: "sess-1".into(),
+                role: "assistant".into(),
+                content: "Here is the summary report.".into(),
+                metadata: Some(meta_json.into()),
+                timestamp: "2026-10-13T10:01:00Z".into(),
+            },
+        )
+        .unwrap();
+
+        let sessions = commands::ai::get_ai_sessions(app.state()).unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].title, "First Session");
+
+        commands::ai::rename_ai_session(app.state(), "sess-1".into(), "Renamed Session".into())
+            .unwrap();
+        let sessions = commands::ai::get_ai_sessions(app.state()).unwrap();
+        assert_eq!(sessions[0].title, "Renamed Session");
+
+        let messages =
+            commands::ai::get_ai_session_messages(app.state(), "sess-1".into()).unwrap();
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[1].metadata.as_deref(), Some(meta_json));
+
+        let docs = commands::ai::get_ai_generated_documents(app.state()).unwrap();
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].session_title, "Renamed Session");
+        assert_eq!(docs[0].title, "Monthly Guidance Summary");
+
+        commands::ai::delete_ai_session(app.state(), "sess-1".into()).unwrap();
+        assert!(commands::ai::get_ai_sessions(app.state())
+            .unwrap()
+            .is_empty());
+
+        // Clear all sessions & empty API key removes config
+        commands::ai::save_ai_message(
+            app.state(),
+            "sess-2".into(),
+            Some("Second Session".into()),
+            None,
+            commands::ai::AiSavedMessage {
+                id: "msg-3".into(),
+                session_id: "sess-2".into(),
+                role: "user".into(),
+                content: "Hello".into(),
+                metadata: None,
+                timestamp: "2026-10-13T10:02:00Z".into(),
+            },
+        )
+        .unwrap();
+        commands::ai::clear_all_ai_sessions(app.state()).unwrap();
+        assert!(commands::ai::get_ai_sessions(app.state())
+            .unwrap()
+            .is_empty());
+
+        commands::ai::set_gemini_api_key(app.state(), "   ".into()).unwrap();
+        assert_eq!(
+            commands::ai::get_gemini_api_key(app.state()).unwrap(),
+            ""
+        );
+    }
+
+    #[test]
+    fn end_to_end_fresh_db_onboarding_case_lifecycle_and_backup_restore_commands() {
+        let dir = std::env::temp_dir().join(format!("lc-e2e-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("guidance_cases.db");
+        let backup_dir = dir.join("backups");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        initialize_schema(&conn).unwrap();
+        let mut db_state = DbState::new(conn);
+        db_state.backup_dir = Some(backup_dir.clone());
+
+        let app = tauri::test::mock_builder()
+            .manage(db_state)
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+
+        // 1. Fresh install onboarding state
+        assert!(!commands::check_setup_complete(app.state()).unwrap());
+        assert!(!commands::get_session(app.state()).unwrap());
+        commands::complete_setup(
+            app.state(),
+            "654321".into(),
+            "guidance@lagunacollege.edu.ph".into(),
+            "abcd efgh ijkl mnop".into(),
+            "guidance@lagunacollege.edu.ph".into(),
+        )
+        .unwrap();
+        assert!(commands::check_setup_complete(app.state()).unwrap());
+        assert!(commands::verify_pin(app.state(), "654321".into()).unwrap());
+        assert!(commands::get_session(app.state()).unwrap());
+        assert_eq!(
+            commands::get_recovery_email(app.state()).unwrap(),
+            "guidance@lagunacollege.edu.ph"
+        );
+
+        // 2. School year configuration & active months
+        commands::set_current_school_year(app.state(), "2026-2027".into()).unwrap();
+        assert_eq!(
+            commands::get_current_school_year(app.state()).unwrap(),
+            Some("2026-2027".into())
+        );
+        assert!(commands::get_all_school_years(app.state())
+            .unwrap()
+            .contains(&"2026-2027".to_string()));
+
+        // 3. File a multi-student case and transition status
+        let mut group_case = payload("2026-10-13");
+        let mut second_student = group_case.students[0].clone();
+        second_student.first_name = "Marco".into();
+        second_student.last_name = "Reyes".into();
+        second_student.role = Some("Complainant / Subject".into());
+        group_case.students.push(second_student);
+
+        let case_id = commands::add_case(app.state(), group_case.clone()).unwrap();
+        assert_eq!(
+            commands::get_active_months(app.state(), "2026-2027".into()).unwrap(),
+            vec!["2026-10".to_string()]
+        );
+
+        group_case.progress = "Resolved".into();
+        group_case.sanction = "Conference Completed".into();
+        commands::update_case(
+            app.state(),
+            case_id,
+            group_case.clone(),
+            Some("Resolved after parent conference".into()),
+        )
+        .unwrap();
+        let updated = commands::get_case(app.state(), case_id).unwrap();
+        assert_eq!(updated.progress, "Resolved");
+
+        // 4. Copy generated proof & verify path traversal protection
+        let src_proof = dir.join("letter.pdf");
+        std::fs::write(&src_proof, b"%PDF-1.4 test proof").unwrap();
+        let copied_path = commands::copy_generated_proof(
+            app.state(),
+            src_proof.to_string_lossy().into(),
+            "reprimand_proof.pdf".into(),
+        )
+        .unwrap();
+        assert!(std::path::Path::new(&copied_path).exists());
+        assert!(commands::copy_generated_proof(
+            app.state(),
+            src_proof.to_string_lossy().into(),
+            "../evil.pdf".into()
+        )
+        .is_err());
+
+        // 5. Manual backup, delete_backup validation, export, delete case, and restore
+        commands::create_backup(app.handle().clone(), app.state(), Some(true)).unwrap();
+        let backups = commands::get_backups(app.state(), app.handle().clone()).unwrap();
+        let manual_backup_name = backups
+            .iter()
+            .find(|b| b.backup_type == "Manual")
+            .expect("Expected manual backup")
+            .filename
+            .clone();
+
+        // Passing empty string or non-backup prefix to delete_backup must be rejected and preserve backups dir
+        assert!(commands::delete_backup(app.state(), app.handle().clone(), "".into()).is_err());
+        assert!(commands::delete_backup(app.state(), app.handle().clone(), ".".into()).is_err());
+        assert!(backup_dir.exists());
+
+        // Export DB to an external file
+        let exported_db = dir.join("exported_snapshot.db");
+        commands::export_db_file(
+            app.handle().clone(),
+            app.state(),
+            exported_db.to_string_lossy().into(),
+        )
+        .unwrap();
+        assert!(exported_db.exists());
+
+        // Delete the case so DB has 0 cases
+        commands::delete_case(app.state(), case_id).unwrap();
+        assert!(commands::get_cases(app.state(), None, None)
+            .unwrap()
+            .is_empty());
+
+        // Restore from the manual backup (which revokes the session for safety) and verify the case is back
+        commands::restore_backup(
+            app.handle().clone(),
+            app.state(),
+            manual_backup_name.clone(),
+        )
+        .unwrap();
+        assert!(!commands::get_session(app.state()).unwrap());
+        assert!(commands::verify_pin(app.state(), "654321".into()).unwrap());
+
+        let restored_cases = commands::get_cases(app.state(), None, None).unwrap();
+        assert_eq!(restored_cases.len(), 1);
+        assert_eq!(restored_cases[0].progress, "Resolved");
+
+        // Delete the manual backup cleanly
+        commands::delete_backup(app.state(), app.handle().clone(), manual_backup_name).unwrap();
+
+        // Import DB file after another deletion and verify restoration
+        commands::delete_case(app.state(), case_id).unwrap();
+        assert!(commands::get_cases(app.state(), None, None)
+            .unwrap()
+            .is_empty());
+        commands::import_db_file(
+            app.handle().clone(),
+            app.state(),
+            exported_db.to_string_lossy().into(),
+        )
+        .unwrap();
+        assert!(!commands::get_session(app.state()).unwrap());
+        assert!(commands::verify_pin(app.state(), "654321".into()).unwrap());
+        assert_eq!(
+            commands::get_cases(app.state(), None, None).unwrap().len(),
+            1
+        );
+
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

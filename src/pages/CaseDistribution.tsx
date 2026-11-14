@@ -23,6 +23,23 @@ const parseStudents = (json?: string): StudentInfo[] => {
   }
 };
 
+const normalizeRole = (value?: string): string => {
+  const normalized = (value || "").trim().toLowerCase();
+  if (!normalized || normalized === "reporter" || normalized === "accused" || normalized === "respondent") {
+    return "Respondent";
+  }
+  if (normalized === "complainant" || normalized === "complainant / subject") {
+    return "Complainant / Subject";
+  }
+  return value?.trim() || "Respondent";
+};
+
+const isComplainantSubjectCaseRecord = (caseItem: CaseRecord): boolean => {
+  const firstStudent = parseStudents(caseItem.students)[0];
+  if (!firstStudent) return false;
+  return normalizeRole(firstStudent.role) === "Complainant / Subject";
+};
+
 const getCaseGradeLevel = (c: CaseRecord): string => {
   const checkLevel = (lvl?: string) => {
     if (!lvl) return null;
@@ -87,6 +104,7 @@ export default function CaseDistribution() {
 
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -104,16 +122,28 @@ export default function CaseDistribution() {
     loadCases();
   }, [selectedSchoolYear, isYearsLoading, startDate, endDate]);
 
+  useEffect(() => {
+    const handleCasesChanged = () => {
+      if (!isYearsLoading && selectedSchoolYear !== null) {
+        loadCases();
+      }
+    };
+    window.addEventListener("cases:changed", handleCasesChanged);
+    return () => window.removeEventListener("cases:changed", handleCasesChanged);
+  }, [selectedSchoolYear, isYearsLoading, startDate, endDate]);
+
   const loadCases = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const queryYear = (selectedSchoolYear === "all" || (startDate && endDate)) ? null : selectedSchoolYear;
       const result = await invoke<CaseRecord[]>("get_cases", {
         schoolYear: queryYear,
       });
-      setCases(result || []);
+      setCases((result || []).filter((item) => !isComplainantSubjectCaseRecord(item)));
     } catch (err) {
       console.error("Failed to load cases:", err);
+      setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsLoading(false);
     }
@@ -134,9 +164,10 @@ export default function CaseDistribution() {
   // Filter cases by date range
   const dateFilteredCases = useMemo(() => {
     return cases.filter((c) => {
-      if (!c.date) return true;
-      if (startDate && caseDay(c.date) < startDate) return false;
-      if (endDate && caseDay(c.date) > endDate) return false;
+      const day = caseDay(c.date || c.date_filed);
+      if (!day) return true;
+      if (startDate && day < startDate) return false;
+      if (endDate && day > endDate) return false;
       return true;
     });
   }, [cases, startDate, endDate]);
@@ -271,6 +302,22 @@ export default function CaseDistribution() {
         </div>
       </div>
 
+      {loadError && (
+        <div
+          role="alert"
+          className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-xs font-medium text-error flex items-center justify-between gap-3"
+        >
+          <span>Failed to load cases: {loadError}</span>
+          <button
+            type="button"
+            onClick={() => void loadCases()}
+            className="underline font-bold cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* ── KPI Summary Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-surface border border-outline-variant rounded-xl p-4 flex flex-col justify-between shadow-sm">
@@ -308,7 +355,7 @@ export default function CaseDistribution() {
             <span className="material-symbols-outlined text-[#0F6E56] text-[20px]">domain</span>
           </div>
           <span className="text-xl font-bold text-on-surface truncate">
-            {domainStats.sort((a, b) => b.count - a.count)[0]?.label || "None"}
+            {[...domainStats].sort((a, b) => b.count - a.count).find((d) => d.count > 0)?.label || "None"}
           </span>
         </div>
       </div>

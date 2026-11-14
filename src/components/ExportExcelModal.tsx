@@ -1,4 +1,10 @@
 import { normalizeGrade, caseDay } from "../utils/caseValues";
+import {
+  isClosedCase,
+  isPendingCase,
+  isReprimandCase,
+  isResolvedCase,
+} from "../utils/caseStatus";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { CaseRecord } from "../types";
@@ -160,18 +166,38 @@ export default function ExportExcelModal({
   // Compute filtered cases matching export settings
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
+      let studentLevel = c.level;
+      try {
+        if (c.students) {
+          const arr = JSON.parse(c.students);
+          if (Array.isArray(arr) && arr.length > 0) {
+            const firstRole = (arr[0]?.role || "").trim().toLowerCase();
+            if (firstRole === "complainant" || firstRole === "complainant / subject") {
+              return false;
+            }
+            if (arr[0]?.level) {
+              studentLevel = arr[0].level;
+            }
+          }
+        }
+      } catch {
+        // ignore JSON parse error
+      }
+
       // 1. Grade level scope
       if (scope === "specific") {
-        if (!c.level || normalizeGrade(c.level) !== normalizeGrade(selectedGrade)) {
+        if (!studentLevel || normalizeGrade(studentLevel) !== normalizeGrade(selectedGrade)) {
           return false;
         }
       }
 
       // 2. Status filter
       if (selectedStatus !== "all") {
-        if (c.progress?.toLowerCase() !== selectedStatus.toLowerCase()) {
-          return false;
-        }
+        const statusLower = selectedStatus.toLowerCase();
+        if (statusLower === "pending" && !isPendingCase(c)) return false;
+        if (statusLower === "resolved" && !isResolvedCase(c)) return false;
+        if (statusLower === "closed" && !isClosedCase(c)) return false;
+        if (statusLower === "reprimand" && !isReprimandCase(c)) return false;
       }
 
       // 3. Date range filter

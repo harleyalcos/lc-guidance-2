@@ -150,8 +150,17 @@ export const getStatusColor = (progress: string): string => {
   return "#b45309"; // Amber/Pending
 };
 
+export const isComplainantSubjectCaseRecord = (caseRecord: CaseRecord): boolean => {
+  const students = parseStudents(caseRecord.students);
+  const firstStudent = students[0];
+  if (!firstStudent) return false;
+  return normalizeRole(firstStudent.role) === "Complainant / Subject";
+};
+
 export const filterReportCases = (casesList: CaseRecord[], config: ReportConfig): CaseRecord[] => {
   return casesList.filter((c) => {
+    if (isComplainantSubjectCaseRecord(c)) return false;
+
     // 1. Filter by grade scope
     if (config.scope === "specific" && config.selectedGrade) {
       const grade = getCaseGradeLevel(c);
