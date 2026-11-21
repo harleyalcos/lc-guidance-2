@@ -141,7 +141,7 @@ export default function AcademicMonthRangePicker({
     async function fetchMonths() {
       try {
         const months = await invoke<string[]>("get_active_months", { schoolYear: "all" });
-        const parsed: DateUnit[] = months
+        const parsed: DateUnit[] = (Array.isArray(months) ? months : [])
           .map((m) => {
             const [y, mm] = m.split("-");
             return {
@@ -151,12 +151,16 @@ export default function AcademicMonthRangePicker({
           })
           .filter((u) => !isNaN(u.year) && !isNaN(u.month));
         setActiveMonths(parsed);
-      } catch (error) {
+      } catch {
+        // Month highlighting is decorative; the page's own case query reports database
+        // failures, so the picker simply shows no highlighted months here.
         setActiveMonths([]);
       }
     }
 
     fetchMonths();
+    window.addEventListener("cases:changed", fetchMonths);
+    return () => window.removeEventListener("cases:changed", fetchMonths);
   }, []);
 
   const emitRange = useCallback((lo: DateUnit, hi: DateUnit) => {

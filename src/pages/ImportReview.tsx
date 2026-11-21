@@ -1,3 +1,4 @@
+import { showError } from "../components/AppDialogs";
 import { useState, useMemo, Fragment, useEffect, useRef } from "react";
 import { useLocation, useNavigate, Navigate } from "react-router-dom";
 import { createPortal } from "react-dom";
@@ -77,14 +78,25 @@ export default function ImportReview() {
   const toastTimerRef = useRef<number | null>(null);
 
   const [isRevalidating, setIsRevalidating] = useState(true);
+  const [revalidateToken, setRevalidateToken] = useState(0);
+  const initialRowsRef = useRef<ImportRow[]>(state?.parseResult.rows || fallbackRows || []);
   useEffect(() => {
     let active = true;
-    invoke<ImportRow[]>("validate_import_rows", { rows: state?.parseResult.rows || fallbackRows || [] })
-      .then(checked => { if (active) setRows(checked); })
-      .catch(error => { if (active) showToast("error", `Unable to review imports: ${error}`); })
+    setIsRevalidating(true);
+    // Staged rows are re-checked against the current database (duplicates may have appeared).
+    invoke<ImportRow[]>("validate_import_rows", { rows: revalidateToken === 0 ? initialRowsRef.current : rows })
+      .then(checked => { if (active) setRows(Array.isArray(checked) ? checked : []); })
+      .catch(error => {
+        if (active) showError(error, {
+          title: "Couldn't check the staged rows",
+          message: "The staged import rows could not be validated against the database. Importing is paused until they are checked.",
+          onRetry: () => setRevalidateToken((n) => n + 1),
+        });
+      })
       .finally(() => { if (active) setIsRevalidating(false); });
     return () => { active = false; };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revalidateToken]);
 
   // Categorize rows based on their status
   const issuesRows = useMemo(() => {
@@ -131,21 +143,35 @@ export default function ImportReview() {
 
   // Clear history state on mount so reload/restore does not resurrect original parseResult
   useEffect(() => {
-    try {
-      if (window.history.state?.usr?.parseResult || (window.history.state && (window.history.state as any).parseResult)) {
-        window.history.replaceState({}, document.title);
-      }
-    } catch {}
+    if (location.state) {
+      // Drop the one-time payload without wiping React Router's history bookkeeping.
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync to localStorage
+  const storageWarningShownRef = useRef(false);
   useEffect(() => {
-    if (rows.length > 0) {
-      localStorage.setItem("lc_pending_import_rows", JSON.stringify(rows));
-      localStorage.setItem("lc_pending_import_filename", filename);
-    } else {
-      localStorage.removeItem("lc_pending_import_rows");
-      localStorage.removeItem("lc_pending_import_filename");
+    try {
+      if (rows.length > 0) {
+        localStorage.setItem("lc_pending_import_rows", JSON.stringify(rows));
+        localStorage.setItem("lc_pending_import_filename", filename);
+      } else {
+        localStorage.removeItem("lc_pending_import_rows");
+        localStorage.removeItem("lc_pending_import_filename");
+      }
+      storageWarningShownRef.current = false;
+    } catch (error) {
+      // Very large imports can exceed browser storage. The review still works; it just can't be resumed later.
+      if (!storageWarningShownRef.current) {
+        storageWarningShownRef.current = true;
+        showError(error, {
+          title: "Couldn't save the review for later",
+          message: "This import is too large to keep as a resumable session. You can still review and import it now.",
+          guidance: "Finish this import before closing the app or leaving this page, or split the file into smaller files.",
+        });
+      }
     }
     window.dispatchEvent(new Event("storage"));
     window.dispatchEvent(new Event("pending:changed"));
@@ -313,7 +339,7 @@ export default function ImportReview() {
         setIsEditModalClosing(false);
       }, 200);
     } catch (e) {
-      showToast("error", `Validation failed: ${e}`);
+      showError(e, { title: "Couldn't check the edited row", message: "Your edits were not applied. They are still in the edit form.", guidance: "Try saving the row again." });
     } finally {
       setIsSavingRow(false);
     }
@@ -376,11 +402,23 @@ export default function ImportReview() {
           remainingCount: remainingRows.length,
         });
       } else {
-        setRows(await invoke<ImportRow[]>("validate_import_rows", { rows }));
-        showToast("error", `Import failed. ${result.failed_count} errors. ${result.errors.join(" ")}`);
+        try {
+          setRows(await invoke<ImportRow[]>("validate_import_rows", { rows }));
+        } catch {
+          // The import error below already explains what happened; rows stay as they were.
+        }
+        showError(result.errors.join("\n"), {
+          title: "Import stopped — nothing was saved",
+          message: `${result.failed_count} row(s) could not be imported, so no records were saved (the import is all-or-nothing). The rows have been re-checked; fix the ones now listed under Issues or Duplicates and import again.`,
+          guidance: "Open the Technical details for the exact rows that failed.",
+        });
       }
     } catch (e) {
-      showToast("error", `Batch import failed: ${e}`);
+      showError(e, {
+        title: "Import failed — nothing was saved",
+        message: "The records could not be imported. Your staged rows are still here.",
+        guidance: "Try the import again. If a safety backup could not be created, free up disk space first.",
+      });
     } finally {
       setIsImporting(false);
     }
@@ -400,7 +438,7 @@ export default function ImportReview() {
         console.warn("Could not retrieve Gemini API key, using offline heuristics", err);
       }
 
-      const { updatedRows, modifiedCount } = await batchCategorizeRowsWithAi(
+      const { updatedRows, modifiedCount, aiFallbackCount } = await batchCategorizeRowsWithAi(
         rows,
         apiKey,
         (progressPercent) => setAiProgress(progressPercent)
@@ -409,13 +447,19 @@ export default function ImportReview() {
       if (modifiedCount > 0) {
         const checkedRows = await invoke<ImportRow[]>("validate_import_rows", { rows: updatedRows });
         setRows(checkedRows);
-        localStorage.setItem("lc_pending_import_rows", JSON.stringify(checkedRows));
-        showToast("success", `Standardized and mapped ${modifiedCount} case category(ies) using ${apiKey ? "Gemini AI" : "intelligent guidance classification"}.`);
+        showToast("success", `Standardized and mapped ${modifiedCount} case category(ies) using ${apiKey && aiFallbackCount < rows.length ? "Gemini AI" : "intelligent guidance classification"}.`);
       } else {
         showToast("success", "All imported rows are already mapped to standard distribution types.");
       }
+      if (apiKey && aiFallbackCount > 0) {
+        showError("Gemini request failed", {
+          title: "Gemini was unavailable for some rows",
+          message: `${aiFallbackCount} row(s) were categorized with the built-in offline rules because Gemini could not be reached.`,
+          guidance: "Review those categories before importing, or check the internet connection and API key and run Standardize again.",
+        });
+      }
     } catch (err) {
-      showToast("error", `AI categorization failed: ${err}`);
+      showError(err, { title: "Couldn't standardize case categories", message: "The case categories could not be mapped. Your rows were not changed." });
     } finally {
       setIsAiCategorizing(false);
       setAiProgress(0);
@@ -426,7 +470,7 @@ export default function ImportReview() {
     try {
       const selected = await open({
         multiple: true,
-        filters: [{ name: "Excel", extensions: ["xlsx", "xls"] }]
+        filters: [{ name: "Excel or CSV", extensions: ["xlsx", "xls", "csv"] }]
       });
 
       if (!selected) return;
@@ -442,10 +486,19 @@ export default function ImportReview() {
       for (const filePath of filePaths) {
         const fname = filePath.replace(/^.*[\\\/]/, '');
         newFilenames.push(fname);
-        const result = await invoke<ParseFileResult>("parse_import_file", { filePath });
+        let result: ParseFileResult;
+        try {
+          result = await invoke<ParseFileResult>("parse_import_file", { filePath });
+        } catch (fileError) {
+          throw new Error(`${fname}: ${fileError instanceof Error ? fileError.message : String(fileError)}`);
+        }
         if (result && Array.isArray(result.rows)) {
           newRows.push(...result.rows);
         }
+      }
+      if (newRows.length === 0) {
+        showToast("error", "No case rows were found in the selected file(s).");
+        return;
       }
 
       if (newRows.length > 0) {
@@ -460,7 +513,11 @@ export default function ImportReview() {
         showToast("success", `Added ${newRows.length} rows from ${newFilenames.join(", ")}`);
       }
     } catch (e) {
-      showToast("error", `Failed to add files: ${e}`);
+      showError(e, {
+        title: "Couldn't add the file",
+        message: "The selected file could not be read. Rows already staged are unchanged.",
+        guidance: "Use the import template (Full Name, Date, Case, Sanction, Progress, Grade, Section, Adviser) saved as .xlsx or .csv.",
+      });
     } finally {
       setIsImporting(false);
     }
@@ -860,6 +917,9 @@ export default function ImportReview() {
             onClick={handleEditCancel}
           />
           <form
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
             onSubmit={(e) => {
               e.preventDefault();
               handleEditSave(editingRowIndex);

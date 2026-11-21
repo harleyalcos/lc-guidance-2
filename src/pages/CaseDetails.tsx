@@ -1,3 +1,6 @@
+import { explainError } from "../utils/errors";
+import { showError } from "../components/AppDialogs";
+import { parseLocalDay } from "../utils/dates";
 import { applyCaseChanges, CaseChange } from "../utils/caseChanges";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -186,13 +189,13 @@ const parseProofs = (value: string): ProofItem[] => {
 
 const formatDateTime = (dateStr: string) => {
   if (!dateStr) return "—";
-  const parsed = new Date(dateStr);
+  const hasTime = dateStr.includes("T") || dateStr.includes(":") || dateStr.includes(" ");
+  // Date-only values are calendar days; parsing them as UTC shifts the day in some time zones.
+  const parsed = (!hasTime && parseLocalDay(dateStr)) || new Date(dateStr);
 
   if (Number.isNaN(parsed.getTime())) {
     return dateStr;
   }
-
-  const hasTime = dateStr.includes("T") || dateStr.includes(":") || dateStr.includes(" ");
   
   if (!hasTime) {
     const formatted = parsed.toLocaleDateString("en-US", {
@@ -224,6 +227,8 @@ export default function CaseDetails() {
   const [caseRecord, setCaseRecord] = useState<CaseRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<"not-found" | "load">("load");
+  const [isSaving, setIsSaving] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelConfirmClosing, setIsCancelConfirmClosing] = useState(false);
 
@@ -389,7 +394,7 @@ export default function CaseDetails() {
           await invoke("save_pdf", { base64Data, filename });
         }
       } catch (err) {
-        alert("Failed to export PDF: " + err);
+        showError(err, { title: "Couldn't export the PDF", message: "The case PDF could not be created or saved.", guidance: "Make sure the Downloads folder exists and has free space, then try again." });
       } finally {
         if (isMounted) setIsExporting(false);
       }
@@ -525,9 +530,16 @@ export default function CaseDetails() {
   // Load Case Record
   const loadCase = useCallback(async () => {
     if (!id) return;
+    const numericId = Number(id);
+    if (!Number.isSafeInteger(numericId) || numericId <= 0) {
+      setErrorKind("not-found");
+      setError("This link does not point to a valid case.");
+      setIsLoading(false);
+      return;
+    }
     try {
       setIsLoading(true);
-      const data = await invoke<CaseRecord>("get_case", { id: Number(id) });
+      const data = await invoke<CaseRecord>("get_case", { id: numericId });
       setCaseRecord(data);
       resetEditForm(data);
       let proofs = parseProofs(data.proofs);
@@ -559,7 +571,10 @@ export default function CaseDetails() {
       setCaseRecord((prev) => prev ? { ...prev, proofs: JSON.stringify(proofs) } : prev);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      const notFound = /not found/i.test(message);
+      setErrorKind(notFound ? "not-found" : "load");
+      setError(notFound ? "This case no longer exists. It may have been deleted or replaced by a restore." : explainError(err, "The case could not be read from the database."));
     } finally {
       setIsLoading(false);
     }
@@ -597,10 +612,13 @@ export default function CaseDetails() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!/^image\/(jpeg|png|gif|webp)$/.test(file.type) || file.size > 10 * 1024 * 1024) {
-      alert("Choose a JPG, PNG, GIF or WEBP image up to 10 MB."); e.target.value = ""; return;
+      showError("Unsupported image", { title: "Can't attach this file", message: "Attachments must be JPG, PNG, GIF or WEBP images up to 10 MB.", guidance: "Choose a different image, or reduce its size and try again." });
+      e.target.value = ""; return;
     }
+    // Allow choosing the same file again after an error or removal.
+    e.target.value = "";
     const reader = new FileReader();
-    reader.onerror = () => alert("The image could not be read. Choose the file again.");
+    reader.onerror = () => showError(reader.error, { title: "Couldn't read the image", message: "The selected image could not be read.", guidance: "Choose the file again. If it is on a USB drive or network folder, copy it to the computer first." });
     reader.onload = async () => {
       try {
         await saveProofs([
@@ -612,7 +630,7 @@ export default function CaseDetails() {
           },
         ], `Uploaded proof: ${file.name}`);
       } catch (err) {
-        alert("Failed to upload proof: " + err);
+        showError(err, { title: "Couldn't attach the image", message: "The attachment could not be saved to this case.", guidance: "Try again. Very large images may need to be resized first." });
       }
     };
     reader.readAsDataURL(file);
@@ -636,14 +654,23 @@ export default function CaseDetails() {
             `Deleted proof: ${deletedProof?.name || "unknown"}`
         );
       } catch (err) {
-        alert("Failed to delete proof: " + err);
+        showError(err, { title: "Couldn't remove the attachment", message: "The attachment is still attached to this case." });
       }
     });
   };
 
   // Handle Save Edits
   const handleSaveEdits = async () => {
-    if (!caseRecord) return;
+    if (!caseRecord || isSaving) return;
+    setIsSaving(true);
+    try {
+      await saveEdits(caseRecord);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveEdits = async (caseRecord: CaseRecord) => {
     const parsedDate = new Date(editForm.date);
     const isFuture = !Number.isNaN(parsedDate.getTime()) && parsedDate > new Date();
     const date = isFuture ? getTodayDateString() : (editForm.date || caseRecord.date || caseRecord.date_filed || getTodayDateString());
@@ -764,7 +791,11 @@ export default function CaseDetails() {
       window.dispatchEvent(new Event("cases:changed"));
       loadCase();
     } catch (err) {
-      alert("Failed to save case details: " + err);
+      showError(err, {
+        title: "Couldn't save the case",
+        message: "Your changes were not saved. They are still in the form.",
+        guidance: "Review the fields and click Save again. If the case was changed elsewhere, cancel and reopen it.",
+      });
     }
   };
 
@@ -968,7 +999,7 @@ export default function CaseDetails() {
       window.dispatchEvent(new Event("cases:changed"));
       loadCase();
     } catch (err) {
-      setAddStudentError("Failed to add student: " + err);
+      setAddStudentError(`Couldn't add the student. ${explainError(err, "The change could not be saved.")}`);
     } finally {
       setIsAddingStudent(false);
     }
@@ -1012,14 +1043,23 @@ export default function CaseDetails() {
     return (
       <div className="text-center mt-12 bg-surface border border-outline-variant p-8 rounded-xl max-w-md mx-auto shadow-sm">
         <span className="material-symbols-outlined text-error text-5xl mb-3">error</span>
-        <h3 className="text-lg font-bold text-on-surface mb-2">Case Record Not Found</h3>
+        <h3 className="text-lg font-bold text-on-surface mb-2">{errorKind === "not-found" ? "Case Record Not Found" : "Couldn't Load This Case"}</h3>
         <p className="text-sm text-secondary mb-6">{error || "The requested case could not be retrieved."}</p>
-        <button
-          onClick={() => navigate("/catalog")}
-          className="px-6 py-2 bg-[#0F172A] hover:bg-black text-white text-sm font-bold rounded-lg transition-all duration-500"
-        >
-          Return to Catalog
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {errorKind === "load" && (
+            <button type="button" onClick={() => void loadCase()} className="btn-primary">
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">refresh</span>
+              <span>Try Again</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate("/catalog")}
+            className={errorKind === "load" ? "btn-secondary" : "btn-primary"}
+          >
+            Return to Catalog
+          </button>
+        </div>
       </div>
     );
   }
@@ -1053,10 +1093,11 @@ export default function CaseDetails() {
             <>
               <button
                 onClick={handleSaveEdits}
+                disabled={isSaving}
                 className="btn-primary bg-[#15803d] hover:bg-green-700 text-white font-bold"
               >
-                <span className="material-symbols-outlined text-sm">save</span>
-                <span>Save</span>
+                <span className={`material-symbols-outlined text-sm ${isSaving ? "animate-spin" : ""}`}>{isSaving ? "progress_activity" : "save"}</span>
+                <span>{isSaving ? "Saving..." : "Save"}</span>
               </button>
               <button
                 onClick={() => {
@@ -1635,7 +1676,7 @@ export default function CaseDetails() {
                         const base64Data = parts[1] || parts[0];
                         await invoke("save_file", { base64Data, filename: proof.name });
                       } catch (err) {
-                        console.error("Failed to download attachment", err);
+                        showError(err, { title: "Couldn't download the attachment", message: "The attachment could not be saved to the Downloads folder.", guidance: "Make sure the Downloads folder exists and has free space." });
                       }
                     }}
                     className="bg-primary text-white rounded-full w-7 h-7 opacity-0 group-hover:opacity-100 hover:bg-primary-container transition-all duration-500 shadow-md flex items-center justify-center"
@@ -1821,7 +1862,7 @@ export default function CaseDetails() {
         <div className={`fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm ${
           isCancelConfirmClosing ? "unsaved-confirm-backdrop-exit" : "unsaved-confirm-backdrop-enter"
         }`}>
-          <div className={`bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
+          <div role="dialog" aria-modal="true" tabIndex={-1} className={`bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
             isCancelConfirmClosing ? "unsaved-confirm-panel-exit" : "unsaved-confirm-panel-enter"
           }`}>
             <span className="material-symbols-outlined text-5xl mx-auto" style={{ color: "#d97706" }}>warning</span>
@@ -1843,6 +1884,7 @@ export default function CaseDetails() {
               <button
                 type="button"
                 onClick={() => closeCancelConfirm(false)}
+                data-autofocus
                 className="btn-secondary w-full"
               >
                 <span className="material-symbols-outlined text-sm">edit</span>
@@ -2204,7 +2246,7 @@ export default function CaseDetails() {
         document.body
       )}
       {isExporting && createPortal(
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm">
+        <div role="status" aria-live="polite" className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm">
           <div className="bg-surface border border-outline-variant p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-xs w-full text-center">
             <span className="material-symbols-outlined text-4xl animate-spin text-primary">sync</span>
             <div>

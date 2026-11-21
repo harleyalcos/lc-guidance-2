@@ -5,6 +5,8 @@ export interface ImportErrorModalProps {
   isOpen: boolean;
   onClose: () => void;
   rawError: string;
+  /** Name of the file that failed, when several files were selected. */
+  fileName?: string;
   onSelectAnotherFile?: () => void;
   onDownloadTemplate?: () => void;
 }
@@ -23,6 +25,7 @@ export default function ImportErrorModal({
   isOpen,
   onClose,
   rawError,
+  fileName,
   onSelectAnotherFile,
   onDownloadTemplate,
 }: ImportErrorModalProps) {
@@ -147,6 +150,12 @@ export default function ImportErrorModal({
         title = "Invalid or Corrupted File";
         summary =
           "The file could not be opened as a valid Excel (.xlsx) spreadsheet.";
+      } else if (cleaned.toLowerCase().includes("unsupported file type")) {
+        title = "Unsupported File Type";
+        summary = "Only Excel workbooks (.xlsx, .xls) and CSV files (.csv) can be imported.";
+      } else if (cleaned.toLowerCase().includes("no case rows")) {
+        title = "No Case Records Found";
+        summary = "The file has the right headers but no case rows underneath them.";
       } else if (cleaned.toLowerCase().includes("does not contain any sheets")) {
         title = "Empty Excel File";
         summary = "The uploaded file does not contain any readable worksheets.";
@@ -201,6 +210,9 @@ export default function ImportErrorModal({
               <p className="text-xs text-secondary mt-0.5 leading-relaxed max-w-md">
                 {parsed.summary}
               </p>
+              {fileName && (
+                <p className="text-xs font-semibold text-on-surface mt-1 break-all">File: {fileName}</p>
+              )}
             </div>
           </div>
           <button
@@ -315,10 +327,10 @@ export default function ImportErrorModal({
           <div className="p-4 bg-surface-container-low border border-outline-variant rounded-2xl space-y-2">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-[18px]">table_chart</span>
-              <span className="text-xs font-bold text-on-surface">Required Excel Column Order</span>
+              <span className="text-xs font-bold text-on-surface">Required Columns</span>
             </div>
             <p className="text-[11px] text-secondary">
-              Your Excel file headers must match this exact sequence (case-sensitive):
+              Your file needs a header row with these columns. Order and capitalization do not matter, and the header row can be anywhere in the first 25 rows. Excel (.xlsx, .xls) and CSV files are accepted:
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
               {EXPECTED_HEADERS.map((hdr, i) => (

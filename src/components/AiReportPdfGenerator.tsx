@@ -1,3 +1,4 @@
+import { showError } from "./AppDialogs";
 import { useState, useMemo, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -294,14 +295,14 @@ export default function AiReportPdfGenerator({
     selectedPaperSize,
   ]);
 
-  const { pdfBlobUrl, isGenerating, exportPdf } = useAiReportPdf(reportData);
+  const { pdfBlobUrl, isGenerating, exportPdf, error: previewError } = useAiReportPdf(reportData);
 
   const handleExport = async () => {
     try {
       setIsExportingState(true);
       await exportPdf();
     } catch (err) {
-      alert("Failed to export PDF: " + err);
+      showError(err, { title: "Couldn't export the PDF", message: "The AI report PDF could not be created or saved.", guidance: "Make sure the Downloads folder exists and has free space, then try again.", onRetry: () => { void handleExport(); } });
     } finally {
       setIsExportingState(false);
     }
@@ -486,6 +487,12 @@ export default function AiReportPdfGenerator({
             )}
             <span>{isExportingState ? "Exporting..." : "Export PDF"}</span>
           </button>
+
+          {previewError && !isGenerating && (
+            <span role="alert" className="text-xs font-semibold text-error" title={previewError}>
+              The PDF could not be prepared. Edit the report or reopen the conversation to try again.
+            </span>
+          )}
 
           {/* Print Button */}
           <button

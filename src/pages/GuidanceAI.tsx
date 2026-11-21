@@ -4,13 +4,20 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AiReportPdfGenerator, { AiReportMetadata } from "../components/AiReportPdfGenerator";
 import AiHistoryDrawer, { AiSession, AiSavedMessage } from "../components/AiHistoryDrawer";
+import { showError, showFriendlyError } from "../components/AppDialogs";
+import { describeGeminiFailure, geminiEndpoint, GeminiError, geminiHttpError } from "../utils/gemini";
 
 interface Message {
   role: "user" | "model";
   parts: { text?: string; functionCall?: any; functionResponse?: any }[];
   timestamp: Date;
   id: string;
+  /** Local-only error notice; never sent back to Gemini as conversation history. */
+  isError?: boolean;
 }
+
+/** Maximum chained database lookups per answer, so a confused model cannot loop forever. */
+const MAX_TOOL_ROUNDS = 5;
 
 const getDynamicSystemPrompt = (): string => {
   const now = new Date();
@@ -430,12 +437,27 @@ export default function GuidanceAI() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  /** In-flight Gemini request; aborted when the user switches/leaves the conversation. */
+  const abortRef = useRef<AbortController | null>(null);
+
+  const cancelGeneration = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsGenerating(false);
+  };
+
+  // Never stream into an unmounted page.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   // Load API Key
   useEffect(() => {
     invoke<string>("get_gemini_api_key")
-      .then(setApiKey)
-      .catch(console.error);
+      .then((key) => setApiKey(key || ""))
+      .catch((err) => showError(err, {
+        title: "Couldn't load the Gemini API key",
+        message: "The saved API key could not be read, so Guidance AI cannot answer questions yet.",
+        guidance: "Reopen this page. If it keeps failing, re-enter the key in Settings → Guidance AI.",
+      }));
   }, []);
 
   // Scroll to bottom on message updates
@@ -449,7 +471,7 @@ export default function GuidanceAI() {
       const list = await invoke<AiSession[]>("get_ai_sessions");
       setSessions(list || []);
     } catch (err) {
-      console.error("[Guidance AI Failed to fetch sessions]", err);
+      showError(err, { title: "Couldn't load conversation history", message: "Past conversations could not be loaded.", onRetry: () => { void fetchSessions(); } });
     }
   };
 
@@ -463,33 +485,47 @@ export default function GuidanceAI() {
     e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
   };
 
-  const generateId = () => Math.random().toString(36).substring(2, 9);
+  const generateId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
   const callGemini = async (
     currentMessages: Message[],
     sessionId: string,
     defaultTitle: string,
-    _initialCall = true
-  ) => {
+    depth = 0
+  ): Promise<void> => {
     if (!apiKey) {
       setMessages((prev) => [
         ...prev,
         {
           role: "model",
-          parts: [{ text: "Error: Gemini API Key is not configured. Please add it in Account Settings." }],
+          parts: [{ text: "Guidance AI is not set up yet. Add a Gemini API key in **Settings → Guidance AI**, then send your question again." }],
           timestamp: new Date(),
           id: generateId(),
+          isError: true,
         },
       ]);
       setIsGenerating(false);
       return;
     }
 
+    let placeholderId: string | null = null;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let timedOut = false;
+    const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, 90_000);
     try {
+      if (depth >= MAX_TOOL_ROUNDS) {
+        throw new GeminiError({
+          title: "Guidance AI request failed",
+          message: "Guidance AI needed too many database lookups to answer this question.",
+          guidance: "Try asking a narrower question, for example about one month, grade level or case type.",
+        });
+      }
       // Sliding window context: keep only recent turns to maintain token efficiency and low memory
       const recentMessages = currentMessages.slice(-8);
 
       const formattedContents = recentMessages
+        .filter((m) => !m.isError)
         .map((m) => {
           const validParts = m.parts.filter((p) => {
             if (p.text !== undefined) return p.text.trim().length > 0;
@@ -504,15 +540,10 @@ export default function GuidanceAI() {
         })
         .filter((m) => m.parts.length > 0);
 
-      console.log("[Guidance AI Request Payload]", {
-        model: "gemini-3.1-flash-lite",
-        contents: formattedContents,
-      });
-
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?alt=sse&key=${apiKey}`,
+        geminiEndpoint(apiKey, "streamGenerateContent"),
         {
-          signal: AbortSignal.timeout(90_000),
+          signal: controller.signal,
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -541,9 +572,8 @@ export default function GuidanceAI() {
       );
 
       if (!response.ok) {
-        const errText = await response.text();
-        console.error(`[Guidance AI Error] gemini-3.1-flash-lite returned status ${response.status}:`, errText);
-        throw new Error(`Gemini 3.1 Flash Lite API Error (${response.status}): ${errText}`);
+        const errText = await response.text().catch(() => "");
+        throw geminiHttpError(response.status, errText);
       }
 
       if (!response.body) throw new Error("No response body received from Gemini API.");
@@ -554,7 +584,9 @@ export default function GuidanceAI() {
       let textBuffer = "";
       let sseBuffer = "";
       let functionCallPart: any = null;
-      let modelMessageId = generateId();
+      let finishReason = "";
+      const modelMessageId = generateId();
+      placeholderId = modelMessageId;
 
       setMessages((prev) => [
         ...prev,
@@ -578,9 +610,19 @@ export default function GuidanceAI() {
             }
             if (!line || line === "[" || line === "]" || line === ",") continue;
 
+            let data: any;
             try {
-              const data = JSON.parse(line);
+              data = JSON.parse(line);
+            } catch {
+              // Partial keep-alive or non-JSON line in the stream; skip it.
+              continue;
+            }
+            if (data?.error) {
+              throw geminiHttpError(Number(data.error.code) || 500, line);
+            }
+            {
               const candidate = data.candidates?.[0];
+              if (candidate?.finishReason) finishReason = String(candidate.finishReason);
               if (candidate?.content?.parts) {
                 for (const part of candidate.content.parts) {
                   if (part.text) {
@@ -614,8 +656,6 @@ export default function GuidanceAI() {
                   }
                 }
               }
-            } catch (e) {
-              console.error("[Guidance AI Stream JSON Parse Error]", e, "Raw Line:", line);
             }
           }
         }
@@ -631,7 +671,7 @@ export default function GuidanceAI() {
         try {
           queryResult = await invoke("query_database_for_ai", { sql });
         } catch (dbErr) {
-          console.error("[Guidance AI SQL Query Error]", dbErr);
+          // Returned to the model so it can correct its query; not shown as a user error.
           queryResult = { error: dbErr instanceof Error ? dbErr.message : String(dbErr) };
         }
 
@@ -661,18 +701,24 @@ export default function GuidanceAI() {
         setMessages((prev) => prev.filter((m) => m.id !== modelMessageId));
         setMessages((prev) => [...prev, functionCallMessage, functionResponseMessage]);
 
-        await callGemini(updatedHistory, sessionId, defaultTitle, false);
+        placeholderId = null;
+        if (controller.signal.aborted) return;
+        window.clearTimeout(timer);
+        await callGemini(updatedHistory, sessionId, defaultTitle, depth + 1);
       } else {
         if (!textBuffer.trim()) {
-          console.warn("[Guidance AI Warning] Empty text response from Gemini model.");
+          const blocked = /safety|blocklist|prohibited|recitation/i.test(finishReason);
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === modelMessageId
                 ? {
                     ...msg,
+                    isError: true,
                     parts: [
                       {
-                        text: "Unable to generate a response. Please check developer console (F12) for logs.",
+                        text: blocked
+                          ? "Gemini declined to answer this request. Try rephrasing the question without personal details."
+                          : "Gemini returned an empty answer. Try asking again or rephrasing the question.",
                       },
                     ],
                   }
@@ -701,23 +747,43 @@ export default function GuidanceAI() {
             });
             fetchSessions();
           } catch (saveErr) {
-            console.error("[Guidance AI Failed to save model message]", saveErr);
+            showError(saveErr, {
+              title: "Couldn't save the AI answer",
+              message: "The answer is shown, but it could not be saved to the conversation history.",
+              guidance: "Copy anything important now. Restart the app if saving keeps failing.",
+            });
           }
         }
         setIsGenerating(false);
       }
-    } catch (err) {
-      console.error("[Guidance AI Chat Fatal Error]", err);
+    } catch (caught) {
+      // The user started a new chat, opened another conversation or left the page.
+      if (controller.signal.aborted && !timedOut) return;
+      const err = timedOut ? new DOMException("Gemini did not respond within 90 seconds.", "TimeoutError") : caught;
+      const friendly = describeGeminiFailure(err);
+      const errorId = generateId();
       setMessages((prev) => [
-        ...prev,
+        // Drop an empty streaming placeholder so the chat never shows a blank bubble.
+        ...prev.filter((m) => !(m.id === placeholderId && !(m.parts[0]?.text || "").trim())),
         {
           role: "model",
-          parts: [{ text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
+          parts: [{ text: `**${friendly.message}** ${friendly.guidance ?? ""}`.trim() }],
           timestamp: new Date(),
-          id: generateId(),
+          id: errorId,
+          isError: true,
         },
       ]);
       setIsGenerating(false);
+      showFriendlyError(friendly, {
+        onRetry: () => {
+          setMessages((prev) => prev.filter((m) => m.id !== errorId));
+          setIsGenerating(true);
+          void callGemini(currentMessages, sessionId, defaultTitle, depth);
+        },
+      });
+    } finally {
+      window.clearTimeout(timer);
+      if (abortRef.current === controller) abortRef.current = null;
     }
   };
 
@@ -767,7 +833,11 @@ export default function GuidanceAI() {
       });
       fetchSessions();
     } catch (err) {
-      console.error("[Guidance AI Error saving user message]", err);
+      showError(err, {
+        title: "Couldn't save your message",
+        message: "Your question will still be sent, but it could not be saved to the conversation history.",
+        guidance: "Restart the app if saving keeps failing.",
+      });
     }
 
     await callGemini(nextMessages, sessionId, derivedTitle);
@@ -781,6 +851,7 @@ export default function GuidanceAI() {
   };
 
   const handleNewChat = () => {
+    cancelGeneration();
     setMessages([]);
     setCurrentSessionId(null);
     setInputValue("");
@@ -791,7 +862,7 @@ export default function GuidanceAI() {
 
   const handleSelectSession = async (sessionId: string) => {
     try {
-      setIsGenerating(false);
+      cancelGeneration();
       const savedMessages = await invoke<AiSavedMessage[]>("get_ai_session_messages", { sessionId });
       const loaded: Message[] = (savedMessages || []).map((m) => ({
         id: m.id,
@@ -802,21 +873,24 @@ export default function GuidanceAI() {
       setMessages(loaded);
       setCurrentSessionId(sessionId);
     } catch (err) {
-      console.error("[Guidance AI Failed to load session messages]", err);
+      showError(err, {
+        title: "Couldn't open the conversation",
+        message: "The saved messages for this conversation could not be loaded.",
+        onRetry: () => { void handleSelectSession(sessionId); },
+      });
     }
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (window.confirm("Are you sure you want to delete this conversation? All messages in this session will be permanently removed.")) {
-      try {
-        await invoke("delete_ai_session", { sessionId });
-        if (currentSessionId === sessionId) {
-          handleNewChat();
-        }
-        fetchSessions();
-      } catch (err) {
-        console.error("[Guidance AI Failed to delete session]", err);
+    // The history drawer asks for confirmation inline before calling this.
+    try {
+      await invoke("delete_ai_session", { sessionId });
+      if (currentSessionId === sessionId) {
+        handleNewChat();
       }
+      fetchSessions();
+    } catch (err) {
+      showError(err, { title: "Couldn't delete the conversation", message: "The conversation could not be deleted." });
     }
   };
 
@@ -831,18 +905,21 @@ export default function GuidanceAI() {
         await invoke("delete_ai_session", { sessionId: currentSessionId });
         fetchSessions();
       } catch (err) {
-        console.error("[Guidance AI Failed to delete active session]", err);
+        // Keep the conversation on screen so nothing appears deleted when it was not.
+        showError(err, { title: "Couldn't delete the conversation", message: "The conversation could not be deleted." });
+        return;
       }
     }
     handleNewChat();
   };
 
   const handleRenameSession = async (sessionId: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
     try {
-      await invoke("rename_ai_session", { sessionId, newTitle });
+      await invoke("rename_ai_session", { sessionId, newTitle: newTitle.trim() });
       fetchSessions();
     } catch (err) {
-      console.error("[Guidance AI Failed to rename session]", err);
+      showError(err, { title: "Couldn't rename the conversation", message: "The new name could not be saved." });
     }
   };
 
@@ -852,7 +929,7 @@ export default function GuidanceAI() {
       handleNewChat();
       fetchSessions();
     } catch (err) {
-      console.error("[Guidance AI Failed to clear sessions]", err);
+      showError(err, { title: "Couldn't clear the history", message: "The conversation history could not be cleared.", onRetry: () => { void handleClearAllSessions(); } });
     }
   };
 
@@ -1137,7 +1214,7 @@ export default function GuidanceAI() {
       {/* ─── Delete Active Conversation Confirmation Modal ─── */}
       {showDeleteActiveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="w-full max-w-sm bg-surface dark:bg-surface-container border border-outline-variant rounded-2xl p-5 shadow-2xl space-y-4">
+          <div role="dialog" aria-modal="true" tabIndex={-1} className="w-full max-w-sm bg-surface dark:bg-surface-container border border-outline-variant rounded-2xl p-5 shadow-2xl space-y-4">
             <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
               <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-950/60 flex items-center justify-center shrink-0">
                 <span className="material-symbols-outlined text-[22px]">delete</span>

@@ -1,3 +1,4 @@
+import { explainError } from "../utils/errors";
 import React, { useState, useMemo, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -69,7 +70,7 @@ function formatSessionDateTime(dateStr: string): string {
     const timeStr = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     return `${mm}/${dd}/${yyyy} • ${timeStr}`;
   } catch {
-    return "";
+    return ""; // Unparseable legacy timestamp: show no date rather than "Invalid Date".
   }
 }
 
@@ -94,6 +95,7 @@ export default function AiHistoryDrawer({
   // Documents State
   const [documents, setDocuments] = useState<AiGeneratedDocument[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [docsError, setDocsError] = useState<string | null>(null);
   const [showClearModal, setShowClearModal] = useState(false);
 
   // Fetch documents when drawer is open or when switching tabs
@@ -102,8 +104,9 @@ export default function AiHistoryDrawer({
       setIsLoadingDocs(true);
       const docs = await invoke<AiGeneratedDocument[]>("get_ai_generated_documents");
       setDocuments(docs || []);
+      setDocsError(null);
     } catch (err) {
-      console.error("[AiHistoryDrawer Failed to fetch documents]", err);
+      setDocsError(explainError(err, "Saved AI documents could not be loaded."));
     } finally {
       setIsLoadingDocs(false);
     }
@@ -231,8 +234,14 @@ export default function AiHistoryDrawer({
         aria-hidden="true"
       />
 
-      {/* Slide-Over Drawer */}
+      {/* Slide-Over Drawer (a modal dialog only while open, so the closed drawer never traps focus) */}
       <div
+        role={isOpen ? "dialog" : undefined}
+        aria-modal={isOpen ? true : undefined}
+        aria-label="Conversation history"
+        aria-hidden={!isOpen}
+        inert={!isOpen}
+        tabIndex={-1}
         className={`fixed inset-y-0 right-0 z-50 w-full max-w-[400px] bg-surface dark:bg-surface-container-lowest border-l border-outline-variant shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
@@ -552,6 +561,12 @@ export default function AiHistoryDrawer({
                 </span>
                 <p className="text-xs font-semibold text-secondary m-0">Loading generated reports...</p>
               </div>
+            ) : docsError ? (
+              <div role="alert" className="h-48 flex flex-col items-center justify-center text-center p-4 gap-2">
+                <span className="material-symbols-outlined text-[32px] text-error" aria-hidden="true">error</span>
+                <p className="text-xs font-semibold text-on-surface m-0">{docsError}</p>
+                <button type="button" onClick={() => void fetchDocuments()} className="btn-secondary !py-1 !px-3 text-xs">Try Again</button>
+              </div>
             ) : groupedDocuments.length === 0 ? (
               <div className="h-48 flex flex-col items-center justify-center text-center p-4">
                 <span className="material-symbols-outlined text-[36px] text-gray-300 dark:text-gray-600 mb-2">
@@ -649,7 +664,7 @@ export default function AiHistoryDrawer({
       {/* Clear All Confirmation Modal */}
       {showClearModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="w-full max-w-sm bg-surface dark:bg-surface-container border border-outline-variant rounded-2xl p-5 shadow-2xl space-y-4">
+          <div role="dialog" aria-modal="true" tabIndex={-1} className="w-full max-w-sm bg-surface dark:bg-surface-container border border-outline-variant rounded-2xl p-5 shadow-2xl space-y-4">
             <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
               <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-950/60 flex items-center justify-center shrink-0">
                 <span className="material-symbols-outlined text-[22px]">delete_forever</span>

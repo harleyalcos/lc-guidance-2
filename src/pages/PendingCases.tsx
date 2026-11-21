@@ -1,3 +1,5 @@
+import { showError } from "../components/AppDialogs";
+import LoadErrorPanel from "../components/LoadErrorPanel";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -229,11 +231,13 @@ export default function PendingCases() {
 
   const selectedCase = cases.find((c) => c.id === selectedId) ?? null;
 
+  const [loadError, setLoadError] = useState<unknown>(null);
   const loadPendingCases = useCallback(async () => {
     setIsLoading(true);
     try {
       const all = await invoke<Case[]>("get_cases");
-      const pending = all.filter(
+      setLoadError(null);
+      const pending = (Array.isArray(all) ? all : []).filter(
         (c) => isPendingCase(c as unknown as CaseRecord) && !isComplainantSubjectCaseRecord(c)
       );
       pending.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -243,7 +247,8 @@ export default function PendingCases() {
         return pending[0]?.id ?? null;
       });
     } catch (err) {
-      console.error("Failed to load pending cases", err);
+      // Show the failure instead of an empty queue that looks like "no pending cases".
+      setLoadError(err ?? "Unknown error");
     } finally {
       setIsLoading(false);
     }
@@ -315,8 +320,12 @@ export default function PendingCases() {
 
       window.dispatchEvent(new Event("cases:changed"));
     } catch (err) {
-      console.error("Failed to update case", err);
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, {
+        title: "Couldn't update the case status",
+        message: `The case was not marked as ${newProgress}. It is still pending.`,
+        guidance: "Try again. If the case was changed elsewhere, it will refresh automatically.",
+      });
+      void loadPendingCases();
     } finally {
       setResolvingId(null);
       setConfirmState("idle");
@@ -357,6 +366,14 @@ export default function PendingCases() {
     });
   }, [filteredCases, dateSort]);
 
+
+  if (loadError) {
+    return (
+      <div className="p-margin-page">
+        <LoadErrorPanel title="Pending cases could not be loaded" error={loadError} onRetry={() => void loadPendingCases()} />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -673,7 +690,7 @@ export default function PendingCases() {
                                       const base64Data = parts[1] || parts[0];
                                       await invoke("save_file", { base64Data, filename: proof.name });
                                     } catch (err) {
-                                      console.error("Failed to download attachment", err);
+                                      showError(err, { title: "Couldn't download the attachment", message: "The attachment could not be saved to the Downloads folder.", guidance: "Make sure the Downloads folder exists and has free space." });
                                     }
                                   }}
                                   className="bg-primary text-white rounded-full w-7 h-7 opacity-0 group-hover:opacity-100 hover:bg-primary-container transition-all duration-500 shadow-md flex items-center justify-center"

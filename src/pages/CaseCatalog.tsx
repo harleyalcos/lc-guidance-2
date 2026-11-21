@@ -1,3 +1,5 @@
+import { showError } from "../components/AppDialogs";
+import { explainError } from "../utils/errors";
 import { normalizeGrade, caseDay } from "../utils/caseValues";
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -547,21 +549,25 @@ export default function CaseCatalog() {
     isYearsLoading,
   } = useAcademicYearFilter();
 
+  const loadRequestRef = useRef(0);
   const loadCases = useCallback(async () => {
     if (isYearsLoading || selectedSchoolYear === null) return;
+    const requestId = ++loadRequestRef.current;
     try {
       setIsLoading(true);
       const queryYear = (selectedSchoolYear === 'all' || (startDate && endDate)) ? null : selectedSchoolYear;
       const loadedCases = await invoke<CaseRecord[]>("get_cases", { 
         schoolYear: queryYear 
       });
-      setCases(loadedCases);
+      if (requestId !== loadRequestRef.current) return; // superseded by a newer filter selection
+      setCases(Array.isArray(loadedCases) ? loadedCases : []);
       setError(null);
     } catch (err) {
+      if (requestId !== loadRequestRef.current) return;
       setCases([]);
-      setError(err instanceof Error ? err.message : String(err));
+      setError(explainError(err, "The database could not be read."));
     } finally {
-      setIsLoading(false);
+      if (requestId === loadRequestRef.current) setIsLoading(false);
     }
   }, [selectedSchoolYear, isYearsLoading, startDate, endDate]);
 
@@ -585,7 +591,8 @@ export default function CaseCatalog() {
   useEffect(() => {
     if (location.state && (location.state as any).toastMessage) {
       showToast((location.state as any).toastMessage);
-      window.history.replaceState({}, document.title);
+      // Clear the one-time toast without wiping React Router's history bookkeeping.
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
     }
   }, [location]);
 
@@ -866,7 +873,13 @@ export default function CaseCatalog() {
       closeDeleteConfirm();
       window.dispatchEvent(new Event("cases:changed"));
     } catch (err) {
-      alert("Failed to delete case: " + err);
+      closeDeleteConfirm();
+      showError(err, {
+        title: "Couldn't delete the case",
+        message: "The case could not be deleted. It is still in the catalog.",
+        guidance: "Reload the catalog and try again. If the case was already deleted elsewhere, it will disappear after reloading.",
+      });
+      window.dispatchEvent(new Event("cases:changed"));
     }
   };
 
@@ -1180,6 +1193,7 @@ export default function CaseCatalog() {
 
       const buffer = await workbook.xlsx.writeBuffer();
       const isZipExport = options.columns.proofsCount || options.columns.updateHistory;
+      let skippedProofs = 0;
 
       if (isZipExport) {
         const zip = new JSZip();
@@ -1189,6 +1203,7 @@ export default function CaseCatalog() {
         // 1. Add attached_proofs/ folder if Attached Proofs is checked
         if (options.columns.proofsCount) {
           const proofsFolder = zip.folder("attached_proofs");
+          // Unreadable attachments are reported to the user after export instead of failing the whole ZIP.
           targetCases.forEach((c) => {
             if (c.proofs) {
               try {
@@ -1210,14 +1225,14 @@ export default function CaseCatalog() {
                         }
                         const cleanFileName = (proof.name || `proof_${idx + 1}.png`).replace(/[^a-zA-Z0-9._-]/g, "_");
                         caseFolder?.file(cleanFileName, bytes);
-                      } catch (err) {
-                        console.error("Failed to parse proof data", err);
+                      } catch {
+                        skippedProofs += 1;
                       }
                     }
                   });
                 }
               } catch {
-                // ignore invalid proof JSON
+                skippedProofs += 1;
               }
             }
           });
@@ -1273,14 +1288,20 @@ export default function CaseCatalog() {
         const zipContent = await zip.generateAsync({ type: "uint8array" });
         const base64Data = arrayBufferToBase64(zipContent);
         await invoke("save_file", { base64Data, filename: zipFilename });
-        showToast(`Successfully exported ZIP archive (${zipFilename}) with Excel sheet & folders.`);
+        showToast(`Successfully exported ZIP archive (${zipFilename}) with Excel sheet & folders.${skippedProofs ? ` ${skippedProofs} unreadable attachment(s) were skipped.` : ""}`);
       } else {
         const base64Data = arrayBufferToBase64(buffer as ArrayBuffer);
         await invoke("save_file", { base64Data, filename });
         showToast(`Successfully exported ${targetCases.length} case(s) to Excel.`);
       }
     } catch (err) {
-      alert("Failed to export: " + err);
+      showError(err, {
+        title: "Couldn't export the cases",
+        message: "The Excel export could not be created or saved.",
+        guidance: "Make sure the Downloads folder exists, has free space, and that a file with the same name is not open in Excel, then try again.",
+      });
+      // Keep the export dialog open so the selection can be retried.
+      throw err;
     }
   };
 

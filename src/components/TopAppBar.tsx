@@ -25,7 +25,10 @@ export default function TopAppBar({ title, isSidebarCollapsed = false }: TopAppB
             return;
           }
         }
-      } catch { }
+      } catch {
+        // Unreadable staged-import data is treated as "nothing pending"; Import Review
+        // reports and repairs the stored data when it is opened.
+      }
       setPendingCount(0);
     };
 
@@ -47,7 +50,12 @@ export default function TopAppBar({ title, isSidebarCollapsed = false }: TopAppB
         {showBackButton && (
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // Deep links (or a reload) have no in-app history to return to.
+              const historyIndex = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+              if (historyIndex > 0) navigate(-1);
+              else navigate("/catalog");
+            }}
             aria-label="Go back"
             className="text-secondary hover:text-primary transition-colors duration-500 cursor-pointer flex items-center justify-center p-1 -ml-1 rounded-lg hover:bg-surface-container"
           >

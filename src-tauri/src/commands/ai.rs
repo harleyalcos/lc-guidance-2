@@ -46,13 +46,12 @@ pub fn get_gemini_api_key(state: State<'_, DbState>) -> Result<String, String> {
     state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
 
-    let key: Option<String> = connection
-        .query_row(
-            "SELECT value FROM app_config WHERE key = 'gemini_api_key'",
-            [],
-            |row| row.get(0),
-        )
-        .ok();
+    let key: Option<String> = rusqlite::OptionalExtension::optional(connection.query_row(
+        "SELECT value FROM app_config WHERE key = 'gemini_api_key'",
+        [],
+        |row| row.get(0),
+    ))
+    .map_err(db_error)?;
 
     Ok(key.unwrap_or_default())
 }
@@ -370,13 +369,16 @@ pub fn save_ai_message(
     let now = chrono::Utc::now().to_rfc3339();
 
     // Check if session exists
+    if session_id.trim().is_empty() || message.id.trim().is_empty() {
+        return Err("The conversation could not be identified.".into());
+    }
     let exists: bool = connection
         .query_row(
             "SELECT COUNT(*) > 0 FROM ai_sessions WHERE id = ?1",
             params![session_id],
             |row| row.get(0),
         )
-        .unwrap_or(false);
+        .map_err(db_error)?;
 
     if !exists {
         let title = session_title.unwrap_or_else(|| "New Conversation".to_string());
@@ -427,17 +429,16 @@ pub fn save_ai_message(
 #[tauri::command]
 pub fn delete_ai_session(state: State<'_, DbState>, session_id: String) -> Result<(), String> {
     state.require_session()?;
-    let connection = state.connection.lock().map_err(db_error)?;
-    connection
-        .execute(
-            "DELETE FROM ai_messages WHERE session_id = ?1",
-            params![session_id],
-        )
+    let mut connection = state.connection.lock().map_err(db_error)?;
+    let tx = connection.transaction().map_err(db_error)?;
+    tx.execute(
+        "DELETE FROM ai_messages WHERE session_id = ?1",
+        params![session_id],
+    )
+    .map_err(db_error)?;
+    tx.execute("DELETE FROM ai_sessions WHERE id = ?1", params![session_id])
         .map_err(db_error)?;
-    connection
-        .execute("DELETE FROM ai_sessions WHERE id = ?1", params![session_id])
-        .map_err(db_error)?;
-    Ok(())
+    tx.commit().map_err(db_error)
 }
 
 #[tauri::command]
@@ -447,25 +448,29 @@ pub fn rename_ai_session(
     new_title: String,
 ) -> Result<(), String> {
     state.require_session()?;
+    let title: String = new_title.trim().chars().take(120).collect();
+    if title.is_empty() {
+        return Err("Enter a name for the conversation.".into());
+    }
     let connection = state.connection.lock().map_err(db_error)?;
-    connection
+    let updated = connection
         .execute(
             "UPDATE ai_sessions SET title = ?1 WHERE id = ?2",
-            params![new_title.trim(), session_id],
+            params![title, session_id],
         )
         .map_err(db_error)?;
+    if updated == 0 {
+        return Err("This conversation no longer exists.".into());
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub fn clear_all_ai_sessions(state: State<'_, DbState>) -> Result<(), String> {
     state.require_session()?;
-    let connection = state.connection.lock().map_err(db_error)?;
-    connection
-        .execute("DELETE FROM ai_messages", [])
-        .map_err(db_error)?;
-    connection
-        .execute("DELETE FROM ai_sessions", [])
-        .map_err(db_error)?;
-    Ok(())
+    let mut connection = state.connection.lock().map_err(db_error)?;
+    let tx = connection.transaction().map_err(db_error)?;
+    tx.execute("DELETE FROM ai_messages", []).map_err(db_error)?;
+    tx.execute("DELETE FROM ai_sessions", []).map_err(db_error)?;
+    tx.commit().map_err(db_error)
 }

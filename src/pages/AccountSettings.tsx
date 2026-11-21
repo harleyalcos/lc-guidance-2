@@ -6,6 +6,11 @@ import { save, open } from "@tauri-apps/plugin-dialog";
 import { useDarkMode } from "../hooks/useDarkMode";
 import Backup from "./Backup";
 import { useAppUpdate } from "../context/UpdateContext";
+import { showError, showFriendlyError, confirmDialog } from "../components/AppDialogs";
+import { clearCachedCaseData } from "../utils/appStorage";
+import { describeGeminiFailure, geminiEndpoint, geminiHttpError } from "../utils/gemini";
+
+const SMTP_GUIDANCE = "Check the Gmail address, use the 16-character Gmail App Password (not the normal Gmail password), confirm the computer is online, then try again.";
 
 const cleanPin = (value: string) => value.replace(/\D/g, "").slice(0, 6);
 const validatePin = (value: string) => /^\d{6}$/.test(value);
@@ -146,16 +151,20 @@ export default function AccountSettings() {
     setIsResetting(true);
     try {
       await invoke("reset_application_data", { pin: resetPin });
-      localStorage.removeItem("lc_pending_import_rows");
-      localStorage.removeItem("lc_pending_import_filename");
-      localStorage.removeItem("new_case_draft");
-      window.dispatchEvent(new Event("storage"));
-      window.dispatchEvent(new Event("cases:changed"));
-      window.dispatchEvent(new Event("pending:changed"));
+      clearCachedCaseData();
       handleCloseResetModal();
       showToast("success", "Case records and AI history cleared. A safety backup is retained; emails and PIN are preserved.");
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      if (/incorrect pin/i.test(message)) {
+        showToast("error", "Incorrect PIN. No data was deleted.");
+      } else {
+        showError(err, {
+          title: "Couldn't reset application data",
+          message: "The reset did not complete. Your records were not deleted.",
+          guidance: "Try again. If it keeps failing, create a manual backup first and contact school IT support.",
+        });
+      }
     } finally {
       setIsResetting(false);
     }
@@ -175,7 +184,7 @@ export default function AccountSettings() {
       const isValid = await invoke<boolean>("verify_pin", { pin: verificationPin });
       if (!isValid) {
         showToast("error", "Incorrect PIN.");
-        setVerificationBusy(false);
+        setVerificationPin("");
         return;
       }
 
@@ -187,7 +196,7 @@ export default function AccountSettings() {
         await executeImport();
       }
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, { title: "Couldn't verify your PIN", message: "Your PIN could not be checked." });
     } finally {
       setVerificationBusy(false);
     }
@@ -204,7 +213,11 @@ export default function AccountSettings() {
       await invoke("export_db_file", { destPath: targetPath });
       showToast("success", "Database exported successfully for migration.");
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, {
+        title: "Couldn't export the database",
+        message: "The database copy could not be written to the selected location.",
+        guidance: "Choose a different folder (for example Documents) and try again. Your current data is unchanged.",
+      });
     }
   };
 
@@ -216,16 +229,28 @@ export default function AccountSettings() {
       });
       if (!selectedPath) return;
 
-      const confirmImport = window.confirm("WARNING: Importing this database file will overwrite your current database. A safety backup of the current database will be kept for recovery. Do you want to proceed?");
+      const confirmImport = await confirmDialog({
+        title: "Replace the current database?",
+        message: "Importing this file will replace every case record and setting in the app with the contents of the selected database. A safety backup of the current database is created first so it can be restored from Settings → Backup.",
+        detail: "You will be signed out and must sign in with the PIN from the imported database.",
+        confirmLabel: "Import and Replace",
+        tone: "danger",
+        icon: "upload_file",
+      });
       if (!confirmImport) return;
 
       await invoke("import_db_file", { srcPath: selectedPath });
+      clearCachedCaseData();
       showToast("success", "Database imported successfully! The app will now reload.");
       window.setTimeout(() => {
         window.location.reload();
       }, 1500);
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, {
+        title: "Couldn't import the database",
+        message: "The selected file could not be imported. Your current data has not changed.",
+        guidance: "Choose a database file exported from this app (.db) or a backup snapshot, and make sure it is not damaged.",
+      });
     }
   };
 
@@ -252,16 +277,16 @@ export default function AccountSettings() {
         setRecoveryEmail(email);
         setRecoveryEmailBeforeEdit(email);
       })
-      .catch((err) => showToast("error", err instanceof Error ? err.message : String(err)));
+      .catch((err) => showError(err, { title: "Couldn't load the recovery email", message: "The saved recovery email could not be read." }));
 
     invoke<string>("get_gemini_api_key")
       .then((key) => {
-        setGeminiKey(key);
+        setGeminiKey(key || "");
         if (key) {
-          setGeminiStatus("connected"); // Default to connected if key exists, or you could auto-test
+          setGeminiStatus("connected"); // A saved key was verified when it was saved.
         }
       })
-      .catch(console.error);
+      .catch((err) => showError(err, { title: "Couldn't load the Gemini API key", message: "The saved Guidance AI key could not be read." }));
   }, []);
 
   const handleSaveGeminiKey = async (e: FormEvent) => {
@@ -275,8 +300,7 @@ export default function AccountSettings() {
         setGeminiStatus("not_configured");
         showToast("success", "Gemini API key cleared.");
       } catch (err) {
-        console.error("[Gemini Save Error]", err);
-        showToast("error", err instanceof Error ? err.message : String(err));
+        showError(err, { title: "Couldn't clear the API key", message: "The Gemini API key could not be removed." });
       } finally {
         setIsSavingGeminiKey(false);
       }
@@ -284,9 +308,8 @@ export default function AccountSettings() {
     }
 
     try {
-      console.log("[Gemini API] Verifying key with gemini-3.1-flash-lite...");
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${trimmedKey}`,
+        geminiEndpoint(trimmedKey, "generateContent"),
         {
           signal: AbortSignal.timeout(20_000),
           method: "POST",
@@ -298,20 +321,31 @@ export default function AccountSettings() {
       );
 
       if (!response.ok) {
-        const errText = await response.text();
-        console.error(`[Gemini API Error] gemini-3.1-flash-lite returned ${response.status}:`, errText);
-        setGeminiStatus("invalid");
-        showToast("error", `The API key could not be verified (${response.status}). Check the key and service quota, then retry.`);
+        const errText = await response.text().catch(() => "");
+        const failure = geminiHttpError(response.status, errText, "Couldn't verify the API key");
+        if (failure.isKeyProblem) setGeminiStatus("invalid");
+        showFriendlyError({
+          ...failure.friendly,
+          guidance: failure.isKeyProblem
+            ? "Copy the full key again from Google AI Studio (aistudio.google.com → API keys) and paste it here. The key was not saved."
+            : `${failure.friendly.guidance} The key was not saved.`,
+        });
+        setIsSavingGeminiKey(false);
         return;
       }
+    } catch (err) {
+      // Offline/timeouts say nothing about the key itself, so keep the current status.
+      showFriendlyError({ ...describeGeminiFailure(err, "Couldn't verify the API key"), guidance: "Check the internet connection and try again. The key was not saved." });
+      setIsSavingGeminiKey(false);
+      return;
+    }
 
+    try {
       await invoke("set_gemini_api_key", { apiKey: trimmedKey });
       setGeminiStatus("connected");
-      showToast("success", "Gemini 3.1 Flash Lite API key verified and saved successfully!");
+      showToast("success", "Gemini API key verified and saved successfully!");
     } catch (err) {
-      setGeminiStatus("invalid");
-      console.error("[Gemini API Save Exception]", err);
-      showToast("error", `Connection failed: ${err instanceof Error ? err.message : String(err)}`);
+      showError(err, { title: "Couldn't save the API key", message: "The key was verified but could not be saved to the database." });
     } finally {
       setIsSavingGeminiKey(false);
     }
@@ -321,9 +355,8 @@ export default function AccountSettings() {
     if (!geminiKey.trim()) return;
     setIsTestingGemini(true);
     try {
-      console.log("[Gemini API] Testing connection with gemini-3.1-flash-lite...");
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiKey.trim()}`,
+        geminiEndpoint(geminiKey, "generateContent"),
         {
           signal: AbortSignal.timeout(20_000),
           method: "POST",
@@ -335,19 +368,17 @@ export default function AccountSettings() {
       );
 
       if (!response.ok) {
-        const errText = await response.text();
-        console.error(`[Gemini API Error] gemini-3.1-flash-lite returned ${response.status}:`, errText);
-        setGeminiStatus("invalid");
-        showToast("error", `Connection failed (${response.status}). Check the API key and service quota, then retry.`);
+        const errText = await response.text().catch(() => "");
+        const failure = geminiHttpError(response.status, errText, "Gemini connection test failed");
+        if (failure.isKeyProblem) setGeminiStatus("invalid");
+        showFriendlyError(failure.friendly, { onRetry: () => { void handleTestGeminiConnection(); } });
         return;
       }
 
       setGeminiStatus("connected");
-      showToast("success", "Connection to Gemini 3.1 Flash Lite API successful!");
+      showToast("success", "Connection to Gemini API successful!");
     } catch (err) {
-      setGeminiStatus("invalid");
-      console.error("[Gemini Test Exception]", err);
-      showToast("error", "Failed to connect. Please check your API key.");
+      showFriendlyError(describeGeminiFailure(err, "Gemini connection test failed"), { onRetry: () => { void handleTestGeminiConnection(); } });
     } finally {
       setIsTestingGemini(false);
     }
@@ -373,7 +404,9 @@ export default function AccountSettings() {
       setIsPinEditing(false);
       showToast("success", "PIN changed successfully.");
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      if (/current pin is incorrect/i.test(message)) showToast("error", "Current PIN is incorrect.");
+      else showError(err, { title: "Couldn't change the PIN", message: "Your PIN was not changed." });
     } finally {
       setPinBusy(false);
     }
@@ -401,7 +434,7 @@ export default function AccountSettings() {
       setPinChangeOtp("");
       showToast("success", "Email verified. You can now change the PIN.");
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, { title: "Couldn't verify the code", message: "The verification code could not be checked.", guidance: "Request a new code and enter it within 10 minutes." });
     } finally {
       setPinChangeOtpVerifying(false);
     }
@@ -427,7 +460,7 @@ export default function AccountSettings() {
       sessionStorage.removeItem(RECOVERY_EMAIL_UNLOCK_KEY);
       showToast("success", "Recovery email settings updated.");
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, { title: "Couldn't update the recovery email", message: "The recovery email was not changed.", guidance: "Check the address. If your verification expired, verify a new code and try again." });
     } finally {
       setEmailBusy(false);
     }
@@ -448,10 +481,13 @@ export default function AccountSettings() {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes("Please wait")) {
+        // A code was sent less than a minute ago; let the user enter it.
         setRecoveryOtp("");
         setIsRecoveryOtpOpen(true);
+        showToast("error", "A code was sent recently. Enter it, or wait a minute before requesting another.");
+      } else {
+        showError(err, { title: "Couldn't send the verification code", message: "The verification email could not be sent.", guidance: SMTP_GUIDANCE });
       }
-      showToast("error", message);
     } finally {
       setRecoveryOtpSending(false);
     }
@@ -479,7 +515,7 @@ export default function AccountSettings() {
       setRecoveryOtp("");
       showToast("success", "Recovery email verified. Complete any changes before the code expires.");
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, { title: "Couldn't verify the code", message: "The verification code could not be checked.", guidance: "Request a new code and enter it within 10 minutes." });
     } finally {
       setRecoveryOtpVerifying(false);
     }
@@ -489,7 +525,7 @@ export default function AccountSettings() {
   const testRecoveryDelivery = async () => {
     setSmtpBusy(true); setSmtpReceived(false);
     try { await invoke("test_smtp", { smtpEmail: smtpSender.trim(), smtpPassword: smtpSecret.replace(/\s/g, ""), recoveryEmail: smtpRecipient.trim() }); setSmtpTested(smtpSignature); showToast("success", "Test sent. Check the recovery inbox before saving."); }
-    catch (error) { setSmtpTested(""); showToast("error", String(error)); }
+    catch (error) { setSmtpTested(""); showError(error, { title: "Couldn't send the test email", message: "The test email could not be sent with these settings.", guidance: SMTP_GUIDANCE }); }
     finally { setSmtpBusy(false); }
   };
   const saveRecoveryDelivery = async (event: FormEvent) => {
@@ -497,7 +533,11 @@ export default function AccountSettings() {
     if (smtpTested !== smtpSignature || !smtpReceived) { showToast("error", "Send a test and confirm receipt at the current recovery address first."); return; }
     setSmtpBusy(true);
     try { await invoke("update_smtp_config", { smtpEmail: smtpSender.trim(), smtpPassword: smtpSecret.replace(/\s/g, ""), recoveryEmail: smtpRecipient.trim(), pin: smtpPin }); setRecoveryEmail(smtpRecipient.trim()); setRecoveryEmailBeforeEdit(smtpRecipient.trim()); setSmtpPin(""); setSmtpSecret(""); setSmtpTested(""); setSmtpReceived(false); showToast("success", "Recovery email delivery settings saved."); }
-    catch (error) { showToast("error", String(error)); }
+    catch (error) {
+      const message = String(error);
+      if (/current pin|recovery-email code/i.test(message)) showToast("error", "Enter your current PIN to save these settings.");
+      else showError(error, { title: "Couldn't save email delivery settings", message: "The recovery email delivery settings were not saved.", guidance: SMTP_GUIDANCE });
+    }
     finally { setSmtpBusy(false); }
   };
   const inputClass = "w-full h-10 bg-surface dark:bg-surface-container border border-outline-variant rounded-lg px-3 py-0 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent";

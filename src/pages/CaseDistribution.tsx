@@ -1,5 +1,6 @@
+import { explainError } from "../utils/errors";
 import { caseDay } from "../utils/caseValues";
-import { useState, useEffect, useMemo } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
@@ -132,7 +133,9 @@ export default function CaseDistribution() {
     return () => window.removeEventListener("cases:changed", handleCasesChanged);
   }, [selectedSchoolYear, isYearsLoading, startDate, endDate]);
 
+  const loadRequestRef = useRef(0);
   const loadCases = async () => {
+    const requestId = ++loadRequestRef.current;
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -140,12 +143,13 @@ export default function CaseDistribution() {
       const result = await invoke<CaseRecord[]>("get_cases", {
         schoolYear: queryYear,
       });
-      setCases((result || []).filter((item) => !isComplainantSubjectCaseRecord(item)));
+      if (requestId !== loadRequestRef.current) return; // a newer filter selection is loading
+      setCases((Array.isArray(result) ? result : []).filter((item) => !isComplainantSubjectCaseRecord(item)));
     } catch (err) {
-      console.error("Failed to load cases:", err);
-      setLoadError(err instanceof Error ? err.message : String(err));
+      if (requestId !== loadRequestRef.current) return;
+      setLoadError(explainError(err, "The case records could not be read from the database."));
     } finally {
-      setIsLoading(false);
+      if (requestId === loadRequestRef.current) setIsLoading(false);
     }
   };
 
@@ -259,10 +263,15 @@ export default function CaseDistribution() {
   }, [categorizedCases, selectedCategory, selectedDomain, searchQuery]);
 
   const totalPages = Math.ceil(tableCases.length / pageSize) || 1;
+  // Narrowing the search/filters can shrink the table below the current page.
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
   const paginatedCases = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
+    const page = Math.min(currentPage, totalPages);
+    const start = (page - 1) * pageSize;
     return tableCases.slice(start, start + pageSize);
-  }, [tableCases, currentPage]);
+  }, [tableCases, currentPage, totalPages]);
 
   const topCategory = categoryStats[0];
 

@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
+import { showError } from "../components/AppDialogs";
+import { explainError } from "../utils/errors";
+import { clearCachedCaseData } from "../utils/appStorage";
 
 interface BackupRecord {
   date_time: string;
@@ -34,7 +37,9 @@ export default function Backup() {
   const [policyError, setPolicyError] = useState<string | null>(null);
   const [settingsBusy, setSettingsBusy] = useState(false);
   type Policy = { enabled: boolean; frequency: string; retention: number; lastError?: string | null };
+  const savedRetentionRef = useRef("7");
   const applyPolicy = (policy: Policy) => {
+    savedRetentionRef.current = String(policy.retention);
     setAutoBackup(policy.enabled); setFrequency(policy.frequency); setRetention(String(policy.retention)); setPolicyError(policy.lastError || null);
   };
 
@@ -43,11 +48,11 @@ export default function Backup() {
     try {
       setIsLoading(true);
       const [data, policy] = await Promise.all([invoke<BackupRecord[]>("get_backups"), invoke<Policy>("get_backup_policy")]);
-      setBackups(data);
+      setBackups(Array.isArray(data) ? data : []);
       applyPolicy(policy);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(explainError(err, "The backup list could not be read."));
     } finally {
       setIsLoading(false);
     }
@@ -58,13 +63,25 @@ export default function Backup() {
   }, [loadBackups]);
 
   const savePolicy = async (changes: Partial<Policy>) => {
+    if (changes.retention !== undefined) {
+      if (String(changes.retention) === savedRetentionRef.current) return;
+      if (!Number.isInteger(changes.retention) || changes.retention < 1 || changes.retention > 50) {
+        setRetention(savedRetentionRef.current);
+        showNotification("Keep between 1 and 50 automatic backups.", "error");
+        return;
+      }
+    }
     setSettingsBusy(true);
     try {
       await invoke("set_backup_policy", { policy: { enabled: autoBackup, frequency, retention: Number(retention), ...changes } });
       applyPolicy(await invoke<Policy>("get_backup_policy"));
       showNotification("Backup settings saved", "success");
       await loadBackups();
-    } catch (error) { showNotification(String(error), "error"); }
+    } catch (error) {
+      showError(error, { title: "Couldn't save backup settings", message: "The backup schedule was not changed." });
+      // Show what is actually stored instead of the unsaved edit.
+      try { applyPolicy(await invoke<Policy>("get_backup_policy")); } catch { setRetention(savedRetentionRef.current); }
+    }
     finally { setSettingsBusy(false); }
   };
   const handleToggleAuto = () => void savePolicy({ enabled: !autoBackup });
@@ -98,7 +115,12 @@ export default function Backup() {
       showNotification("Manual backup created successfully!", "success");
       loadBackups();
     } catch (err) {
-      showNotification(err instanceof Error ? err.message : String(err), "error");
+      showError(err, {
+        title: "Couldn't create the backup",
+        message: "The manual backup could not be written.",
+        guidance: "Make sure the computer has free disk space, then try again.",
+        onRetry: () => { void handleBackupNow(); },
+      });
     } finally {
       setIsBackingUp(false);
     }
@@ -119,17 +141,19 @@ export default function Backup() {
     setRestoringFilename(filename);
     try {
       await invoke("restore_backup", { filename });
-      showNotification("Database restored successfully!", "success");
-      localStorage.removeItem("lc_pending_import_rows");
-      localStorage.removeItem("lc_pending_import_filename");
-      localStorage.removeItem("new_case_draft");
-      
+      showNotification("Database restored successfully! The app will reload — sign in again.", "success");
+      clearCachedCaseData();
+
       // Reload window after short delay to fully refresh application state
       setTimeout(() => {
         window.location.reload();
       }, 1500);
     } catch (err) {
-      showNotification(err instanceof Error ? err.message : String(err), "error");
+      showError(err, {
+        title: "Couldn't restore the backup",
+        message: "The backup could not be restored. Your current data has not changed.",
+        guidance: "Try a different backup. If every restore fails, contact school IT support.",
+      });
     } finally {
       setRestoringFilename(null);
     }
@@ -152,7 +176,8 @@ export default function Backup() {
       showNotification("Backup deleted successfully!", "success");
       loadBackups();
     } catch (err) {
-      showNotification(err instanceof Error ? err.message : String(err), "error");
+      showError(err, { title: "Couldn't delete the backup", message: "The backup could not be deleted." });
+      loadBackups();
     } finally {
       setDeletingFilename(null);
     }
@@ -249,6 +274,10 @@ export default function Backup() {
                   <td colSpan={4} className="px-6 py-8 text-center text-[#ba1a1a]">
                     <span className="material-symbols-outlined text-3xl">error</span>
                     <p className="text-xs font-bold mt-1">Failed to load backups: {error}</p>
+                    <button type="button" onClick={() => void loadBackups()} className="btn-secondary mt-3 py-1.5 px-4 text-xs mx-auto">
+                      <span className="material-symbols-outlined text-sm" aria-hidden="true">refresh</span>
+                      <span>Try Again</span>
+                    </button>
                   </td>
                 </tr>
               ) : backups.length === 0 ? (

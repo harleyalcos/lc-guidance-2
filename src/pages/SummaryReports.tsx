@@ -1,3 +1,5 @@
+import { showError } from "../components/AppDialogs";
+import LoadErrorPanel from "../components/LoadErrorPanel";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import AcademicMonthRangePicker from "../components/AcademicMonthRangePicker";
@@ -26,7 +28,8 @@ const DEFAULT_SIGNATURE_CONFIG: SignatureConfig = {
 
 export default function SummaryReports() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const [loadingCases, setLoadingCases] = useState(true);
   const [scope, setScope] = useState<"all" | "specific">("all");
   const [selectedGrade, setSelectedGrade] = useState("Grade 7");
@@ -89,24 +92,29 @@ export default function SummaryReports() {
   useEffect(() => {
     if (isYearsLoading || selectedSchoolYear === null) return;
 
+    let active = true;
     const loadCases = async () => {
       try {
         const queryYear = selectedSchoolYear === "all" || (startDate && endDate) ? null : selectedSchoolYear;
         const loadedCases = await invoke<CaseRecord[]>("get_cases", {
           schoolYear: queryYear,
         });
-        setCases(loadedCases);
+        if (!active) return;
+        setCases(Array.isArray(loadedCases) ? loadedCases : []);
         setLoadError(null);
       } catch (err) {
-        setLoadError(String(err));
-      } finally { setLoadingCases(false); }
+        if (active) setLoadError(err ?? "Unknown error");
+      } finally { if (active) setLoadingCases(false); }
     };
     loadCases();
 
     const handleCasesChanged = () => loadCases();
     window.addEventListener("cases:changed", handleCasesChanged);
-    return () => window.removeEventListener("cases:changed", handleCasesChanged);
-  }, [selectedSchoolYear, isYearsLoading, startDate, endDate]);
+    return () => {
+      active = false;
+      window.removeEventListener("cases:changed", handleCasesChanged);
+    };
+  }, [selectedSchoolYear, isYearsLoading, startDate, endDate, reloadToken]);
 
   const reportConfig: ReportConfig = useMemo(
     () => ({
@@ -138,7 +146,12 @@ export default function SummaryReports() {
     try {
       await exportPdf();
     } catch (err) {
-      alert("Failed to export PDF: " + err);
+      showError(err, {
+        title: "Couldn't export the report",
+        message: "The report PDF could not be saved.",
+        guidance: "Make sure the Downloads folder exists and has free space, then try again.",
+        onRetry: () => { void handleExportPDF(); },
+      });
     } finally {
       setIsExporting(false);
     }
@@ -195,7 +208,7 @@ export default function SummaryReports() {
 
   const activeColumnsCount = Object.values(visibleColumns).filter(Boolean).length;
 
-  if (loadError) return <div role="alert" className="p-6 rounded-xl bg-error-container text-on-error-container"><h1 className="text-lg font-bold">Case records could not be loaded</h1><p className="my-3">{loadError}</p><button className="btn-primary" onClick={() => window.location.reload()}>Retry</button><p className="mt-3">No report should be issued until the records load successfully.</p></div>;
+  if (loadError) return <LoadErrorPanel title="Case records could not be loaded" error={loadError} onRetry={() => { setLoadError(null); setLoadingCases(true); setReloadToken((n) => n + 1); }} note="No report should be issued until the records load successfully." />;
   if (loadingCases) return <p role="status" className="p-6">Loading case records…</p>;
 
   return (
@@ -211,7 +224,7 @@ export default function SummaryReports() {
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
           <button
             onClick={handleExportPDF}
-            disabled={isExporting || state === "generating" || !pdfBlobUrl}
+            disabled={isExporting || state !== "ready" || !pdfBlobUrl}
             className="btn-secondary"
           >
             <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
@@ -219,7 +232,7 @@ export default function SummaryReports() {
           </button>
           <button
             onClick={handleExportPDF}
-            disabled={isExporting || state === "generating" || !pdfBlobUrl}
+            disabled={isExporting || state !== "ready" || !pdfBlobUrl}
             className="btn-primary"
           >
             <span className="material-symbols-outlined text-sm">print</span>

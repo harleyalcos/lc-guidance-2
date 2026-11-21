@@ -471,6 +471,15 @@ pub fn set_current_school_year(
     start_year: String,
 ) -> Result<String, String> {
     state.require_session()?;
+    let start_year = start_year.trim().to_string();
+    let valid_calendar = start_year.len() == 4 && start_year.chars().all(|c| c.is_ascii_digit());
+    let valid_school_year = start_year
+        .split_once('-')
+        .and_then(|(a, b)| Some((a.parse::<i32>().ok()?, b.parse::<i32>().ok()?)))
+        .is_some_and(|(a, b)| b == a + 1 && (1900..=9999).contains(&a));
+    if !valid_calendar && !valid_school_year {
+        return Err("Choose a valid school year, for example 2026-2027.".into());
+    }
     let connection = state.connection.lock().map_err(db_error)?;
     set_config(&connection, "current_school_year", &start_year)?;
     Ok(start_year)
@@ -808,8 +817,8 @@ pub fn save_file(
         .unwrap_or("document.pdf");
 
     let bytes = general_purpose::STANDARD
-        .decode(base64_data)
-        .map_err(|e| e.to_string())?;
+        .decode(base64_data.trim())
+        .map_err(|e| format!("The file contents were not valid and could not be saved ({e})."))?;
     let original = download_dir.join(safe_name);
     let mut file_path = original.clone();
     let mut number = 0;
@@ -870,12 +879,62 @@ pub fn export_db_file<R: tauri::Runtime>(
 ) -> Result<(), String> {
     state.require_session()?;
     let connection = state.connection.lock().map_err(db_error)?;
-    let destination = std::path::Path::new(&dest_path);
-    if destination.exists() {
-        return Err("Choose a new filename so an existing database is not overwritten.".into());
+    export_database_to(&connection, std::path::Path::new(&dest_path))
+}
+
+/// Copy the live database to `destination`. The copy is written to a temporary file
+/// beside the destination and renamed into place, so an existing file the user chose
+/// to replace (the native Save dialog already asked) is never left half-written.
+pub fn export_database_to(
+    connection: &rusqlite::Connection,
+    destination: &std::path::Path,
+) -> Result<(), String> {
+    if destination.as_os_str().is_empty() || destination.is_dir() {
+        return Err("Choose a file name for the exported database.".into());
     }
-    let mut target = rusqlite::Connection::open(destination).map_err(db_error)?;
-    crate::db::backup::copy_database(&connection, &mut target)
+    let parent = destination
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map(std::path::Path::to_path_buf)
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    if !parent.is_dir() {
+        return Err("The selected folder no longer exists. Choose another location.".into());
+    }
+    if let Some(live) = connection.path().filter(|p| !p.is_empty()) {
+        let same = std::fs::canonicalize(live)
+            .ok()
+            .zip(std::fs::canonicalize(destination).ok())
+            .is_some_and(|(a, b)| a == b);
+        if same {
+            return Err("Choose a different location: this is the app's live database file.".into());
+        }
+    }
+    let temp = parent.join(format!(".lc-export-{}.tmp", uuid::Uuid::new_v4()));
+    let result = (|| {
+        let mut target = rusqlite::Connection::open(&temp).map_err(|e| {
+            format!("The database could not be written to the selected folder: {e}")
+        })?;
+        crate::db::backup::copy_database(connection, &mut target)?;
+        let integrity: String = target
+            .query_row("PRAGMA integrity_check", [], |r| r.get(0))
+            .map_err(db_error)?;
+        if integrity != "ok" {
+            return Err("The exported copy failed its integrity check. Try again.".to_string());
+        }
+        target.close().map_err(|(_, e)| db_error(e))?;
+        if destination.exists() {
+            std::fs::remove_file(destination).map_err(|e| {
+                format!("The existing file could not be replaced. Close it in any other program or choose a new name. ({e})")
+            })?;
+        }
+        std::fs::rename(&temp, destination).map_err(|e| {
+            format!("The exported database could not be saved: {e}")
+        })
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    result
 }
 
 #[tauri::command]

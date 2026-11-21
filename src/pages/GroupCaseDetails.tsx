@@ -1,3 +1,5 @@
+import { explainError } from "../utils/errors";
+import { showError } from "../components/AppDialogs";
 import { applyCaseChanges, CaseChange, uniqueStudents, studentIdentity } from "../utils/caseChanges";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -165,6 +167,7 @@ export default function GroupCaseDetails() {
   const [groupCases, setGroupCases] = useState<CaseRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<"not-found" | "load">("load");
   const [showComplainant, setShowComplainant] = useState(false);
   const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
   const [isProofLightboxClosing, setIsProofLightboxClosing] = useState(false);
@@ -205,8 +208,10 @@ export default function GroupCaseDetails() {
       setIsLoading(true);
       const matched = await invoke<CaseRecord[]>("get_cases", { groupId });
 
-      if (matched.length === 0) {
-        setError("No records found for this group ID.");
+      if (!Array.isArray(matched) || matched.length === 0) {
+        setGroupCases([]);
+        setErrorKind("not-found");
+        setError("This group case no longer exists. It may have been deleted or replaced by a restore.");
       } else {
         setGroupCases(matched);
         setError(null);
@@ -259,7 +264,8 @@ export default function GroupCaseDetails() {
         }));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setErrorKind("load");
+      setError(explainError(err, "The group case could not be read from the database."));
     } finally {
       setIsLoading(false);
     }
@@ -473,7 +479,11 @@ export default function GroupCaseDetails() {
       window.dispatchEvent(new Event("cases:changed"));
       loadGroupCases();
     } catch (err) {
-      alert("Failed to save group case details: " + err);
+      showError(err, {
+        title: "Couldn't save the group case",
+        message: "Your changes were not saved. They are still in the form.",
+        guidance: "Review the fields and click Save again. If the group was changed elsewhere, cancel and reopen it.",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -585,7 +595,7 @@ export default function GroupCaseDetails() {
       window.dispatchEvent(new Event("cases:changed"));
       loadGroupCases();
     } catch (err) {
-      setAddStudentError("Failed to add student: " + err);
+      setAddStudentError(`Couldn't add the student. ${explainError(err, "The change could not be saved.")}`);
     } finally {
       setIsAddingStudent(false);
     }
@@ -642,7 +652,10 @@ export default function GroupCaseDetails() {
 
       const element = pdfRef.current;
       if (!element) {
-        if (isMounted) setIsExporting(false);
+        if (isMounted) {
+          setIsExporting(false);
+          showError("The printable group record was not ready.", { title: "Couldn't export the PDF", message: "The printable group record could not be prepared.", onRetry: () => setIsExporting(true) });
+        }
         return;
       }
 
@@ -669,7 +682,9 @@ export default function GroupCaseDetails() {
           await invoke("save_pdf", { base64Data, filename });
         }
       } catch (e) {
-        console.error("PDF generation failed:", e);
+        if (isMounted) {
+          showError(e, { title: "Couldn't export the PDF", message: "The group case PDF could not be created or saved.", guidance: "Make sure the Downloads folder exists and has free space, then try again.", onRetry: () => setIsExporting(true) });
+        }
       } finally {
         element.style.position = "absolute";
         element.style.left = "-9999px";
@@ -708,14 +723,23 @@ export default function GroupCaseDetails() {
     return (
       <div className="text-center mt-12 bg-surface border border-outline-variant p-8 rounded-xl max-w-md mx-auto shadow-sm">
         <span className="material-symbols-outlined text-error text-5xl mb-3">error</span>
-        <h3 className="text-lg font-bold text-on-surface mb-2">Group Case Not Found</h3>
+        <h3 className="text-lg font-bold text-on-surface mb-2">{error && errorKind === "load" ? "Couldn't Load This Group Case" : "Group Case Not Found"}</h3>
         <p className="text-sm text-secondary mb-6">{error || "The requested group case could not be retrieved."}</p>
-        <button
-          onClick={() => navigate("/catalog")}
-          className="btn-primary"
-        >
-          Return to Catalog
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {error && errorKind === "load" && (
+            <button type="button" onClick={() => void loadGroupCases()} className="btn-primary">
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">refresh</span>
+              <span>Try Again</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate("/catalog")}
+            className={error && errorKind === "load" ? "btn-secondary" : "btn-primary"}
+          >
+            Return to Catalog
+          </button>
+        </div>
       </div>
     );
   }
@@ -1654,7 +1678,7 @@ export default function GroupCaseDetails() {
       )}
 
       {isExporting && createPortal(
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm">
+        <div role="status" aria-live="polite" className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm">
           <div className="bg-surface border border-outline-variant p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-xs w-full text-center">
             <span className="material-symbols-outlined text-4xl animate-spin text-primary">sync</span>
             <div>

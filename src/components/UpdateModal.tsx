@@ -14,6 +14,7 @@ export default function UpdateModal() {
     downloadProgress,
     isDownloaded,
     errorMessage,
+    errorKind,
     checkForUpdates,
     downloadAndInstall,
     relaunchApp,
@@ -103,8 +104,8 @@ export default function UpdateModal() {
             <div className="p-4 rounded-xl bg-error-container/40 border border-error/30 text-on-error-container flex items-start gap-3">
               <span className="material-symbols-outlined text-error text-[20px] mt-0.5">error</span>
               <div className="text-xs">
-                <p className="font-bold">Update Check Failed</p>
-                <p className="mt-1 text-secondary">{errorMessage}</p>
+                <p className="font-bold">{errorKind === "install" ? "Update Download Failed" : errorKind === "relaunch" ? "Restart Failed" : "Update Check Failed"}</p>
+                <p className="mt-1 text-secondary whitespace-pre-line break-words">{errorMessage}</p>
               </div>
             </div>
           ) : updateInfo ? (
@@ -191,7 +192,7 @@ export default function UpdateModal() {
               </button>
               <button
                 type="button"
-                onClick={() => void checkForUpdates(true)}
+                onClick={() => void (errorKind === "install" && updateInfo ? downloadAndInstall() : errorKind === "relaunch" ? relaunchApp() : checkForUpdates(true))}
                 className="btn-primary"
               >
                 <span className="material-symbols-outlined text-[18px]">refresh</span>

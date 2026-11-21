@@ -1,3 +1,4 @@
+import { showError } from "./AppDialogs";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -20,6 +21,8 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [parseFileName, setParseFileName] = useState<string | undefined>(undefined);
+  const failedFileRef = useRef<string | undefined>(undefined);
   const [existingPendingCount, setExistingPendingCount] = useState<number>(0);
   const [existingPendingFilename, setExistingPendingFilename] = useState<string>("");
   const toastTimerRef = useRef<number | null>(null);
@@ -60,7 +63,9 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
             return;
           }
         }
-      } catch {}
+      } catch {
+        // Unreadable staged data is treated as "nothing pending"; starting a new import replaces it.
+      }
       setExistingPendingCount(0);
       setExistingPendingFilename("");
     }
@@ -94,7 +99,11 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
       await invoke<string>("generate_import_template");
       showToast("success", "Template saved to your Downloads folder!");
     } catch (e) {
-      showToast("error", `Failed to generate template: ${e}`);
+      showError(e, {
+        title: "Couldn't save the import template",
+        message: "The template could not be written to the Downloads folder.",
+        guidance: "If a previous template is open in Excel, close it and try again. Make sure the Downloads folder exists.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -113,10 +122,11 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
   if (!isVisible) return null;
 
   const handleSelectFile = async () => {
+    failedFileRef.current = undefined;
     try {
       const selected = await open({
         multiple: true,
-        filters: [{ name: "Excel", extensions: ["xlsx", "xls"] }]
+        filters: [{ name: "Excel or CSV", extensions: ["xlsx", "xls", "csv"] }]
       });
 
       if (!selected) return;
@@ -132,11 +142,14 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
       for (const filePath of filePaths) {
         const fname = filePath.replace(/^.*[\\\/]/, '');
         newFilenames.push(fname);
+        failedFileRef.current = filePaths.length > 1 ? fname : undefined;
         const result = await invoke<any>("parse_import_file", { filePath });
-        if (result && Array.isArray(result.rows)) {
-          allNewRows.push(...result.rows);
+        if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+          throw new Error("No case rows were found under the header row. Add at least one record and try again.");
         }
+        allNewRows.push(...result.rows);
       }
+      failedFileRef.current = undefined;
 
       // Starting an import from the catalog always starts fresh with the selected file(s)
       const combinedRows = await invoke<any[]>("validate_import_rows", { rows: allNewRows });
@@ -156,7 +169,8 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
         });
       });
     } catch (e) {
-      setParseError(String(e));
+      setParseFileName(failedFileRef.current);
+      setParseError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsLoading(false);
     }
@@ -169,6 +183,7 @@ export default function ImportExcelModal({ isOpen, onClose }: ImportExcelModalPr
           isOpen={!!parseError}
           onClose={() => setParseError(null)}
           rawError={parseError}
+          fileName={parseFileName}
           onSelectAnotherFile={handleSelectFile}
           onDownloadTemplate={handleDownloadTemplate}
         />
