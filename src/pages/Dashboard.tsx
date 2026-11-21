@@ -41,6 +41,9 @@ const parseStudents = (studentsStr: string): StudentInfo[] => {
 const GRADE_LEVEL_OPTIONS = ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"];
 
 import { smartCategorizeCase } from "../utils/caseCategorization";
+import { showError } from "../components/AppDialogs";
+import LoadErrorPanel from "../components/LoadErrorPanel";
+import { parseLocalDay } from "../utils/dates";
 
 const TYPE_COLORS = [
   "#7C96E8", // Blue
@@ -138,7 +141,8 @@ const isComplainantSubjectCaseRecord = (caseRecord: CaseRecord) => {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [cases, setCases] = useState<CaseRecord[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const [loadingCases, setLoadingCases] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const dashboardRef = useRef<HTMLDivElement>(null);
@@ -157,24 +161,30 @@ export default function Dashboard() {
   useEffect(() => {
     if (isYearsLoading || selectedSchoolYear === null) return;
     
+    // Ignore responses from superseded filter selections so stale data never wins a race.
+    let active = true;
     const loadCases = async () => {
       try {
         const queryYear = (selectedSchoolYear === 'all' || (dashStartDate && dashEndDate)) ? null : selectedSchoolYear;
         const loadedCases = await invoke<CaseRecord[]>("get_cases", { 
           schoolYear: queryYear
         });
-        setCases(loadedCases);
+        if (!active) return;
+        setCases(Array.isArray(loadedCases) ? loadedCases : []);
         setLoadError(null);
       } catch (err) {
-        setLoadError(String(err));
-      } finally { setLoadingCases(false); }
+        if (active) setLoadError(err ?? "Unknown error");
+      } finally { if (active) setLoadingCases(false); }
     };
     loadCases();
 
     const handleCasesChanged = () => loadCases();
     window.addEventListener("cases:changed", handleCasesChanged);
-    return () => window.removeEventListener("cases:changed", handleCasesChanged);
-  }, [selectedSchoolYear, isYearsLoading, dashStartDate, dashEndDate]);
+    return () => {
+      active = false;
+      window.removeEventListener("cases:changed", handleCasesChanged);
+    };
+  }, [selectedSchoolYear, isYearsLoading, dashStartDate, dashEndDate, reloadToken]);
 
   // Filter cases by the selected date range
   const filteredCases = useMemo(() => {
@@ -205,8 +215,8 @@ export default function Dashboard() {
 
   const caseVolumeChartConfig = useMemo(() => {
     // If empty, fallback to the current calendar year
-    const start = dashStartDate ? new Date(dashStartDate) : new Date(new Date().getFullYear(), 0, 1);
-    const end = dashEndDate ? new Date(dashEndDate) : new Date(new Date().getFullYear(), 11, 31);
+    const start = (dashStartDate && parseLocalDay(dashStartDate)) || new Date(new Date().getFullYear(), 0, 1);
+    const end = (dashEndDate && parseLocalDay(dashEndDate)) || new Date(new Date().getFullYear(), 11, 31);
     const startYear = start.getFullYear();
     const endYear = end.getFullYear();
 
@@ -459,7 +469,10 @@ export default function Dashboard() {
 
       const element = pdfRef.current;
       if (!element) {
-        if (isMounted) setIsExporting(false);
+        if (isMounted) {
+          setIsExporting(false);
+          showError("The printable overview was not ready.", { title: "Couldn't export the PDF", message: "The printable overview could not be prepared.", onRetry: () => setIsExporting(true) });
+        }
         return;
       }
 
@@ -513,7 +526,12 @@ export default function Dashboard() {
           await invoke("save_pdf", { base64Data, filename });
         }
       } catch (err) {
-        alert("Failed to export PDF: " + err);
+        showError(err, {
+          title: "Couldn't export the PDF",
+          message: "The overview PDF could not be created or saved.",
+          guidance: "Make sure the Downloads folder exists and has free space, then try again.",
+          onRetry: () => setIsExporting(true),
+        });
       } finally {
         if (isMounted) setIsExporting(false);
       }
@@ -797,7 +815,7 @@ export default function Dashboard() {
     );
   };
 
-  if (loadError) return <div role="alert" className="p-6 rounded-xl bg-error-container text-on-error-container"><h1 className="text-lg font-bold">Case records could not be loaded</h1><p className="my-3">{loadError}</p><button className="btn-primary" onClick={() => window.location.reload()}>Retry</button><p className="mt-3">No report should be issued until the records load successfully.</p></div>;
+  if (loadError) return <LoadErrorPanel title="Case records could not be loaded" error={loadError} onRetry={() => { setLoadError(null); setLoadingCases(true); setReloadToken((n) => n + 1); }} note="No report should be issued until the records load successfully." />;
   if (loadingCases) return <p role="status" className="p-6">Loading case records…</p>;
 
   return (
@@ -974,7 +992,7 @@ export default function Dashboard() {
       )}
 
       {isExporting && createPortal(
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm">
+        <div role="status" aria-live="polite" className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm">
           <div className="bg-surface border border-outline-variant p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-xs w-full text-center">
             <span className="material-symbols-outlined text-4xl animate-spin text-primary">sync</span>
             <div>

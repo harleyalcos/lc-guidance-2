@@ -4,6 +4,8 @@ import { HashRouter as Router, Routes, Route, useLocation, Navigate } from "reac
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import Layout from "./components/Layout";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { describeError } from "./utils/errors";
 import SummaryReports from "./pages/SummaryReports";
 import Dashboard from "./pages/Dashboard";
 import CaseCatalog from "./pages/CaseCatalog";
@@ -38,6 +40,7 @@ function AppRoutes() {
   return (
     <AcademicYearFilterProvider>
       <Layout title={getTitle()} pageKey={location.pathname}>
+        <ErrorBoundary variant="page" resetKey={location.pathname}>
         <Routes location={location}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/distribution" element={<CaseDistribution />} />
@@ -50,7 +53,10 @@ function AppRoutes() {
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/import-review" element={<ImportReview />} />
           <Route path="/ai" element={<GuidanceAI />} />
+          {/* Unknown or stale links (e.g. bookmarks from older versions) return to the dashboard. */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ErrorBoundary>
       </Layout>
     </AcademicYearFilterProvider>
   );
@@ -58,7 +64,8 @@ function AppRoutes() {
 
 function App() {
   useDialogAccessibility();
-  const [startupError, setStartupError] = useState<string | null>(null);
+  const [startupError, setStartupError] = useState<unknown>(null);
+  const [startupAttempt, setStartupAttempt] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
 
@@ -78,16 +85,50 @@ function App() {
         // Staged work is revalidated on resume rather than discarded on update.
         localStorage.setItem("lc_app_version", currentVersion);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Version tracking is informational only; the app works without it.
+      });
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    setStartupError(null);
     invoke("sign_out").then(() => invoke<boolean>("check_setup_complete"))
-      .then(setIsSetupComplete)
-      .catch((error) => setStartupError(String(error)));
-  }, []);
+      .then((complete) => { if (!cancelled) setIsSetupComplete(Boolean(complete)); })
+      .catch((error) => { if (!cancelled) setStartupError(error ?? "Unknown startup error"); });
+    return () => { cancelled = true; };
+  }, [startupAttempt]);
 
-  if (startupError) return <div role="alert" className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-background text-on-surface"><h1 className="text-xl font-bold">Unable to open the guidance database</h1><p>{startupError}</p><button className="btn-primary" onClick={() => window.location.reload()}>Retry</button><p>Keep your database and backups. Contact the school IT staff if retry does not help.</p></div>;
+  if (startupError) {
+    const friendly = describeError(startupError, {
+      title: "Unable to open the guidance database",
+      message: "The app could not read its database while starting up.",
+      guidance: "Click Retry. If it still fails, restart the computer. Keep your database and backup folders — do not delete them — and contact school IT support with the technical details below.",
+    });
+    return (
+      <div role="alert" className="min-h-screen flex items-center justify-center p-6 bg-background text-on-surface">
+        <div className="max-w-lg w-full bg-surface dark:bg-surface-container border border-outline-variant rounded-2xl p-8 shadow-xl flex flex-col gap-4 text-center items-center">
+          <div className="w-14 h-14 rounded-2xl bg-error/10 text-error flex items-center justify-center" aria-hidden="true">
+            <span className="material-symbols-outlined text-[32px]">database</span>
+          </div>
+          <h1 className="text-xl font-bold">{friendly.title}</h1>
+          <p className="text-sm leading-relaxed">{friendly.message}</p>
+          {friendly.reason && <p className="text-sm leading-relaxed">{friendly.reason}</p>}
+          <p className="text-sm text-secondary leading-relaxed">{friendly.guidance}</p>
+          {friendly.details && (
+            <details className="w-full text-left rounded-xl border border-outline-variant bg-surface-container-low">
+              <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-secondary">Technical details</summary>
+              <pre className="px-3 pb-3 text-[11px] font-mono text-error whitespace-pre-wrap break-all">{friendly.details}</pre>
+            </details>
+          )}
+          <button type="button" className="btn-primary" onClick={() => setStartupAttempt((n) => n + 1)}>
+            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">refresh</span>
+            <span>Retry</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
   if (isSetupComplete === null) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background text-on-surface">

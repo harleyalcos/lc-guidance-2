@@ -14,7 +14,7 @@ const blobToBase64 = (blob: Blob): Promise<string> => {
       const base64 = result ? result.split(",")[1] || "" : "";
       resolve(base64);
     };
-    reader.onerror = reject;
+    reader.onerror = () => reject(reader.error ?? new Error("The generated PDF could not be read."));
     reader.readAsDataURL(blob);
   });
 };
@@ -73,7 +73,6 @@ export const useReportGenerator = (
       } catch (err: unknown) {
         if (isCancelled) return;
         const msg = err instanceof Error ? err.message : String(err);
-        console.error("PDF generation error:", err);
         setError(msg);
         setState("error");
       }
@@ -101,8 +100,9 @@ export const useReportGenerator = (
   // Export the exact generated PDF blob using Tauri save_pdf
   const exportPdf = useCallback(
     async (customFilename?: string) => {
-      if (!pdfBlob) {
-        throw new Error("No generated PDF available to export.");
+      // Never export a stale blob while the preview is regenerating for new filters.
+      if (!pdfBlob || state !== "ready") {
+        throw new Error(state === "error" ? "The report preview failed to generate. Click Regenerate and try again." : "The report is still being prepared. Wait for the preview to finish, then export again.");
       }
 
       const defaultFilename = `Guidance_Report_${reportData.metadata.reportingPeriod.replace(/[\s\.,\/\-\\–]/g, "_").replace(/_+/g, "_")}.pdf`;
@@ -111,7 +111,7 @@ export const useReportGenerator = (
       const base64Data = await blobToBase64(pdfBlob);
       await invoke("save_pdf", { base64Data, filename });
     },
-    [pdfBlob, reportData.metadata.reportingPeriod]
+    [pdfBlob, state, reportData.metadata.reportingPeriod]
   );
 
   // Saving opens the exact PDF in the system viewer, where staff can use Ctrl+P.

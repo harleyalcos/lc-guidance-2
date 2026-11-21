@@ -95,6 +95,8 @@ FROM cases
             .map_err(|e| e.to_string())
     }
 
+    // Each column is a distinct duplicate-detection key; a struct would only rename them.
+    #[allow(clippy::too_many_arguments)]
     pub fn find_exact_duplicate(
         connection: &rusqlite::Connection,
         first_name: &str,
@@ -317,11 +319,9 @@ WHERE id = ?20
             let rows = stmt
                 .query_map([], |row| row.get::<_, String>(0))
                 .map_err(|e| format!("Query execution failed: {}", e))?;
-            for row in rows {
-                if let Ok(month) = row {
-                    if !month.is_empty() && month != "null" {
-                        months.push(month);
-                    }
+            for month in rows.flatten() {
+                if !month.is_empty() && month != "null" {
+                    months.push(month);
                 }
             }
         } else {
@@ -331,15 +331,16 @@ WHERE id = ?20
             let rows = stmt
                 .query_map(params![school_year], |row| row.get::<_, String>(0))
                 .map_err(|e| format!("Query execution failed: {}", e))?;
-            for row in rows {
-                if let Ok(month) = row {
-                    if !month.is_empty() && month != "null" {
-                        months.push(month);
-                    }
+            for month in rows.flatten() {
+                if !month.is_empty() && month != "null" {
+                    months.push(month);
                 }
             }
         }
 
+        // DISTINCT + ORDER BY a non-selected column does not guarantee month order.
+        months.sort();
+        months.dedup();
         Ok(months)
     }
 
@@ -369,8 +370,12 @@ WHERE id = ?20
             } else {
                 format!("{}-{}", year - 1, year)
             }
-        } else if target_date.len() >= 4 && target_date[0..4].chars().all(|c| c.is_ascii_digit()) {
-            let year: i32 = target_date[0..4].parse().unwrap_or(2026);
+        } else if let Some(year) = target_date
+            .get(0..4)
+            .filter(|prefix| prefix.chars().all(|c| c.is_ascii_digit()))
+            .and_then(|prefix| prefix.parse::<i32>().ok())
+        {
+            // `get` avoids panicking when the 4th byte falls inside a multi-byte character.
             format!("{}-{}", year, year + 1)
         } else {
             chrono::Utc::now().format("%Y").to_string()

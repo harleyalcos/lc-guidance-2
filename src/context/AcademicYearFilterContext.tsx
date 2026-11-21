@@ -30,6 +30,16 @@ export const AcademicYearFilterProvider: React.FC<{ children: React.ReactNode }>
     return sessionStorage.getItem("filter_end_date") || "";
   });
 
+  // A remembered year can disappear after a restore, reset or deletion; fall back to all years
+  // instead of leaving every screen filtered to an empty, unselectable year.
+  useEffect(() => {
+    if (isYearsLoading || allYears.length === 0) return;
+    if (selectedSchoolYear && selectedSchoolYear !== "all" && !allYears.includes(selectedSchoolYear)) {
+      setSelectedSchoolYearState("all");
+      sessionStorage.setItem("selected_school_year", "all");
+    }
+  }, [allYears, isYearsLoading, selectedSchoolYear]);
+
   useEffect(() => {
     if (!selectedSchoolYear) {
       setSelectedSchoolYearState("all");

@@ -15,6 +15,34 @@ fn mailer(smtp_email: &str, smtp_password: &str) -> Result<SmtpTransport, String
         })
 }
 
+/// Explain an SMTP failure in terms the counselor can act on.
+fn describe_smtp_error(error: &lettre::transport::smtp::Error, action: &str) -> String {
+    let detail = error.to_string();
+    let lower = detail.to_lowercase();
+    if lower.contains("535")
+        || lower.contains("534")
+        || lower.contains("authentication")
+        || lower.contains("username and password not accepted")
+        || lower.contains("badcredentials")
+    {
+        format!("Could not {action}: Gmail rejected the sign-in. Check the Gmail address and use a 16-character Gmail App Password (2-Step Verification must be on).")
+    } else if error.is_timeout()
+        || lower.contains("timed out")
+        || lower.contains("connection")
+        || lower.contains("dns")
+        || lower.contains("resolve")
+        || lower.contains("network")
+    {
+        format!("Could not {action}: the Gmail server could not be reached. Check the internet connection (or school firewall) and try again.")
+    } else if error.is_transient() {
+        format!("Could not {action}: Gmail is temporarily unavailable. Wait a few minutes and try again.")
+    } else if lower.contains("550") || lower.contains("553") || lower.contains("recipient") {
+        format!("Could not {action}: the recipient address was rejected. Check the recovery email address.")
+    } else {
+        format!("Could not {action}. Check the Gmail address and App Password. ({detail})")
+    }
+}
+
 fn parse_mailbox(email: &str, label: &str) -> Result<Mailbox, String> {
     email
         .parse::<Mailbox>()
@@ -35,9 +63,7 @@ pub fn send_test_email(
 
     mailer(smtp_email, smtp_password)?
         .send(&email)
-        .map_err(|_| {
-            "Could not send test email. Check the Gmail address and App Password.".to_string()
-        })?;
+        .map_err(|error| describe_smtp_error(&error, "send the test email"))?;
 
     Ok(())
 }
@@ -74,9 +100,7 @@ pub fn send_otp_email(
 
     mailer(smtp_email, smtp_password)?
         .send(&email)
-        .map_err(|_| {
-            "Could not send reset email. Check the recovery email settings.".to_string()
-        })?;
+        .map_err(|error| describe_smtp_error(&error, "send the verification email"))?;
 
     Ok(())
 }

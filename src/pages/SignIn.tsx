@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import lcLogo from "../assets/lc-logo.png";
+import { showError } from "../components/AppDialogs";
 
 interface SignInProps {
   isSetupComplete: boolean;
@@ -82,9 +83,14 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
         onSignIn();
       } else {
         showToast("error", "Incorrect PIN. Try again.");
+        setPin("");
       }
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, {
+        title: "Couldn't sign in",
+        message: "Your PIN could not be checked.",
+        guidance: "Wait a moment and try again. If the problem continues, restart the app.",
+      });
     } finally {
       setIsBusy(false);
     }
@@ -124,7 +130,16 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
       onSetupComplete();
       showToast("success", "Setup complete. Sign in with your new PIN.");
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      const sendingTest = configureEmail && !testEmailSent;
+      showError(err, sendingTest ? {
+        title: "Couldn't send the test email",
+        message: "The test email could not be sent with these Gmail settings.",
+        guidance: "Check the Gmail address, use a 16-character Gmail App Password (not the normal Gmail password), confirm the computer is online, then try again. You can also finish setup without email recovery.",
+      } : {
+        title: "Couldn't finish setup",
+        message: "Your PIN and settings could not be saved.",
+        guidance: "Try again. If it keeps failing, restart the app.",
+      });
     } finally {
       setIsBusy(false);
     }
@@ -138,7 +153,11 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
       setResetStep("verify");
       showToast("success", "A reset code was sent to the recovery email.");
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, {
+        title: "Couldn't send the reset code",
+        message: "The reset code email could not be sent.",
+        guidance: "Check the internet connection and try again in a minute. If email recovery was never set up, contact the school IT administrator.",
+      });
     } finally {
       setIsBusy(false);
     }
@@ -162,7 +181,11 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
         showToast("error", "Incorrect reset code.");
       }
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, {
+        title: "Couldn't verify the code",
+        message: "The reset code could not be verified.",
+        guidance: "Request a new code and enter it within 10 minutes.",
+      });
     } finally {
       setIsBusy(false);
     }
@@ -191,7 +214,11 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
       setConfirmNewPin("");
       showToast("success", "PIN reset complete. Sign in with the new PIN.");
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : String(err));
+      showError(err, {
+        title: "Couldn't reset the PIN",
+        message: "The new PIN could not be saved.",
+        guidance: "If the verification expired, go back and request a new reset code.",
+      });
     } finally {
       setIsBusy(false);
     }
@@ -388,6 +415,7 @@ export default function SignIn({ isSetupComplete, onSetupComplete, onSignIn }: S
                     <span className="material-symbols-outlined text-[18px]">lock</span>
                     <span>{isBusy ? "Saving..." : "Save New PIN"}</span>
                   </button>
+                  <button type="button" disabled={isBusy} onClick={() => { setOtp(""); setNewPin(""); setConfirmNewPin(""); setResetStep("request"); }} className="btn-secondary w-full">Start over</button>
                 </form>
               )}
             </div>

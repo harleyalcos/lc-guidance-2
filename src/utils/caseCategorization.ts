@@ -228,25 +228,27 @@ export async function batchCategorizeRowsWithAi(
   rows: ImportRow[],
   apiKey?: string,
   onProgress?: (progressPercent: number) => void
-): Promise<{ updatedRows: ImportRow[]; modifiedCount: number }> {
+): Promise<{ updatedRows: ImportRow[]; modifiedCount: number; aiFallbackCount: number }> {
   if (!rows || rows.length === 0) {
-    return { updatedRows: [], modifiedCount: 0 };
+    return { updatedRows: [], modifiedCount: 0, aiFallbackCount: 0 };
   }
 
   let modifiedCount = 0;
+  /** Rows classified offline because the Gemini request failed (reported to the user). */
+  let aiFallbackCount = 0;
 
   // If no Gemini key is available, use high-accuracy offline heuristic categorization
   if (!apiKey || !apiKey.trim()) {
     const updatedRows = rows.map((row, idx) => {
       const newCategory = smartCategorizeCase(row.case, row.description);
+      if (onProgress) onProgress(Math.round(((idx + 1) / rows.length) * 100));
       if (newCategory && newCategory !== row.case) {
         modifiedCount++;
         return { ...row, case: newCategory };
       }
-      if (onProgress) onProgress(Math.round(((idx + 1) / rows.length) * 100));
       return row;
     });
-    return { updatedRows, modifiedCount };
+    return { updatedRows, modifiedCount, aiFallbackCount };
   }
 
   // With API key, process in chunks of 10 rows
@@ -306,6 +308,7 @@ Example format:
         });
       } else {
         // Fallback for this chunk
+        aiFallbackCount += chunk.length;
         chunk.forEach((row, chunkIdx) => {
           const globalIdx = i + chunkIdx;
           const fallback = smartCategorizeCase(row.case, row.description);
@@ -316,7 +319,8 @@ Example format:
         });
       }
     } catch {
-      // Chunk exception fallback
+      // Chunk exception fallback (offline/timeout); counted so the user is told.
+      aiFallbackCount += chunk.length;
       chunk.forEach((row, chunkIdx) => {
         const globalIdx = i + chunkIdx;
         const fallback = smartCategorizeCase(row.case, row.description);
@@ -332,7 +336,7 @@ Example format:
     }
   }
 
-  return { updatedRows, modifiedCount };
+  return { updatedRows, modifiedCount, aiFallbackCount };
 }
 
 export interface DomainInfo {

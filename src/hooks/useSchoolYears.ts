@@ -1,41 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { showError } from '../components/AppDialogs';
 
 export function useSchoolYears() {
   const [currentYear, setCurrentYear] = useState<string | null>(null);
   const [allYears, setAllYears] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchYears = async () => {
+  const fetchYears = useCallback(async () => {
     setIsLoading(true);
     try {
-      const current = await invoke<string | null>('get_current_school_year');
+      const [current, all] = await Promise.all([
+        invoke<string | null>('get_current_school_year'),
+        invoke<string[]>('get_all_school_years'),
+      ]);
       setCurrentYear(current);
-      const all = await invoke<string[]>('get_all_school_years');
-      setAllYears(all);
+      setAllYears(Array.isArray(all) ? all : []);
     } catch (error) {
-      console.error('Failed to fetch school years:', error);
+      showError(error, {
+        title: "Couldn't load school years",
+        message: 'The list of school years could not be read from the database. Filters will show all years until this is fixed.',
+        onRetry: () => { void fetchYears(); },
+      });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchYears();
   }, []);
 
+  useEffect(() => {
+    void fetchYears();
+    // New or imported cases can introduce a new school year; restores/resets can remove one.
+    const refresh = () => { void fetchYears(); };
+    window.addEventListener('cases:changed', refresh);
+    return () => window.removeEventListener('cases:changed', refresh);
+  }, [fetchYears]);
+
   const setYear = async (startYear: string) => {
-    try {
-      const formatted = await invoke<string>('set_current_school_year', { startYear });
-      setCurrentYear(formatted);
-      if (!allYears.includes(formatted)) {
-        setAllYears(prev => [formatted, ...prev].sort((a, b) => b.localeCompare(a)));
-      }
-      return formatted;
-    } catch (error) {
-      console.error('Failed to set school year:', error);
-      throw error;
-    }
+    const formatted = await invoke<string>('set_current_school_year', { startYear });
+    setCurrentYear(formatted);
+    setAllYears(prev => prev.includes(formatted) ? prev : [formatted, ...prev].sort((a, b) => b.localeCompare(a)));
+    return formatted;
   };
 
   return { currentYear, allYears, isLoading, setYear, refreshYears: fetchYears };

@@ -17,7 +17,7 @@ export function useDialogAccessibility() {
       }
     };
     const inerted = new Map<HTMLElement, boolean>();
-    const dialogs = () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).filter(d => !!d.getClientRects().length);
+    const dialogs = () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]')).filter(d => !!d.getClientRects().length);
     const reconcile = () => {
       // Connect visual labels to the actual nested input control.
       document.querySelectorAll<HTMLLabelElement>('label:not([for])').forEach(label => {
@@ -60,7 +60,9 @@ export function useDialogAccessibility() {
         current = current.parentElement;
       }
       if (isNew) {
-        const first = Array.from(top.querySelectorAll<HTMLElement>(focusableSelector)).find(visible);
+        // A dialog may mark its safest control (e.g. "Keep editing") as the initial focus.
+        const preferred = Array.from(top.querySelectorAll<HTMLElement>('[data-autofocus]')).find(visible);
+        const first = preferred || Array.from(top.querySelectorAll<HTMLElement>(focusableSelector)).find(visible);
         (first || top).focus();
       }
     };
@@ -75,7 +77,8 @@ export function useDialogAccessibility() {
         else if (event.shiftKey && (document.activeElement === first || !top.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && (document.activeElement === last || !top.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
       } else if (event.key === 'Escape') {
-        const close = Array.from(top.querySelectorAll<HTMLButtonElement>('button:not([disabled])')).find(button => {
+        const explicit = top.querySelector<HTMLButtonElement>('button[data-dialog-cancel]:not([disabled])');
+        const close = explicit || Array.from(top.querySelectorAll<HTMLButtonElement>('button:not([disabled])')).find(button => {
           const copy = button.cloneNode(true) as HTMLButtonElement;
           copy.querySelectorAll('.material-symbols-outlined').forEach(icon => icon.remove());
           const label = button.getAttribute('aria-label') || copy.textContent?.trim() || '';

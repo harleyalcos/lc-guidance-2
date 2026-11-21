@@ -2,6 +2,23 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback 
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
+import { errorText } from "../utils/errors";
+
+export type UpdateErrorKind = "check" | "install" | "relaunch";
+
+function updaterMessage(err: unknown, kind: UpdateErrorKind): string {
+  const raw = errorText(err);
+  if (kind === "check" && (raw.includes("404") || raw.toLowerCase().includes("not found"))) {
+    return "No update information was found on the update server. Try again later.";
+  }
+  const fallback = {
+    check: "Could not reach the update server. Check the internet connection and try again.",
+    install: "The update could not be downloaded or installed. Your current version is still installed and working.",
+    relaunch: "The update was installed, but the app could not restart itself. Close and reopen the app to finish updating.",
+  }[kind];
+  const reason = errorText(err).trim();
+  return reason ? `${fallback}\n\nReason: ${reason}` : fallback;
+}
 
 interface UpdateContextType {
   currentVersion: string;
@@ -15,6 +32,7 @@ interface UpdateContextType {
   isBannerDismissed: boolean;
   lastChecked: Date | null;
   errorMessage: string | null;
+  errorKind: UpdateErrorKind | null;
   setIsModalOpen: (open: boolean) => void;
   dismissBanner: () => void;
   checkForUpdates: (manual?: boolean) => Promise<void>;
@@ -35,10 +53,12 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<UpdateErrorKind | null>(null);
 
   useEffect(() => {
     getVersion()
       .then(setCurrentVersion)
+      // The version label is informational; the default stays if it cannot be read.
       .catch((err) => console.warn("[Updater] Failed to get app version:", err));
   }, []);
 
@@ -46,6 +66,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     try {
       setIsChecking(true);
       setErrorMessage(null);
+      setErrorKind(null);
       const update = await check();
       setLastChecked(new Date());
 
@@ -62,19 +83,12 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (err) {
+      // The automatic startup check stays quiet (offline computers are common);
+      // a manual check always reports the failure in the update dialog.
       console.warn("[Updater] Check error:", err);
       if (manual) {
-        let msg = "Could not reach update server. Check internet connection.";
-        if (err instanceof Error && err.message) {
-          msg = err.message;
-        } else if (typeof err === "string" && err.trim().length > 0) {
-          msg = err;
-        }
-
-        if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
-          msg = "No update manifest found on the update server (HTTP 404).";
-        }
-        setErrorMessage(msg);
+        setErrorKind("check");
+        setErrorMessage(updaterMessage(err, "check"));
         setIsModalOpen(true);
       }
     } finally {
@@ -92,6 +106,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     setIsDownloading(true);
     setDownloadProgress(0);
     setErrorMessage(null);
+    setErrorKind(null);
 
     let downloaded = 0;
     let contentLength = 0;
@@ -113,17 +128,22 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       setIsDownloading(false);
       setIsDownloaded(true);
     } catch (err) {
-      console.error("[Updater] Install failed:", err);
       setIsDownloading(false);
-      setErrorMessage(err instanceof Error ? err.message : "Failed to download update.");
+      setErrorKind("install");
+      setErrorMessage(updaterMessage(err, "install"));
+      setIsModalOpen(true);
     }
   };
 
   const relaunchApp = async () => {
     try {
+      setErrorMessage(null);
+      setErrorKind(null);
       await relaunch();
     } catch (err) {
-      console.error("[Updater] Relaunch failed:", err);
+      setErrorKind("relaunch");
+      setErrorMessage(updaterMessage(err, "relaunch"));
+      setIsModalOpen(true);
     }
   };
 
@@ -145,6 +165,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
         isBannerDismissed,
         lastChecked,
         errorMessage,
+        errorKind,
         setIsModalOpen,
         dismissBanner,
         checkForUpdates,

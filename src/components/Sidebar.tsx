@@ -3,6 +3,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import lcLogo from "../assets/lc-logo.png";
+import { showError } from "./AppDialogs";
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -176,7 +177,17 @@ export default function Sidebar({ isCollapsed, onCollapsedChange }: SidebarProps
               <button
                 type="button"
                 onClick={async () => {
-                  try { await invoke("sign_out"); } catch (error) { window.alert(`Unable to sign out: ${error}`); return; }
+                  try {
+                    await invoke("sign_out");
+                  } catch (error) {
+                    closeSignOutConfirm();
+                    showError(error, {
+                      title: "Couldn't sign out",
+                      message: "The app could not end your session.",
+                      guidance: "Try signing out again. If it keeps failing, close the app completely — your session ends when the app closes.",
+                    });
+                    return;
+                  }
                   sessionStorage.clear();
                   window.location.reload();
                 }}

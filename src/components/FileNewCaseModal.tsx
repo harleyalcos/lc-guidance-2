@@ -1,3 +1,5 @@
+import { showError } from "./AppDialogs";
+import { explainError } from "../utils/errors";
 import { applyCaseChanges, CaseChange } from "../utils/caseChanges";
 import { useState, useEffect, Fragment, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -406,7 +408,13 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           });
           const cat = getCategoryForCase(parsed.case);
           if (cat) setExpandedCategory(cat.id);
-        } catch {}
+        } catch {
+          // An unreadable draft (e.g. from an older version) is discarded so the form opens cleanly.
+          localStorage.removeItem("new_case_draft");
+          setFormData(emptyFormData());
+          setExpandedCategory("behavioural");
+          showToast("The saved draft could not be read and was discarded.");
+        }
       } else {
         setFormData(emptyFormData());
         setExpandedCategory("behavioural");
@@ -676,7 +684,12 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
       onClose();
       resetForm();
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      setSubmitError(explainError(err, "The case was not saved."));
+      showError(err, {
+        title: "Couldn't file the case",
+        message: "The case was not saved. Everything you entered is still in the form.",
+        guidance: "Review the fields and click File Case again. If it keeps failing, save a draft and restart the app.",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -1661,7 +1674,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
           <div className={`fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-6 ${
             isConfirmCloseClosing ? "unsaved-confirm-backdrop-exit" : "unsaved-confirm-backdrop-enter"
           }`}>
-            <div className={`bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
+            <div role="dialog" aria-modal="true" tabIndex={-1} className={`bg-surface border border-outline-variant max-w-sm w-full rounded-2xl p-6 shadow-2xl flex flex-col gap-4 text-center ${
               isConfirmCloseClosing ? "unsaved-confirm-panel-exit" : "unsaved-confirm-panel-enter"
             }`}>
               <span className="material-symbols-outlined text-5xl mx-auto" style={{ color: "#d97706" }}>warning</span>
@@ -1675,7 +1688,18 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 <button
                   type="button"
                   onClick={() => {
-                    localStorage.setItem("new_case_draft", JSON.stringify(formData));
+                    try {
+                      localStorage.setItem("new_case_draft", JSON.stringify(formData));
+                    } catch (draftError) {
+                      // Large image attachments can exceed browser storage; keep the text at least.
+                      try {
+                        localStorage.setItem("new_case_draft", JSON.stringify({ ...formData, uploadedProofs: [] }));
+                        showError(draftError, { title: "Draft saved without attachments", message: "The attached images were too large to keep in the draft, so only the text was saved.", guidance: "Attach the images again when you reopen the draft." });
+                      } catch (fallbackError) {
+                        showError(fallbackError, { title: "Couldn't save the draft", message: "The draft could not be saved on this computer.", guidance: "Keep the form open and file the case now, or copy the details somewhere safe." });
+                        return;
+                      }
+                    }
                     closeConfirmClose(onClose);
                   }}
                   className="btn-primary w-full"
@@ -1697,6 +1721,7 @@ export default function FileNewCaseModal({ isOpen, onClose, onCaseFiled }: FileN
                 <button
                   type="button"
                   onClick={() => closeConfirmClose()}
+                  data-autofocus
                   className="btn-secondary w-full"
                 >
                   <span className="material-symbols-outlined text-sm">edit</span>

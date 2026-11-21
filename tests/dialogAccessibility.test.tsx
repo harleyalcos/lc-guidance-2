@@ -61,4 +61,16 @@ describe('dialog keyboard workflow', () => {
     await act(async () => { root.render(<Demo />); await flush(); });
     expect(host.querySelector('label')!.htmlFor).toBe('description');
   });
+  it('starts on the control a dialog marks as its safe default', async () => {
+    function Guard() {
+      useDialogAccessibility();
+      return createPortal(<div role="dialog" aria-modal="true" tabIndex={-1}>
+        <h3>Discard changes?</h3>
+        <button id="discard">Discard changes</button>
+        <button id="keep" data-autofocus>Keep editing</button>
+      </div>, document.body);
+    }
+    await act(async () => { root.render(<Guard />); await flush(); });
+    expect(document.activeElement?.id).toBe('keep');
+  });
 });

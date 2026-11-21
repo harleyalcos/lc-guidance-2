@@ -322,8 +322,8 @@ export default function ExportExcelModal({
         columns,
       });
       handleClose();
-    } catch (e) {
-      // Handled by caller
+    } catch {
+      // The caller already showed the error dialog; keep this dialog open so the user can retry.
     } finally {
       setIsExporting(false);
     }

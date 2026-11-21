@@ -7,11 +7,18 @@ pub struct StudentInfo {
     pub participant_id: Option<String>,
     pub first_name: String,
     pub last_name: String,
+    // Optional details default to empty so older drafts/records missing a key still save.
+    #[serde(default)]
     pub middle_initial: String,
+    #[serde(default)]
     pub level: String,
+    #[serde(default)]
     pub section: String,
+    #[serde(default)]
     pub adviser: String,
+    #[serde(default)]
     pub role: Option<String>,
+    #[serde(default)]
     pub sanction: Option<String>,
 }
 
@@ -22,14 +29,25 @@ pub struct CasePayload {
     pub date: String,
     pub date_filed: String,
     pub r#case: String,
+    #[serde(default)]
     pub description: String,
+    #[serde(default)]
     pub sanction: String,
     pub progress: String,
+    #[serde(default = "empty_json_array")]
     pub proofs: String,
+    #[serde(default)]
     pub title: String,
+    #[serde(default)]
     pub reporting_student: Option<String>,
+    #[serde(default)]
     pub group_id: Option<String>,
+    #[serde(default)]
     pub school_year: Option<String>,
+}
+
+fn empty_json_array() -> String {
+    "[]".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,7 +208,7 @@ impl ImportRow {
             self.middle_initial = String::new();
         } else if trimmed_full.contains(',') {
             let parts: Vec<&str> = trimmed_full.splitn(2, ',').collect();
-            let last = parts.get(0).copied().unwrap_or("").trim();
+            let last = parts.first().copied().unwrap_or("").trim();
             let rest = parts.get(1).copied().unwrap_or("").trim();
 
             let rest_tokens: Vec<&str> = rest.split_whitespace().collect();
@@ -380,7 +398,7 @@ impl ImportRow {
             if !month_num.is_empty() {
                 let rest = s.replace(found_variant, "");
                 let parts: Vec<&str> = rest
-                    .split(|c: char| c == ',' || c == ' ' || c == '/')
+                    .split([',', ' ', '/'])
                     .filter(|p| !p.is_empty())
                     .collect();
                 if parts.len() == 2 {
@@ -489,10 +507,8 @@ impl ImportRow {
         }
 
         let validate_json = |val: &str, field: &str, errors: &mut Vec<String>| {
-            if !val.trim().is_empty() {
-                if serde_json::from_str::<serde_json::Value>(val).is_err() {
-                    errors.push(format!("{} must be valid JSON", field));
-                }
+            if !val.trim().is_empty() && serde_json::from_str::<serde_json::Value>(val).is_err() {
+                errors.push(format!("{} must be valid JSON", field));
             }
         };
 
@@ -580,12 +596,11 @@ impl CasePayload {
         {
             return Err("At least one respondent is required.".into());
         }
-        if payload.students[0].role.as_deref() != Some("Respondent") {
-            let index = payload
-                .students
-                .iter()
-                .position(|s| s.role.as_deref() == Some("Respondent"))
-                .unwrap();
+        if let Some(index) = payload
+            .students
+            .iter()
+            .position(|s| s.role.as_deref() == Some("Respondent"))
+        {
             payload.students.swap(0, index);
         }
         // The case sanction is authoritative for its primary respondent.

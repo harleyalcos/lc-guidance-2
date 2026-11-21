@@ -9,11 +9,13 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { AppDialogHost } from "./components/AppDialogs";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />
+      <AppDialogHost />
     </ErrorBoundary>
   </React.StrictMode>,
 );

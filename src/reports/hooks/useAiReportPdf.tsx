@@ -26,7 +26,6 @@ export function useAiReportPdf(reportData: AiReportData | null) {
       currentBlobUrlRef.current = url;
       setPdfBlobUrl(url);
     } catch (err) {
-      console.error("[useAiReportPdf] Failed to compile PDF:", err);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsGenerating(false);
@@ -68,7 +67,7 @@ export function useAiReportPdf(reportData: AiReportData | null) {
           const base64 = result.split(",")[1];
           resolve(base64);
         };
-        reader.onerror = reject;
+        reader.onerror = () => reject(reader.error ?? new Error("The generated PDF could not be read."));
       });
       reader.readAsDataURL(blob);
       const base64Data = await base64Promise;

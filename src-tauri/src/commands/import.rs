@@ -60,33 +60,97 @@ fn cell_to_date_string(cell: Option<&calamine::Data>) -> String {
     }
 }
 
+const MAX_IMPORT_ROWS: usize = 5000;
+
+/// Read the first worksheet of an Excel workbook, or a CSV file, into owned cells.
+/// Returns the rows and the 0-based spreadsheet row where the data range starts.
+pub fn load_import_sheet(file_path: &str) -> Result<(Vec<Vec<calamine::Data>>, usize), String> {
+    let path = std::path::Path::new(file_path);
+    if !path.is_file() {
+        return Err("The selected file could not be found. It may have been moved or deleted.".into());
+    }
+    let extension = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+
+    match extension.as_str() {
+        "csv" => {
+            let bytes = std::fs::read(path)
+                .map_err(|e| format!("The CSV file could not be read: {e}"))?;
+            // Excel adds a UTF-8 byte-order mark when saving "CSV UTF-8".
+            let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF][..]).unwrap_or(&bytes);
+            let mut reader = csv::ReaderBuilder::new()
+                .has_headers(false)
+                .flexible(true)
+                .from_reader(bytes);
+            let mut rows = Vec::new();
+            for (index, record) in reader.records().enumerate() {
+                let record = record.map_err(|e| {
+                    format!("Invalid or corrupted file. Row {} of the CSV could not be read: {e}", index + 1)
+                })?;
+                rows.push(
+                    record
+                        .iter()
+                        .map(|cell| calamine::Data::String(cell.to_string()))
+                        .collect(),
+                );
+            }
+            Ok((rows, 0))
+        }
+        "xlsx" | "xlsm" | "xlsb" | "xls" | "ods" => {
+            let mut workbook = open_workbook_auto(path).map_err(|e| {
+                format!("Invalid or corrupted file. Please ensure it is a valid Excel spreadsheet (.xlsx). Details: {e}")
+            })?;
+            let sheet_name = workbook
+                .sheet_names()
+                .first()
+                .ok_or("The uploaded file does not contain any sheets.")?
+                .to_string();
+            let range = workbook
+                .worksheet_range(&sheet_name)
+                .map_err(|e| format!("Could not read data from the sheet. Details: {e}"))?;
+            let start_row = range.start().map(|position| position.0 as usize).unwrap_or(0);
+            Ok((range.rows().map(|row| row.to_vec()).collect(), start_row))
+        }
+        other => Err(format!(
+            "Unsupported file type{}. Choose an Excel workbook (.xlsx, .xls) or a CSV file (.csv).",
+            if other.is_empty() { String::new() } else { format!(" (.{other})") }
+        )),
+    }
+}
+
 #[tauri::command]
 pub async fn parse_import_file(
     state: State<'_, DbState>,
     file_path: String,
 ) -> Result<ParseFileResult, String> {
     state.require_session()?;
+    let (rows, start_row) = load_import_sheet(&file_path)?;
     let connection = state.connection.lock().map_err(db_error)?;
+    parse_import_rows(&connection, rows, start_row)
+}
 
-    let mut workbook = open_workbook_auto(&file_path)
-        .map_err(|e| format!("Invalid or corrupted file. Please ensure it is a valid Excel spreadsheet (.xlsx). Details: {}", e))?;
-
-    let sheet_name = workbook
-        .sheet_names()
-        .first()
-        .ok_or("The uploaded file does not contain any sheets.")?
-        .to_string();
-    let range = workbook
-        .worksheet_range(&sheet_name)
-        .map_err(|e| format!("Could not read data from the sheet. Details: {:?}", e))?;
-
-    let total_rows = range.get_size().0;
-    if total_rows > 5001 {
-        return Err(format!("File is too large ({} rows). The maximum allowed limit is 5,000 rows. Please split your file.", total_rows - 1));
+/// Turn spreadsheet rows into validated import rows (header detection, grouping,
+/// duplicate detection). Separated from file I/O so it can be tested directly.
+pub fn parse_import_rows(
+    connection: &rusqlite::Connection,
+    all_rows: Vec<Vec<calamine::Data>>,
+    start_row: usize,
+) -> Result<ParseFileResult, String> {
+    let non_empty_rows = all_rows
+        .iter()
+        .filter(|row| row.iter().any(|cell| !cell.to_string().trim().is_empty()))
+        .count();
+    if non_empty_rows == 0 {
+        return Err("The file is empty. Download the import template and copy your records into it.".into());
+    }
+    if non_empty_rows > MAX_IMPORT_ROWS + 1 {
+        return Err(format!("File is too large ({} rows). The maximum allowed limit is 5,000 rows. Please split your file.", non_empty_rows - 1));
     }
 
     // Locate and map named headers, including the branded row-8 app export.
-    let all_rows: Vec<_> = range.rows().collect();
     let canonical = |value: &str| -> String {
         match value.trim().to_lowercase().as_str() {
             "grade level" | "year level" => "grade".into(),
@@ -115,10 +179,6 @@ pub async fn parse_import_file(
     let Some((header_index, positions)) = found else {
         return Err(format!("No supported header row found in the first 25 rows. Required columns: {}. Download the import template and copy your records into it.", DB_IMPORT_HEADERS.join(", ")));
     };
-    let start_row = range
-        .start()
-        .map(|position| position.0 as usize)
-        .unwrap_or(0);
     let rows_iter = all_rows.into_iter().enumerate().skip(header_index + 1);
 
     #[derive(Debug, Clone)]
@@ -251,14 +311,15 @@ pub async fn parse_import_file(
     // Adjacent matching dates/types and blank cells alone cannot identify an incident.
     let mut groups: Vec<Vec<RawRowData>> = Vec::new();
     for row in raw_records {
-        if row.explicit_group.is_some()
-            && groups
-                .last()
-                .is_some_and(|g| g[0].explicit_group == row.explicit_group)
-        {
-            groups.last_mut().unwrap().push(row);
-        } else {
-            groups.push(vec![row]);
+        match groups.last_mut() {
+            Some(group)
+                if row.explicit_group.is_some()
+                    && group.first().map(|first| &first.explicit_group)
+                        == Some(&row.explicit_group) =>
+            {
+                group.push(row)
+            }
+            _ => groups.push(vec![row]),
         }
     }
 
@@ -442,7 +503,7 @@ pub async fn parse_import_file(
                 school_year: None,
             };
 
-            import_row.validate(&connection);
+            import_row.validate(connection);
 
             if has_date_conflict {
                 import_row.has_errors = true;
@@ -507,6 +568,10 @@ pub async fn parse_import_file(
         }
     }
 
+    if result_rows.is_empty() {
+        return Err("No case rows were found under the header row. Add at least one record and try again.".into());
+    }
+
     Ok(ParseFileResult {
         rows: result_rows,
         valid_count,
@@ -535,25 +600,39 @@ pub async fn batch_import_cases(
     let mut failed_count = 0;
     let mut errors = Vec::new();
 
+    if rows.is_empty() {
+        return Err("There are no rows ready to import.".into());
+    }
+
     for (i, row) in rows.iter_mut().enumerate() {
         row.validate(&tx);
+        let label = match row.source_row {
+            Some(source) => format!("Spreadsheet row {source}"),
+            None => format!("Row {}", i + 1),
+        };
+        let who = row.full_name.trim();
+        let label = if who.is_empty() { label } else { format!("{label} ({who})") };
 
         if row.has_errors || row.is_duplicate {
             failed_count += 1;
-            errors.push(format!(
-                "Row {}: {}",
-                i + 1,
-                if row.is_duplicate {
-                    "Duplicate detected. Review the import again; no records were saved."
-                } else {
-                    "Validation failed"
-                }
-            ));
+            errors.push(if row.is_duplicate {
+                format!("{label}: matches a case that is already saved.")
+            } else {
+                format!("{label}: {}", row.errors.join("; "))
+            });
             continue;
         }
 
+        let students = match serde_json::from_str(&row.students) {
+            Ok(students) => students,
+            Err(_) => {
+                failed_count += 1;
+                errors.push(format!("{label}: student details could not be read."));
+                continue;
+            }
+        };
         let payload = CasePayload {
-            students: serde_json::from_str(&row.students).unwrap_or_default(),
+            students,
             date: row.date.clone(),
             date_filed: if row.date_filed.is_empty() {
                 row.date.clone()
@@ -575,7 +654,7 @@ pub async fn batch_import_cases(
             Ok(_) => inserted_count += 1,
             Err(e) => {
                 failed_count += 1;
-                errors.push(format!("Row {}: DB Error - {}", i + 1, e));
+                errors.push(format!("{label}: could not be saved ({e})."));
             }
         }
     }
@@ -633,7 +712,9 @@ pub fn generate_import_template(
     let download_dir = app.path().download_dir().map_err(|e| e.to_string())?;
     let file_path = download_dir.join("guidance_import_template.xlsx");
 
-    workbook.save(&file_path).map_err(|e| e.to_string())?;
+    workbook.save(&file_path).map_err(|e| {
+        format!("The template could not be saved to {}. If a previous template is open in Excel, close it and try again. ({e})", file_path.display())
+    })?;
 
     let path_str = file_path.to_string_lossy().to_string();
     let _ = app.opener().open_path(&path_str, None::<&str>);
@@ -688,5 +769,5 @@ fn import_row_key(row: &ImportRow) -> String {
         ]
         .map(|value| value.trim().to_lowercase()),
     )
-    .unwrap()
+    .unwrap_or_default()
 }
